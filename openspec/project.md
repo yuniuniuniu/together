@@ -7,7 +7,7 @@ Sanctuary is a private, encrypted space for couples to share memories, track ann
 - **Framework**: React 19 with TypeScript
 - **Build Tool**: Vite 6
 - **Routing**: React Router DOM 7 (HashRouter for client-side routing)
-- **Styling**: Tailwind CSS (utility-first classes)
+- **Styling**: Tailwind CSS v4 (CSS-based configuration with `@theme` in `index.css`)
 - **Target**: ES2022, modern browsers
 - **Module System**: ESNext modules
 
@@ -21,14 +21,64 @@ Sanctuary is a private, encrypted space for couples to share memories, track ann
 - Tailwind utility classes for styling (no CSS modules)
 
 ### Architecture Patterns
-- **File Structure**: Flat structure with `pages/` for route components, `components/` for reusable UI
-- **Routing**: HashRouter with route definitions in `App.tsx`
-- **Mobile-First**: All pages wrapped in `MobileWrapper` (max-width 430px)
-- **Component Props**: Use TypeScript interfaces extending HTML element attributes
-- **State Management**: Local component state (no global state library)
+
+#### Directory Structure (Feature-Based)
+```
+├── features/                    # Domain-specific modules
+│   ├── auth/                    # Authentication module
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── types.ts
+│   │   └── index.ts
+│   ├── memory/                  # Memory/journal module
+│   │   ├── components/          # VoiceRecorder, LocationPicker, StickerPicker
+│   │   ├── hooks/               # useMemories
+│   │   ├── types.ts
+│   │   └── index.ts
+│   ├── milestone/               # Milestone tracking module
+│   ├── space/                   # Couple space management
+│   └── settings/
+├── shared/                      # Cross-cutting concerns
+│   ├── components/              # Reusable UI components
+│   │   ├── layout/              # MobileWrapper, Header, BottomNav, PageLayout
+│   │   ├── form/                # Button, Input
+│   │   ├── feedback/            # BottomSheet, Modal
+│   │   └── display/             # Avatar, Card
+│   ├── context/                 # React Contexts (AuthContext, SpaceContext)
+│   ├── hooks/                   # Shared hooks (useApi, useLocalStorage)
+│   └── types/                   # Shared TypeScript types
+├── pages/                       # Route entry points
+├── components/                  # Legacy components (being migrated)
+├── App.tsx                      # Root component with providers and routing
+└── index.tsx                    # Entry point
+```
+
+#### State Management
+- **React Context** for global state: `AuthContext`, `SpaceContext`
+- **Custom Hooks** wrap context access: `useAuth()`, `useSpace()`
+- Local component state for UI-specific state
+
+#### Component Patterns
+- **Compound Components** for complex layouts (e.g., `PageLayout.Header`, `PageLayout.Content`)
+- **Props interfaces** extend HTML element attributes where appropriate
+- Preserve exact existing UI when refactoring (no visual changes)
+
+#### Data Fetching
+- Custom hooks with `useApi` for consistent loading/error states
+- Feature-specific hooks: `useMemories()`, `useMilestones()`
+
+### Routing
+- HashRouter with route definitions in `App.tsx`
+- All pages wrapped in `MobileWrapper` (max-width 430px)
+
+### Styling
+- Tailwind CSS v4 with `@theme` configuration in `index.css`
+- Custom colors, shadows, fonts, and animations defined in theme
+- Custom CSS classes for complex effects (`.bottom-sheet`, `.glass-panel`, etc.)
 
 ### Testing Strategy
-No automated testing currently in place.
+- **Backend**: Vitest test suite with 47 tests covering all API endpoints
+- **Frontend**: No automated testing currently in place
 
 ### Git Workflow
 - Feature branch workflow with pull requests
@@ -51,8 +101,59 @@ Key user flows:
 - Dark mode support required
 - Privacy-focused (encrypted data mentioned in description)
 - Uses Google Material Symbols for icons
+- **UI/UX must not change during refactoring** - preserve all visual and interaction details
+
+## Backend Architecture
+
+### Tech Stack
+- **Runtime**: Node.js with TypeScript
+- **Framework**: Express.js
+- **Database**: SQLite with sql.js (pure JavaScript implementation)
+- **Authentication**: JWT tokens
+- **Testing**: Vitest with supertest
+
+### Backend Directory Structure
+```
+├── server/
+│   ├── src/
+│   │   ├── index.ts            # Entry point
+│   │   ├── app.ts              # Express configuration
+│   │   ├── db/                 # Database layer (schema, connection)
+│   │   ├── routes/             # API route handlers
+│   │   ├── services/           # Business logic
+│   │   ├── middleware/         # Express middleware (auth, validation, errors)
+│   │   └── types/              # TypeScript types
+│   └── tests/                  # Vitest test files
+```
+
+### API Conventions
+- All endpoints prefixed with `/api`
+- Response format: `{ success: boolean, data?: T, message?: string }`
+- Authentication via `Authorization: Bearer <token>` header
+- Pagination: `?page=1&pageSize=20`
+
+### API Endpoints
+- **Auth**: `/api/auth/send-code`, `/api/auth/verify`, `/api/auth/me`, `/api/auth/profile`
+- **Spaces**: `/api/spaces`, `/api/spaces/my`, `/api/spaces/join`, `/api/spaces/:id`
+- **Memories**: `/api/memories` (CRUD with pagination)
+- **Milestones**: `/api/milestones` (CRUD)
+- **Notifications**: `/api/notifications`, `/api/notifications/:id/read`
+
+### Development
+- Backend runs on port 3001
+- Frontend connects via `VITE_API_URL` environment variable
+- Database file stored at `server/data/sanctuary.db`
 
 ## External Dependencies
+- **Local Backend**: Express.js API server (port 3001) with SQLite
 - **Gemini API**: Google's AI API (requires `GEMINI_API_KEY`)
-- **Custom Backend**: Backend API for user data, authentication, and storage
 - **Google Images CDN**: External image hosting (lh3.googleusercontent.com)
+
+## Key Files
+- `index.css` - Tailwind theme configuration and custom styles
+- `App.tsx` - Root component with context providers and routing
+- `shared/types/index.ts` - Core business types (User, Space, Memory, Milestone)
+- `shared/context/` - Global state management
+- `shared/api/client.ts` - API client for backend communication
+- `server/src/app.ts` - Express application setup
+- `server/src/db/schema.sql` - Database schema definition

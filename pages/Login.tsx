@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../components/Button';
+import { Button } from '../shared/components/form/Button';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
