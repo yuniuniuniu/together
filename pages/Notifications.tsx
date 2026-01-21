@@ -1,10 +1,103 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNotifications } from '../shared/context/NotificationContext';
+import { useToast } from '../shared/components/feedback/Toast';
+
+interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  actionUrl?: string;
+}
 
 const Notifications: React.FC = () => {
   const navigate = useNavigate();
-  // Toggle this to see populated vs empty state
-  const notifications: any[] = []; 
+  const { showToast } = useToast();
+  const { notifications, unreadCount, isLoading, error, markAsRead, markAllAsRead } = useNotifications();
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await markAsRead(id);
+    } catch {
+      showToast('Failed to mark as read', 'error');
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (unreadCount === 0) return;
+    setIsMarkingAllRead(true);
+    try {
+      await markAllAsRead();
+      showToast('All notifications marked as read', 'success');
+    } catch {
+      showToast('Failed to mark all as read', 'error');
+    } finally {
+      setIsMarkingAllRead(false);
+    }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.read) {
+      handleMarkAsRead(notification.id);
+    }
+    if (notification.actionUrl) {
+      navigate(notification.actionUrl);
+    }
+  };
+
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'nudge': return 'waving_hand';
+      case 'memory': return 'photo_library';
+      case 'milestone': return 'celebration';
+      case 'reaction': return 'favorite';
+      case 'profile': return 'person';
+      case 'reminder': return 'event';
+      default: return 'notifications';
+    }
+  };
+
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'nudge': return 'text-amber-500 bg-amber-100';
+      case 'memory': return 'text-blue-500 bg-blue-100';
+      case 'milestone': return 'text-purple-500 bg-purple-100';
+      case 'reaction': return 'text-pink-500 bg-pink-100';
+      case 'profile': return 'text-teal-500 bg-teal-100';
+      case 'reminder': return 'text-orange-500 bg-orange-100';
+      default: return 'text-gray-500 bg-gray-100';
+    }
+  };
+
+  const todayNotifications = notifications.filter((n: Notification) => {
+    const date = new Date(n.createdAt);
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  });
+  const earlierNotifications = notifications.filter((n: Notification) => {
+    const date = new Date(n.createdAt);
+    const today = new Date();
+    return date.toDateString() !== today.toDateString();
+  }); 
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#1b100e] dark:text-[#fcf9f8] min-h-screen">
@@ -24,45 +117,106 @@ const Notifications: React.FC = () => {
             Notifications
           </h2>
           <div className="flex size-10 items-center justify-end -mr-2">
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                disabled={isMarkingAllRead}
+                className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+              >
+                {isMarkingAllRead ? '...' : 'Read All'}
+              </button>
+            )}
           </div>
         </div>
 
-        {notifications.length > 0 ? (
-          <div className="px-6">
-            {/* Populated State */}
-            {/* Today Section */}
-            <div className="flex items-center justify-between pt-4 pb-4">
-              <h3 className="text-[#1b100e] dark:text-white text-2xl font-bold leading-tight tracking-tight font-serif italic">Today</h3>
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1b100e] bg-dusty-rose/30 dark:bg-dusty-rose/20 px-3 py-1.5 rounded-full">
-                <svg className="w-2.5 h-2.5 fill-orange-primary" viewBox="0 0 24 24"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"></path></svg>
-                3 New
-              </span>
+        {isLoading ? (
+          <div className="flex-1 flex flex-col items-center justify-center px-8 pb-24">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-dusty-rose"></div>
+            <p className="text-stone-500 text-sm mt-4">Loading notifications...</p>
+          </div>
+        ) : error ? (
+          <div className="flex-1 flex flex-col items-center justify-center px-8 pb-24">
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">
+              {error}
             </div>
-
-            {/* Content List ... (Simplified for this view since we focus on empty state) */}
-             <div className="mb-4">
-                <div className="relative flex items-center gap-4 rounded-[2rem] bg-white dark:bg-[#36312d] p-5 warm-shadow border border-stone-100 dark:border-stone-800 transition-transform active:scale-[0.98]">
-                  <div className="size-12 rounded-full bg-apricot/20 flex items-center justify-center shrink-0">
-                    <svg className="w-6 h-6 text-[#d97706] hand-drawn" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path>
-                      <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path>
-                      <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path>
-                      <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path>
-                    </svg>
-                  </div>
-                  <div className="flex flex-col gap-1 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-apricot dark:text-amber-200">Nudge</span>
-                      <span className="text-[10px] text-stone-400 font-medium">2m ago</span>
-                    </div>
-                    <p className="text-[#1b100e] dark:text-white text-base font-medium font-serif leading-snug">TA just nudged you</p>
-                    <p className="text-stone-500 dark:text-stone-400 text-sm leading-normal font-light">Thinking of you right now!</p>
-                  </div>
-                  <div className="absolute top-5 right-5">
-                    <div className="w-2 h-2 rounded-full bg-orange-primary"></div>
-                  </div>
+          </div>
+        ) : notifications.length > 0 ? (
+          <div className="px-6">
+            {/* Today Section */}
+            {todayNotifications.length > 0 && (
+              <>
+                <div className="flex items-center justify-between pt-4 pb-4">
+                  <h3 className="text-[#1b100e] dark:text-white text-2xl font-bold leading-tight tracking-tight font-serif italic">Today</h3>
+                  {unreadCount > 0 && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1b100e] bg-dusty-rose/30 dark:bg-dusty-rose/20 px-3 py-1.5 rounded-full">
+                      <svg className="w-2.5 h-2.5 fill-orange-primary" viewBox="0 0 24 24"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"></path></svg>
+                      {unreadCount} New
+                    </span>
+                  )}
                 </div>
-              </div>
+
+                {todayNotifications.map((notification) => (
+                  <div key={notification.id} className="mb-4">
+                    <div
+                      className="relative flex items-center gap-4 rounded-[2rem] bg-white dark:bg-[#36312d] p-5 warm-shadow border border-stone-100 dark:border-stone-800 transition-transform active:scale-[0.98] cursor-pointer"
+                      onClick={() => handleNotificationClick(notification)}
+                    >
+                      <div className={`size-12 rounded-full flex items-center justify-center shrink-0 ${getNotificationColor(notification.type)}`}>
+                        <span className="material-symbols-outlined text-2xl">{getNotificationIcon(notification.type)}</span>
+                      </div>
+                      <div className="flex flex-col gap-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-apricot dark:text-amber-200">{notification.type}</span>
+                          <span className="text-[10px] text-stone-400 font-medium">{formatTimeAgo(notification.createdAt)}</span>
+                        </div>
+                        <p className="text-[#1b100e] dark:text-white text-base font-medium font-serif leading-snug">{notification.title}</p>
+                        <p className="text-stone-500 dark:text-stone-400 text-sm leading-normal font-light">{notification.message}</p>
+                      </div>
+                      {!notification.read && (
+                        <div className="absolute top-5 right-5">
+                          <div className="w-2 h-2 rounded-full bg-orange-primary"></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Earlier Section */}
+            {earlierNotifications.length > 0 && (
+              <>
+                <div className="flex items-center justify-between pt-4 pb-4">
+                  <h3 className="text-[#1b100e] dark:text-white text-xl font-bold leading-tight tracking-tight font-serif italic">Earlier</h3>
+                </div>
+
+                {earlierNotifications.map((notification) => (
+                  <div key={notification.id} className="mb-4">
+                    <div
+                      className={`relative flex items-center gap-4 rounded-[2rem] bg-white dark:bg-[#36312d] p-5 warm-shadow border border-stone-100 dark:border-stone-800 transition-transform active:scale-[0.98] cursor-pointer ${notification.read ? 'opacity-70' : ''}`}
+                      onClick={() => handleNotificationClick(notification)}
+                    >
+                      <div className={`size-12 rounded-full flex items-center justify-center shrink-0 ${getNotificationColor(notification.type)}`}>
+                        <span className="material-symbols-outlined text-2xl">{getNotificationIcon(notification.type)}</span>
+                      </div>
+                      <div className="flex flex-col gap-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-apricot dark:text-amber-200">{notification.type}</span>
+                          <span className="text-[10px] text-stone-400 font-medium">{formatTimeAgo(notification.createdAt)}</span>
+                        </div>
+                        <p className="text-[#1b100e] dark:text-white text-base font-medium font-serif leading-snug">{notification.title}</p>
+                        <p className="text-stone-500 dark:text-stone-400 text-sm leading-normal font-light">{notification.message}</p>
+                      </div>
+                      {!notification.read && (
+                        <div className="absolute top-5 right-5">
+                          <div className="w-2 h-2 rounded-full bg-orange-primary"></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center px-8 pb-24">

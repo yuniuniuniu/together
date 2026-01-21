@@ -1,21 +1,9 @@
 import { v4 as uuid } from 'uuid';
-import { dbPrepare } from '../db/index.js';
+import { getDatabase, SpaceData, UserData, UnbindRequestData } from '../db/database.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { createNotification } from './notificationService.js';
 
-interface Space {
-  id: string;
-  created_at: string;
-  anniversary_date: string;
-  invite_code: string;
-}
-
-interface SpaceMember {
-  space_id: string;
-  user_id: string;
-  pet_name: string | null;
-  partner_pet_name: string | null;
-  joined_at: string;
-}
+const COOLING_OFF_DAYS = 7;
 
 interface User {
   id: string;
@@ -41,7 +29,16 @@ function generateInviteCode(): string {
   return code;
 }
 
-function formatSpace(space: Space, partners: User[]): SpaceWithPartners {
+function formatUser(data: UserData): User {
+  return {
+    id: data.id,
+    phone: data.phone || '',
+    nickname: data.nickname,
+    avatar: data.avatar,
+  };
+}
+
+function formatSpace(space: SpaceData, partners: User[]): SpaceWithPartners {
   return {
     id: space.id,
     createdAt: space.created_at,
@@ -51,11 +48,11 @@ function formatSpace(space: Space, partners: User[]): SpaceWithPartners {
   };
 }
 
-export function createSpace(userId: string, anniversaryDate: string): SpaceWithPartners {
+export async function createSpace(userId: string, anniversaryDate: string): Promise<SpaceWithPartners> {
+  const db = getDatabase();
+
   // Check if user already has a space
-  const existingMembership = dbPrepare(`
-    SELECT space_id FROM space_members WHERE user_id = ?
-  `).get(userId) as { space_id: string } | undefined;
+  const existingMembership = await db.getSpaceMemberByUserId(userId);
 
   if (existingMembership) {
     throw new AppError(400, 'ALREADY_IN_SPACE', 'User is already in a space');
@@ -65,105 +62,240 @@ export function createSpace(userId: string, anniversaryDate: string): SpaceWithP
   const inviteCode = generateInviteCode();
 
   // Create space
-  dbPrepare(`
-    INSERT INTO spaces (id, anniversary_date, invite_code) VALUES (?, ?, ?)
-  `).run(spaceId, anniversaryDate, inviteCode);
+  const space = await db.createSpace({
+    id: spaceId,
+    anniversary_date: anniversaryDate,
+    invite_code: inviteCode,
+    created_at: new Date().toISOString(),
+  });
 
   // Add user as member
-  dbPrepare(`
-    INSERT INTO space_members (space_id, user_id) VALUES (?, ?)
-  `).run(spaceId, userId);
+  await db.addSpaceMember({
+    space_id: spaceId,
+    user_id: userId,
+    pet_name: null,
+    partner_pet_name: null,
+    joined_at: new Date().toISOString(),
+  });
 
   // Get user
-  const user = dbPrepare('SELECT id, phone, nickname, avatar FROM users WHERE id = ?')
-    .get(userId) as User;
+  const userData = await db.getUserById(userId);
+  if (!userData) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
 
-  const space = dbPrepare('SELECT * FROM spaces WHERE id = ?').get(spaceId) as Space;
-
-  return formatSpace(space, [user]);
+  return formatSpace(space, [formatUser(userData)]);
 }
 
-export function getSpaceById(spaceId: string): SpaceWithPartners | null {
-  const space = dbPrepare('SELECT * FROM spaces WHERE id = ?').get(spaceId) as Space | undefined;
+export async function getSpaceById(spaceId: string): Promise<SpaceWithPartners | null> {
+  const db = getDatabase();
+  const space = await db.getSpaceById(spaceId);
   if (!space) return null;
 
-  const partners = dbPrepare(`
-    SELECT u.id, u.phone, u.nickname, u.avatar
-    FROM users u
-    JOIN space_members sm ON u.id = sm.user_id
-    WHERE sm.space_id = ?
-  `).all(spaceId) as User[];
+  const members = await db.getSpaceMembersBySpaceId(spaceId);
+  const userIds = members.map((m) => m.user_id);
+  const users = await db.getUsersByIds(userIds);
 
-  return formatSpace(space, partners);
+  return formatSpace(space, users.map(formatUser));
 }
 
-export function getUserSpace(userId: string): SpaceWithPartners | null {
-  const membership = dbPrepare(`
-    SELECT space_id FROM space_members WHERE user_id = ?
-  `).get(userId) as { space_id: string } | undefined;
+export async function getUserSpace(userId: string): Promise<SpaceWithPartners | null> {
+  const db = getDatabase();
+  const membership = await db.getSpaceMemberByUserId(userId);
 
   if (!membership) return null;
 
   return getSpaceById(membership.space_id);
 }
 
-export function joinSpaceByInviteCode(userId: string, inviteCode: string): SpaceWithPartners {
+export async function joinSpaceByInviteCode(userId: string, inviteCode: string): Promise<SpaceWithPartners> {
+  const db = getDatabase();
+
   // Check if user already has a space
-  const existingMembership = dbPrepare(`
-    SELECT space_id FROM space_members WHERE user_id = ?
-  `).get(userId) as { space_id: string } | undefined;
+  const existingMembership = await db.getSpaceMemberByUserId(userId);
 
   if (existingMembership) {
     throw new AppError(400, 'ALREADY_IN_SPACE', 'User is already in a space');
   }
 
   // Find space by invite code
-  const space = dbPrepare(`
-    SELECT * FROM spaces WHERE invite_code = ?
-  `).get(inviteCode) as Space | undefined;
+  const space = await db.getSpaceByInviteCode(inviteCode);
 
   if (!space) {
     throw new AppError(404, 'SPACE_NOT_FOUND', 'Invalid invite code');
   }
 
   // Check if space already has 2 members
-  const memberCount = dbPrepare(`
-    SELECT COUNT(*) as count FROM space_members WHERE space_id = ?
-  `).get(space.id) as { count: number };
+  const memberCount = await db.countSpaceMembers(space.id);
 
-  if (memberCount.count >= 2) {
+  if (memberCount >= 2) {
     throw new AppError(400, 'SPACE_FULL', 'Space already has 2 members');
   }
 
-  // Add user as member
-  dbPrepare(`
-    INSERT INTO space_members (space_id, user_id) VALUES (?, ?)
-  `).run(space.id, userId);
+  // Get existing members before joining
+  const existingMembers = await db.getSpaceMembersBySpaceId(space.id);
 
-  return getSpaceById(space.id)!;
+  // Add user as member
+  await db.addSpaceMember({
+    space_id: space.id,
+    user_id: userId,
+    pet_name: null,
+    partner_pet_name: null,
+    joined_at: new Date().toISOString(),
+  });
+
+  // Get joining user's info for notification
+  const joiningUser = await db.getUserById(userId);
+
+  // Notify existing members that a new partner has joined
+  if (joiningUser) {
+    for (const member of existingMembers) {
+      await createNotification(
+        member.user_id,
+        'milestone',
+        'Your Partner Has Joined! 💕',
+        `${joiningUser.nickname} has joined your space. Start creating memories together!`,
+        '/dashboard'
+      );
+    }
+  }
+
+  const result = await getSpaceById(space.id);
+  if (!result) throw new AppError(500, 'INTERNAL_ERROR', 'Failed to get space');
+  return result;
 }
 
-export function deleteSpace(spaceId: string, userId: string): void {
-  // Check if user is member of this space
-  const membership = dbPrepare(`
-    SELECT * FROM space_members WHERE space_id = ? AND user_id = ?
-  `).get(spaceId, userId) as SpaceMember | undefined;
+export async function requestUnbind(spaceId: string, userId: string): Promise<UnbindRequestData> {
+  const db = getDatabase();
 
-  if (!membership) {
+  // Check if user is member of this space
+  const membership = await db.getSpaceMemberByUserId(userId);
+  if (!membership || membership.space_id !== spaceId) {
     throw new AppError(403, 'NOT_MEMBER', 'User is not a member of this space');
   }
 
-  // Delete related data first (since sql.js doesn't support ON DELETE CASCADE well)
-  dbPrepare('DELETE FROM notifications WHERE user_id IN (SELECT user_id FROM space_members WHERE space_id = ?)').run(spaceId);
-  dbPrepare('DELETE FROM milestones WHERE space_id = ?').run(spaceId);
-  dbPrepare('DELETE FROM memories WHERE space_id = ?').run(spaceId);
-  dbPrepare('DELETE FROM space_members WHERE space_id = ?').run(spaceId);
-  dbPrepare('DELETE FROM spaces WHERE id = ?').run(spaceId);
+  // Check if there's already a pending unbind request
+  const existingRequest = await db.getUnbindRequestBySpaceId(spaceId);
+  if (existingRequest) {
+    throw new AppError(400, 'UNBIND_ALREADY_REQUESTED', 'An unbind request is already pending');
+  }
+
+  // Create unbind request with 7-day cooling-off period
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + COOLING_OFF_DAYS);
+
+  const request = await db.createUnbindRequest({
+    id: uuid(),
+    space_id: spaceId,
+    requested_by: userId,
+    requested_at: new Date().toISOString(),
+    expires_at: expiresAt.toISOString(),
+    status: 'pending',
+  });
+
+  // Notify partner about the unbind request
+  const requester = await db.getUserById(userId);
+  const members = await db.getSpaceMembersBySpaceId(spaceId);
+  for (const member of members) {
+    if (member.user_id !== userId) {
+      await createNotification(
+        member.user_id,
+        'unbind',
+        'Unbind Request',
+        `${requester?.nickname || 'Your partner'} has requested to unbind. You have ${COOLING_OFF_DAYS} days to restore.`,
+        '/settings/unbind'
+      );
+    }
+  }
+
+  return request;
 }
 
-export function isUserInSpace(userId: string, spaceId: string): boolean {
-  const membership = dbPrepare(`
-    SELECT 1 FROM space_members WHERE space_id = ? AND user_id = ?
-  `).get(spaceId, userId);
-  return !!membership;
+export async function cancelUnbind(spaceId: string, userId: string): Promise<void> {
+  const db = getDatabase();
+
+  // Check if user is member of this space
+  const membership = await db.getSpaceMemberByUserId(userId);
+  if (!membership || membership.space_id !== spaceId) {
+    throw new AppError(403, 'NOT_MEMBER', 'User is not a member of this space');
+  }
+
+  // Get pending unbind request
+  const request = await db.getUnbindRequestBySpaceId(spaceId);
+  if (!request) {
+    throw new AppError(404, 'NO_UNBIND_REQUEST', 'No pending unbind request found');
+  }
+
+  // Cancel the request
+  await db.updateUnbindRequestStatus(request.id, 'cancelled');
+
+  // Notify partner about the cancellation
+  const canceller = await db.getUserById(userId);
+  const members = await db.getSpaceMembersBySpaceId(spaceId);
+  for (const member of members) {
+    if (member.user_id !== userId) {
+      await createNotification(
+        member.user_id,
+        'unbind',
+        'Unbind Cancelled',
+        `${canceller?.nickname || 'Your partner'} has cancelled the unbind request. Your space is safe!`,
+        '/dashboard'
+      );
+    }
+  }
+}
+
+export async function getUnbindStatus(spaceId: string, userId: string): Promise<UnbindRequestData | null> {
+  const db = getDatabase();
+
+  // Check if user is member of this space
+  const membership = await db.getSpaceMemberByUserId(userId);
+  if (!membership || membership.space_id !== spaceId) {
+    throw new AppError(403, 'NOT_MEMBER', 'User is not a member of this space');
+  }
+
+  return db.getUnbindRequestBySpaceId(spaceId);
+}
+
+export async function deleteSpace(spaceId: string, userId: string): Promise<void> {
+  const db = getDatabase();
+
+  // Check if user is member of this space
+  const membership = await db.getSpaceMemberByUserId(userId);
+
+  if (!membership || membership.space_id !== spaceId) {
+    throw new AppError(403, 'NOT_MEMBER', 'User is not a member of this space');
+  }
+
+  // Get all member user IDs for notification cleanup
+  const members = await db.getSpaceMembersBySpaceId(spaceId);
+  const userIds = members.map((m) => m.user_id);
+
+  // Delete related data
+  await db.deleteUnbindRequestsBySpaceId(spaceId);
+  await db.deleteNotificationsByUserIds(userIds);
+  await db.deleteMilestonesBySpaceId(spaceId);
+  await db.deleteMemoriesBySpaceId(spaceId);
+  await db.deleteSpaceMembersBySpaceId(spaceId);
+  await db.deleteSpace(spaceId);
+}
+
+export async function updateAnniversaryDate(spaceId: string, userId: string, anniversaryDate: string): Promise<SpaceWithPartners> {
+  const db = getDatabase();
+
+  // Check if user is member of this space
+  const membership = await db.getSpaceMemberByUserId(userId);
+  if (!membership || membership.space_id !== spaceId) {
+    throw new AppError(403, 'NOT_MEMBER', 'User is not a member of this space');
+  }
+
+  await db.updateSpace(spaceId, { anniversary_date: anniversaryDate });
+
+  const result = await getSpaceById(spaceId);
+  if (!result) throw new AppError(500, 'INTERNAL_ERROR', 'Failed to get space');
+  return result;
+}
+
+export async function isUserInSpace(userId: string, spaceId: string): Promise<boolean> {
+  const db = getDatabase();
+  const membership = await db.getSpaceMemberByUserId(userId);
+  return !!membership && membership.space_id === spaceId;
 }

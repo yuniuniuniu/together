@@ -68,6 +68,7 @@ export function resetDatabase(): void {
 
   // Drop all tables data
   db.run(`
+    DELETE FROM reactions;
     DELETE FROM notifications;
     DELETE FROM milestones;
     DELETE FROM memories;
@@ -84,17 +85,19 @@ export interface QueryResult {
   [key: string]: unknown;
 }
 
+type SqlValue = string | number | null | Uint8Array;
+
 export function dbPrepare(sql: string) {
   return {
     run(...params: unknown[]): void {
       const database = getDatabase();
-      database.run(sql, params);
+      database.run(sql, params as SqlValue[]);
       saveDatabase();
     },
     get(...params: unknown[]): QueryResult | undefined {
       const database = getDatabase();
       const stmt = database.prepare(sql);
-      stmt.bind(params);
+      stmt.bind(params as SqlValue[]);
       if (stmt.step()) {
         const row = stmt.getAsObject();
         stmt.free();
@@ -106,7 +109,7 @@ export function dbPrepare(sql: string) {
     all(...params: unknown[]): QueryResult[] {
       const database = getDatabase();
       const stmt = database.prepare(sql);
-      stmt.bind(params);
+      stmt.bind(params as SqlValue[]);
       const results: QueryResult[] = [];
       while (stmt.step()) {
         results.push(stmt.getAsObject() as QueryResult);

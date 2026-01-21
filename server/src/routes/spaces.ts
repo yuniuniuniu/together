@@ -7,6 +7,10 @@ import {
   getUserSpace,
   joinSpaceByInviteCode,
   deleteSpace,
+  requestUnbind,
+  cancelUnbind,
+  getUnbindStatus,
+  updateAnniversaryDate,
 } from '../services/spaceService.js';
 import { AppError } from '../middleware/errorHandler.js';
 
@@ -21,10 +25,10 @@ router.post(
   validate({
     anniversaryDate: { required: true, type: 'string' },
   }),
-  (req: AuthRequest, res, next) => {
+  async (req: AuthRequest, res, next) => {
     try {
       const { anniversaryDate } = req.body;
-      const space = createSpace(req.user!.id, anniversaryDate);
+      const space = await createSpace(req.user!.id, anniversaryDate);
 
       res.status(201).json({
         success: true,
@@ -37,13 +41,17 @@ router.post(
 );
 
 // GET /api/spaces/my - Get current user's space
-router.get('/my', (req: AuthRequest, res) => {
-  const space = getUserSpace(req.user!.id);
+router.get('/my', async (req: AuthRequest, res, next) => {
+  try {
+    const space = await getUserSpace(req.user!.id);
 
-  res.json({
-    success: true,
-    data: space,
-  });
+    res.json({
+      success: true,
+      data: space,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // POST /api/spaces/join - Join space via invite code
@@ -52,10 +60,10 @@ router.post(
   validate({
     inviteCode: { required: true, type: 'string' },
   }),
-  (req: AuthRequest, res, next) => {
+  async (req: AuthRequest, res, next) => {
     try {
       const { inviteCode } = req.body;
-      const space = joinSpaceByInviteCode(req.user!.id, inviteCode);
+      const space = await joinSpaceByInviteCode(req.user!.id, inviteCode);
 
       res.json({
         success: true,
@@ -68,9 +76,10 @@ router.post(
 );
 
 // GET /api/spaces/:id - Get space by ID
-router.get('/:id', (req: AuthRequest, res, next) => {
+router.get('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const space = getSpaceById(req.params.id);
+    const spaceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const space = await getSpaceById(spaceId);
 
     if (!space) {
       throw new AppError(404, 'SPACE_NOT_FOUND', 'Space not found');
@@ -85,10 +94,79 @@ router.get('/:id', (req: AuthRequest, res, next) => {
   }
 });
 
-// DELETE /api/spaces/:id - Delete space (unbind)
-router.delete('/:id', (req: AuthRequest, res, next) => {
+// PUT /api/spaces/:id - Update space (anniversary date)
+router.put(
+  '/:id',
+  validate({
+    anniversaryDate: { required: true, type: 'string' },
+  }),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const spaceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const { anniversaryDate } = req.body;
+      const space = await updateAnniversaryDate(spaceId, req.user!.id, anniversaryDate);
+
+      res.json({
+        success: true,
+        data: space,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/spaces/:id/unbind - Request unbind (start cooling-off period)
+router.post('/:id/unbind', async (req: AuthRequest, res, next) => {
   try {
-    deleteSpace(req.params.id, req.user!.id);
+    const spaceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const unbindRequest = await requestUnbind(spaceId, req.user!.id);
+
+    res.json({
+      success: true,
+      message: 'Unbind request created. You have 7 days to cancel.',
+      data: unbindRequest,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/spaces/:id/unbind - Cancel unbind request
+router.delete('/:id/unbind', async (req: AuthRequest, res, next) => {
+  try {
+    const spaceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    await cancelUnbind(spaceId, req.user!.id);
+
+    res.json({
+      success: true,
+      message: 'Unbind request cancelled',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/spaces/:id/unbind - Get unbind status
+router.get('/:id/unbind', async (req: AuthRequest, res, next) => {
+  try {
+    const spaceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const unbindRequest = await getUnbindStatus(spaceId, req.user!.id);
+
+    res.json({
+      success: true,
+      data: unbindRequest,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/spaces/:id - Delete space immediately (force unbind)
+router.delete('/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const spaceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    await deleteSpace(spaceId, req.user!.id);
 
     res.json({
       success: true,

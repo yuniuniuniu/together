@@ -1,18 +1,16 @@
-import { getDatabase } from './index.js';
+import { dbPrepare } from './index.js';
 import { v4 as uuid } from 'uuid';
 
 export function seedDatabase(): void {
-  const db = getDatabase();
-
   // Create test users
   const user1Id = uuid();
   const user2Id = uuid();
 
-  db.prepare(`
+  dbPrepare(`
     INSERT INTO users (id, phone, nickname, avatar) VALUES (?, ?, ?, ?)
   `).run(user1Id, '+1234567890', 'Alice', null);
 
-  db.prepare(`
+  dbPrepare(`
     INSERT INTO users (id, phone, nickname, avatar) VALUES (?, ?, ?, ?)
   `).run(user2Id, '+0987654321', 'Bob', null);
 
@@ -20,24 +18,24 @@ export function seedDatabase(): void {
   const spaceId = uuid();
   const inviteCode = 'TEST123';
 
-  db.prepare(`
+  dbPrepare(`
     INSERT INTO spaces (id, anniversary_date, invite_code) VALUES (?, ?, ?)
   `).run(spaceId, '2024-02-14', inviteCode);
 
   // Add both users to the space
-  db.prepare(`
+  dbPrepare(`
     INSERT INTO space_members (space_id, user_id, pet_name, partner_pet_name)
     VALUES (?, ?, ?, ?)
   `).run(spaceId, user1Id, 'Honey', 'Sweetie');
 
-  db.prepare(`
+  dbPrepare(`
     INSERT INTO space_members (space_id, user_id, pet_name, partner_pet_name)
     VALUES (?, ?, ?, ?)
   `).run(spaceId, user2Id, 'Sweetie', 'Honey');
 
   // Create sample memories
   const memoryId = uuid();
-  db.prepare(`
+  dbPrepare(`
     INSERT INTO memories (id, space_id, content, mood, photos, created_by, word_count)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -52,7 +50,7 @@ export function seedDatabase(): void {
 
   // Create sample milestone
   const milestoneId = uuid();
-  db.prepare(`
+  dbPrepare(`
     INSERT INTO milestones (id, space_id, title, description, date, type, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(

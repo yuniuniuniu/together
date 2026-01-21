@@ -26,8 +26,7 @@ Sanctuary is a private, encrypted space for couples to share memories, track ann
 ```
 ├── features/                    # Domain-specific modules
 │   ├── auth/                    # Authentication module
-│   │   ├── components/
-│   │   ├── hooks/
+│   │   ├── hooks/               # useAuth
 │   │   ├── types.ts
 │   │   └── index.ts
 │   ├── memory/                  # Memory/journal module
@@ -36,9 +35,16 @@ Sanctuary is a private, encrypted space for couples to share memories, track ann
 │   │   ├── types.ts
 │   │   └── index.ts
 │   ├── milestone/               # Milestone tracking module
-│   ├── space/                   # Couple space management
-│   └── settings/
+│   │   ├── hooks/               # useMilestones
+│   │   ├── types.ts
+│   │   └── index.ts
+│   └── space/                   # Couple space management
+│       ├── hooks/               # useSpace
+│       ├── types.ts
+│       └── index.ts
 ├── shared/                      # Cross-cutting concerns
+│   ├── api/                     # API client
+│   │   └── client.ts            # Backend API communication
 │   ├── components/              # Reusable UI components
 │   │   ├── layout/              # MobileWrapper, Header, BottomNav, PageLayout
 │   │   ├── form/                # Button, Input
@@ -46,7 +52,7 @@ Sanctuary is a private, encrypted space for couples to share memories, track ann
 │   │   └── display/             # Avatar, Card
 │   ├── context/                 # React Contexts (AuthContext, SpaceContext)
 │   ├── hooks/                   # Shared hooks (useApi, useLocalStorage)
-│   └── types/                   # Shared TypeScript types
+│   └── types/                   # Shared TypeScript types (index.ts, ui.ts)
 ├── pages/                       # Route entry points
 ├── components/                  # Legacy components (being migrated)
 ├── App.tsx                      # Root component with providers and routing
@@ -77,7 +83,7 @@ Sanctuary is a private, encrypted space for couples to share memories, track ann
 - Custom CSS classes for complex effects (`.bottom-sheet`, `.glass-panel`, etc.)
 
 ### Testing Strategy
-- **Backend**: Vitest test suite with 47 tests covering all API endpoints
+- **Backend**: Vitest test suite with 62 tests across 6 test files covering all API endpoints
 - **Frontend**: No automated testing currently in place
 
 ### Git Workflow
@@ -118,11 +124,10 @@ Key user flows:
 │   ├── src/
 │   │   ├── index.ts            # Entry point
 │   │   ├── app.ts              # Express configuration
-│   │   ├── db/                 # Database layer (schema, connection)
-│   │   ├── routes/             # API route handlers
-│   │   ├── services/           # Business logic
-│   │   ├── middleware/         # Express middleware (auth, validation, errors)
-│   │   └── types/              # TypeScript types
+│   │   ├── db/                 # Database layer (schema.sql, index.ts, seed.ts)
+│   │   ├── routes/             # API route handlers (auth, spaces, memories, milestones, notifications, reactions)
+│   │   ├── services/           # Business logic (*Service.ts files)
+│   │   └── middleware/         # Express middleware (auth, validate, errorHandler)
 │   └── tests/                  # Vitest test files
 ```
 
@@ -138,6 +143,7 @@ Key user flows:
 - **Memories**: `/api/memories` (CRUD with pagination)
 - **Milestones**: `/api/milestones` (CRUD)
 - **Notifications**: `/api/notifications`, `/api/notifications/:id/read`
+- **Reactions**: `/api/reactions` (like/unlike memories)
 
 ### Development
 - Backend runs on port 3001

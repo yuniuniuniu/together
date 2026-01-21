@@ -1,8 +1,17 @@
+// 高德地图全局类型声明
+declare global {
+  interface Window {
+    _AMapSecurityConfig: {
+      securityJsCode: string;
+    };
+  }
+}
+
 // Core Business Types
 
 export interface User {
   id: string;
-  phone?: string;
+  email?: string;
   nickname: string;
   avatar?: string;
   createdAt?: Date;

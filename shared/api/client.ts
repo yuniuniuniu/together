@@ -28,25 +28,25 @@ export async function apiClient<T>(
 
 // Auth API
 export const authApi = {
-  sendCode: (phone: string) =>
-    apiClient<{ code: string }>('/auth/send-code', {
+  sendCode: (email: string) =>
+    apiClient<void>('/auth/send-code', {
       method: 'POST',
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ email }),
     }),
 
-  verify: (phone: string, code: string) =>
-    apiClient<{ user: { id: string; phone: string; nickname: string; avatar?: string }; token: string }>(
+  verify: (email: string, code: string) =>
+    apiClient<{ user: { id: string; email: string; nickname: string; avatar?: string }; token: string }>(
       '/auth/verify',
       {
         method: 'POST',
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ email, code }),
       }
     ),
 
-  getMe: () => apiClient<{ id: string; phone: string; nickname: string; avatar?: string }>('/auth/me'),
+  getMe: () => apiClient<{ id: string; email: string; nickname: string; avatar?: string }>('/auth/me'),
 
   updateProfile: (updates: { nickname?: string; avatar?: string }) =>
-    apiClient<{ id: string; phone: string; nickname: string; avatar?: string }>('/auth/profile', {
+    apiClient<{ id: string; email: string; nickname: string; avatar?: string }>('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(updates),
     }),
@@ -60,7 +60,7 @@ export const spacesApi = {
       createdAt: string;
       anniversaryDate: string;
       inviteCode: string;
-      partners: Array<{ id: string; phone: string; nickname: string; avatar?: string }>;
+      partners: Array<{ id: string; email: string; nickname: string; avatar?: string }>;
     }>('/spaces', {
       method: 'POST',
       body: JSON.stringify({ anniversaryDate }),
@@ -72,7 +72,7 @@ export const spacesApi = {
       createdAt: string;
       anniversaryDate: string;
       inviteCode: string;
-      partners: Array<{ id: string; phone: string; nickname: string; avatar?: string }>;
+      partners: Array<{ id: string; email: string; nickname: string; avatar?: string }>;
     } | null>('/spaces/my'),
 
   getById: (id: string) =>
@@ -81,7 +81,7 @@ export const spacesApi = {
       createdAt: string;
       anniversaryDate: string;
       inviteCode: string;
-      partners: Array<{ id: string; phone: string; nickname: string; avatar?: string }>;
+      partners: Array<{ id: string; email: string; nickname: string; avatar?: string }>;
     }>(`/spaces/${id}`),
 
   join: (inviteCode: string) =>
@@ -90,7 +90,7 @@ export const spacesApi = {
       createdAt: string;
       anniversaryDate: string;
       inviteCode: string;
-      partners: Array<{ id: string; phone: string; nickname: string; avatar?: string }>;
+      partners: Array<{ id: string; email: string; nickname: string; avatar?: string }>;
     }>('/spaces/join', {
       method: 'POST',
       body: JSON.stringify({ inviteCode }),
@@ -98,6 +98,41 @@ export const spacesApi = {
 
   delete: (id: string) =>
     apiClient<void>(`/spaces/${id}`, { method: 'DELETE' }),
+
+  update: (id: string, data: { anniversaryDate: string }) =>
+    apiClient<{
+      id: string;
+      createdAt: string;
+      anniversaryDate: string;
+      inviteCode: string;
+      partners: Array<{ id: string; email: string; nickname: string; avatar?: string }>;
+    }>(`/spaces/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  requestUnbind: (id: string) =>
+    apiClient<{
+      id: string;
+      spaceId: string;
+      requestedBy: string;
+      requestedAt: string;
+      expiresAt: string;
+      status: 'pending' | 'cancelled' | 'completed';
+    }>(`/spaces/${id}/unbind`, { method: 'POST' }),
+
+  cancelUnbind: (id: string) =>
+    apiClient<void>(`/spaces/${id}/unbind`, { method: 'DELETE' }),
+
+  getUnbindStatus: (id: string) =>
+    apiClient<{
+      id: string;
+      spaceId: string;
+      requestedBy: string;
+      requestedAt: string;
+      expiresAt: string;
+      status: 'pending' | 'cancelled' | 'completed';
+    } | null>(`/spaces/${id}/unbind`),
 };
 
 // Memories API
@@ -208,6 +243,7 @@ export const milestonesApi = {
         type: string;
         icon?: string;
         photos: string[];
+        location?: { name: string; address?: string; latitude?: number; longitude?: number };
         createdAt: string;
         createdBy: string;
       }>
@@ -220,6 +256,7 @@ export const milestonesApi = {
     type: string;
     icon?: string;
     photos?: string[];
+    location?: { name: string; address?: string; latitude?: number; longitude?: number };
   }) =>
     apiClient<{
       id: string;
@@ -230,6 +267,7 @@ export const milestonesApi = {
       type: string;
       icon?: string;
       photos: string[];
+      location?: { name: string; address?: string; latitude?: number; longitude?: number };
       createdAt: string;
       createdBy: string;
     }>('/milestones', {
@@ -247,6 +285,7 @@ export const milestonesApi = {
       type: string;
       icon?: string;
       photos: string[];
+      location?: { name: string; address?: string; latitude?: number; longitude?: number };
       createdAt: string;
       createdBy: string;
     }>(`/milestones/${id}`),
@@ -260,6 +299,7 @@ export const milestonesApi = {
       type?: string;
       icon?: string;
       photos?: string[];
+      location?: { name: string; address?: string; latitude?: number; longitude?: number };
     }
   ) =>
     apiClient<{
@@ -271,6 +311,7 @@ export const milestonesApi = {
       type: string;
       icon?: string;
       photos: string[];
+      location?: { name: string; address?: string; latitude?: number; longitude?: number };
       createdAt: string;
       createdBy: string;
     }>(`/milestones/${id}`, {
@@ -309,4 +350,103 @@ export const notificationsApi = {
       read: boolean;
       actionUrl?: string;
     }>(`/notifications/${id}/read`, { method: 'PUT' }),
+
+  markAllAsRead: () =>
+    apiClient<{ count: number }>('/notifications/read-all', { method: 'PUT' }),
+};
+
+// Reactions API
+export const reactionsApi = {
+  toggle: (memoryId: string, type: string = 'love') =>
+    apiClient<{
+      action: 'added' | 'removed';
+      data: {
+        id: string;
+        memoryId: string;
+        userId: string;
+        type: string;
+        createdAt: string;
+      } | null;
+    }>(`/reactions/${memoryId}`, {
+      method: 'POST',
+      body: JSON.stringify({ type }),
+    }),
+
+  list: (memoryId: string) =>
+    apiClient<
+      Array<{
+        id: string;
+        memoryId: string;
+        userId: string;
+        type: string;
+        createdAt: string;
+      }>
+    >(`/reactions/${memoryId}`),
+
+  getMine: (memoryId: string) =>
+    apiClient<{
+      id: string;
+      memoryId: string;
+      userId: string;
+      type: string;
+      createdAt: string;
+    } | null>(`/reactions/${memoryId}/me`),
+};
+
+// Upload API
+const UPLOAD_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+
+export const uploadApi = {
+  uploadFile: async (file: File): Promise<{ url: string; filename: string }> => {
+    const token = localStorage.getItem('auth_token');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${UPLOAD_BASE}/api/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json.message || 'Upload failed');
+    }
+
+    // Return full URL for the uploaded file
+    return {
+      url: `${UPLOAD_BASE}${json.data.url}`,
+      filename: json.data.filename,
+    };
+  },
+
+  uploadMultiple: async (files: File[]): Promise<Array<{ url: string; filename: string }>> => {
+    const token = localStorage.getItem('auth_token');
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    const response = await fetch(`${UPLOAD_BASE}/api/upload/multiple`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json.message || 'Upload failed');
+    }
+
+    return json.data.map((item: { url: string; filename: string }) => ({
+      url: `${UPLOAD_BASE}${item.url}`,
+      filename: item.filename,
+    }));
+  },
 };

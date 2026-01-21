@@ -1,22 +1,97 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSpace } from '../shared/context/SpaceContext';
 
 const CreateSpace: React.FC = () => {
   const navigate = useNavigate();
+  const { createSpace, space, isLoading } = useSpace();
 
-  // Simulate waiting then redirecting for demo purposes
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      // In a real app, this would happen via websocket/polling when partner joins
-      navigate('/dashboard'); 
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [navigate]);
+  const [inviteCode, setInviteCode] = useState('');
+  const [anniversaryDate, setAnniversaryDate] = useState('');
+  const [error, setError] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const storedDate = sessionStorage.getItem('anniversaryDate');
+    if (storedDate) {
+      setAnniversaryDate(storedDate);
+    } else {
+      // Default to today if no date selected
+      setAnniversaryDate(new Date().toISOString().split('T')[0]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const doCreateSpace = async () => {
+      if (!anniversaryDate || isCreating || space) return;
+
+      setIsCreating(true);
+      setError('');
+      try {
+        await createSpace(new Date(anniversaryDate));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to create space');
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    doCreateSpace();
+  }, [anniversaryDate, createSpace, isCreating, space]);
+
+  useEffect(() => {
+    if (space?.inviteCode) {
+      setInviteCode(space.inviteCode);
+    }
+  }, [space]);
+
+  // Poll for partner joining
+  useEffect(() => {
+    if (!space) return;
+
+    const checkPartner = setInterval(() => {
+      if (space.partners && space.partners.length >= 2) {
+        clearInterval(checkPartner);
+        navigate('/dashboard');
+      }
+    }, 3000);
+
+    return () => clearInterval(checkPartner);
+  }, [space, navigate]);
+
+  const handleCopyCode = async () => {
+    if (!inviteCode) return;
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = inviteCode;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatCode = (code: string) => {
+    return code.split('').join(' ');
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-background-light relative overflow-hidden">
       <header className="flex items-center p-4 pb-2 justify-between">
-        <button 
+        <button
           className="text-ink flex size-12 shrink-0 items-center justify-center rounded-full hover:bg-black/5 transition-colors"
           onClick={() => navigate(-1)}
         >
@@ -26,6 +101,12 @@ const CreateSpace: React.FC = () => {
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center px-6 pb-12">
+        {error && (
+          <div className="w-full mb-6 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg text-center">
+            {error}
+          </div>
+        )}
+
         <div className="mb-8 flex justify-center items-center gap-4 text-primary">
           <span className="material-symbols-outlined text-5xl">auto_stories</span>
           <span className="material-symbols-outlined text-3xl text-accent">favorite</span>
@@ -34,7 +115,7 @@ const CreateSpace: React.FC = () => {
         <div className="w-full text-center">
           <h2 className="text-ink tracking-tight text-[28px] font-bold leading-tight pb-2">Start Your Journey</h2>
           <p className="text-ink/70 text-base font-normal leading-relaxed px-4">
-            Anniversary set for <span className="font-semibold text-accent">October 14, 2023</span>.<br className="hidden sm:inline"/> Share this code to sync your diaries.
+            Anniversary set for <span className="font-semibold text-accent">{formatDate(anniversaryDate)}</span>.<br className="hidden sm:inline"/> Share this code to sync your diaries.
           </p>
         </div>
 
@@ -44,11 +125,27 @@ const CreateSpace: React.FC = () => {
             <div className="relative bg-accent-peach p-8 rounded-xl flex flex-col items-center shadow-sm border border-black/5">
               <span className="text-xs font-semibold tracking-widest text-accent uppercase mb-4">Your Private Code</span>
               <div className="flex gap-3 mb-6">
-                <span className="text-4xl font-bold tracking-widest text-ink font-serif">8 2 4 1 9 5</span>
+                {isLoading || isCreating ? (
+                  <div className="animate-pulse flex gap-2">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <div key={i} className="w-8 h-10 bg-primary/20 rounded"></div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-4xl font-bold tracking-widest text-ink font-serif">
+                    {inviteCode ? formatCode(inviteCode) : '- - - - - -'}
+                  </span>
+                )}
               </div>
-              <button className="flex min-w-[140px] items-center justify-center gap-2 rounded-xl h-12 px-6 bg-primary text-ink text-sm font-bold leading-normal tracking-[0.015em] shadow-lg shadow-primary/20 active:scale-95 transition-all">
-                <span className="material-symbols-outlined text-[18px]">content_copy</span>
-                <span className="truncate">Copy Code</span>
+              <button
+                onClick={handleCopyCode}
+                disabled={!inviteCode}
+                className="flex min-w-[140px] items-center justify-center gap-2 rounded-xl h-12 px-6 bg-primary text-ink text-sm font-bold leading-normal tracking-[0.015em] shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {copied ? 'check' : 'content_copy'}
+                </span>
+                <span className="truncate">{copied ? 'Copied!' : 'Copy Code'}</span>
               </button>
             </div>
           </div>

@@ -9,8 +9,8 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  sendCode: (phone: string) => Promise<string>;
-  login: (phone: string, code: string) => Promise<void>;
+  sendCode: (email: string) => Promise<void>;
+  login: (email: string, code: string) => Promise<void>;
   logout: () => void;
   updateProfile: (updates: Partial<User>) => Promise<void>;
   setUser: (user: User | null) => void;
@@ -54,15 +54,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  const sendCode = useCallback(async (phone: string): Promise<string> => {
-    const response = await authApi.sendCode(phone);
-    return response.data.code; // Dev mode returns code
+  const sendCode = useCallback(async (email: string): Promise<void> => {
+    await authApi.sendCode(email);
   }, []);
 
-  const login = useCallback(async (phone: string, code: string) => {
+  const login = useCallback(async (email: string, code: string) => {
     setState(prev => ({ ...prev, isLoading: true }));
     try {
-      const response = await authApi.verify(phone, code);
+      const response = await authApi.verify(email, code);
       localStorage.setItem('auth_token', response.data.token);
       setState({
         user: response.data.user,

@@ -1,8 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSpace } from '../shared/context/SpaceContext';
 
 const Unbinding: React.FC = () => {
   const navigate = useNavigate();
+  const { unbind, isLoading } = useSpace();
+  const [isUnbinding, setIsUnbinding] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleUnbind = async () => {
+    if (!window.confirm('Are you sure you want to unbind? This action cannot be undone after 7 days.')) {
+      return;
+    }
+
+    setError('');
+    setIsUnbinding(true);
+    try {
+      await unbind();
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to unbind');
+    } finally {
+      setIsUnbinding(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-background-light relative h-full min-h-screen">
@@ -86,19 +107,26 @@ const Unbinding: React.FC = () => {
           </p>
         </div>
 
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg text-center">
+            {error}
+          </div>
+        )}
+
         <div className="mt-auto pb-6 space-y-3">
-          <button 
+          <button
             onClick={() => navigate('/dashboard')}
             className="w-full h-14 bg-primary hover:bg-primary/90 active:scale-[0.98] transition-all rounded-full flex items-center justify-center gap-2 shadow-lg shadow-primary/20 text-ink font-semibold text-lg"
           >
             <span>Back to Our Space</span>
             <span className="material-symbols-outlined" style={{fontSize: '20px', fontVariationSettings: "'FILL' 1"}}>favorite</span>
           </button>
-          <button 
-            onClick={() => { console.log('Proceeding to unbind...'); navigate('/'); }}
-            className="w-full h-12 rounded-full flex items-center justify-center text-ink/40 hover:text-ink/80 transition-colors text-sm font-medium"
+          <button
+            onClick={handleUnbind}
+            disabled={isUnbinding || isLoading}
+            className="w-full h-12 rounded-full flex items-center justify-center text-ink/40 hover:text-red-500 transition-colors text-sm font-medium disabled:opacity-50"
           >
-            Continue to Unbind
+            {isUnbinding ? 'Unbinding...' : 'Continue to Unbind'}
           </button>
         </div>
       </div>

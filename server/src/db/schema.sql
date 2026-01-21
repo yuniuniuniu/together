@@ -1,16 +1,16 @@
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  phone TEXT UNIQUE,
+  email TEXT UNIQUE,
   nickname TEXT NOT NULL,
   avatar TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Verification codes (simulated SMS)
+-- Verification codes (email verification)
 CREATE TABLE IF NOT EXISTS verification_codes (
   id TEXT PRIMARY KEY,
-  phone TEXT NOT NULL,
+  email TEXT NOT NULL,
   code TEXT NOT NULL,
   expires_at DATETIME NOT NULL,
   used INTEGER DEFAULT 0
@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS milestones (
   type TEXT NOT NULL,
   icon TEXT,
   photos TEXT,
+  location TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   created_by TEXT NOT NULL REFERENCES users(id)
 );
@@ -84,9 +85,31 @@ CREATE TABLE IF NOT EXISTS notifications (
   action_url TEXT
 );
 
+-- Reactions (likes on memories)
+CREATE TABLE IF NOT EXISTS reactions (
+  id TEXT PRIMARY KEY,
+  memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL DEFAULT 'love',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(memory_id, user_id)
+);
+
+-- Unbind requests (cooling-off period)
+CREATE TABLE IF NOT EXISTS unbind_requests (
+  id TEXT PRIMARY KEY,
+  space_id TEXT NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  requested_by TEXT NOT NULL REFERENCES users(id),
+  requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'cancelled', 'completed'))
+);
+
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_memories_space_id ON memories(space_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_space_id ON milestones(space_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_space_members_user_id ON space_members(user_id);
-CREATE INDEX IF NOT EXISTS idx_verification_codes_phone ON verification_codes(phone);
+CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
+CREATE INDEX IF NOT EXISTS idx_reactions_memory_id ON reactions(memory_id);
+CREATE INDEX IF NOT EXISTS idx_unbind_requests_space_id ON unbind_requests(space_id);

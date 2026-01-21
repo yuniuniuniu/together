@@ -13,18 +13,20 @@ const router = Router();
 router.post(
   '/send-code',
   validate({
-    phone: { required: true, type: 'string', pattern: patterns.phone },
+    email: { required: true, type: 'string', pattern: patterns.email },
   }),
-  (req, res) => {
-    const { phone } = req.body;
-    const code = generateVerificationCode(phone);
+  async (req, res, next) => {
+    try {
+      const { email } = req.body;
+      await generateVerificationCode(email);
 
-    // In development mode, return the code for testing
-    res.json({
-      success: true,
-      message: 'Verification code sent',
-      data: { code }, // Remove in production
-    });
+      res.json({
+        success: true,
+        message: 'Verification code sent to your email',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 );
 
@@ -32,13 +34,13 @@ router.post(
 router.post(
   '/verify',
   validate({
-    phone: { required: true, type: 'string', pattern: patterns.phone },
+    email: { required: true, type: 'string', pattern: patterns.email },
     code: { required: true, type: 'string', pattern: patterns.code },
   }),
-  (req, res, next) => {
+  async (req, res, next) => {
     try {
-      const { phone, code } = req.body;
-      const result = verifyCode(phone, code);
+      const { email, code } = req.body;
+      const result = await verifyCode(email, code);
 
       res.json({
         success: true,
@@ -59,10 +61,10 @@ router.get('/me', authenticate, (req: AuthRequest, res) => {
 });
 
 // PUT /api/auth/profile
-router.put('/profile', authenticate, (req: AuthRequest, res, next) => {
+router.put('/profile', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const { nickname, avatar } = req.body;
-    const user = updateUserProfile(req.user!.id, { nickname, avatar });
+    const user = await updateUserProfile(req.user!.id, { nickname, avatar });
 
     res.json({
       success: true,

@@ -1,14 +1,73 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { useSpace } from '../shared/context/SpaceContext';
+import { useAuth } from '../shared/context/AuthContext';
+
+interface SpaceData {
+  id: string;
+  createdAt: string;
+  anniversaryDate: string;
+  inviteCode: string;
+  partners: Array<{ id: string; phone: string; nickname: string; avatar?: string }>;
+}
 
 const ConfirmPartner: React.FC = () => {
   const navigate = useNavigate();
+  const { refreshSpace } = useSpace();
+  const { user } = useAuth();
+  const [spaceData, setSpaceData] = useState<SpaceData | null>(null);
+  const [partner, setPartner] = useState<{ nickname: string; avatar?: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem('pendingSpace');
+    if (stored) {
+      try {
+        const data = JSON.parse(stored) as SpaceData;
+        setSpaceData(data);
+        // Find the partner (the other user)
+        const partnerUser = data.partners.find(p => p.id !== user?.id);
+        if (partnerUser) {
+          setPartner({ nickname: partnerUser.nickname, avatar: partnerUser.avatar });
+        }
+      } catch {
+        navigate('/join');
+      }
+    } else {
+      navigate('/join');
+    }
+  }, [navigate, user?.id]);
+
+  const handleConfirm = async () => {
+    setIsLoading(true);
+    try {
+      // Space was already joined in JoinSpace, just refresh and navigate
+      await refreshSpace();
+      sessionStorage.removeItem('pendingSpace');
+      navigate('/celebration');
+    } catch {
+      navigate('/celebration');
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  if (!spaceData || !partner) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-background-light">
       <div className="flex items-center p-4 pb-2 justify-between">
-        <div 
+        <div
           className="text-ink flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-gray-100 rounded-full transition-colors"
           onClick={() => navigate(-1)}
         >
@@ -32,16 +91,26 @@ const ConfirmPartner: React.FC = () => {
         <div className="w-full bg-white rounded-xl p-8 shadow-soft border border-gray-50 flex flex-col items-center animate-fade-in">
           <div className="relative group">
             <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
-            <div 
-              className="relative bg-center bg-no-repeat aspect-square bg-cover rounded-full h-40 w-40 border-4 border-white shadow-sm"
-              style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBLGjCdV3rkHbAKNoMxHbYy-aLL8Jofo87uaJLWDk5Yb8PYfA2kRGYI2SBo2H3Q_Cgv2YJ__PrCrLoCEnFHbKfcKGqPVwAhnrwV74zfdkEU6jGdjBEpCAGY_DdtTCTgY7pQLAsBg-FrkJsZ5mJN2qWfoK1K4IwzjaKFOF_49gasdaAuqaP4Ks37LOoZq3k2rHUl3wh0kEKjzYUtUhZhFmDWuZACWCxTzQTOyVWhmnaIvCOj6KYaTxOvSKcDgwSpn8FsWrnNWqSlZpPx")'}}
-            ></div>
+            {partner.avatar ? (
+              <div
+                className="relative bg-center bg-no-repeat aspect-square bg-cover rounded-full h-40 w-40 border-4 border-white shadow-sm"
+                style={{ backgroundImage: `url("${partner.avatar}")` }}
+              ></div>
+            ) : (
+              <div className="relative rounded-full h-40 w-40 border-4 border-white shadow-sm bg-primary/20 flex items-center justify-center">
+                <span className="material-symbols-outlined text-6xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+              </div>
+            )}
           </div>
           <div className="mt-6 flex flex-col items-center gap-2">
-            <p className="text-ink text-2xl font-serif font-bold leading-tight tracking-tight text-center">Alex</p>
+            <p className="text-ink text-2xl font-serif font-bold leading-tight tracking-tight text-center">
+              {partner.nickname || 'Your Partner'}
+            </p>
             <div className="flex items-center gap-2 py-1">
-              <span className="material-symbols-outlined text-accent text-base filled" style={{fontVariationSettings: "'FILL' 1"}}>favorite</span>
-              <p className="text-ink text-lg font-medium leading-normal text-center tracking-tight">Anniversary: Nov 12, 2021</p>
+              <span className="material-symbols-outlined text-accent text-base filled" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+              <p className="text-ink text-lg font-medium leading-normal text-center tracking-tight">
+                Anniversary: {formatDate(spaceData.anniversaryDate)}
+              </p>
             </div>
           </div>
         </div>
@@ -54,8 +123,8 @@ const ConfirmPartner: React.FC = () => {
       </div>
 
       <div className="pb-12 px-6 flex flex-col gap-4">
-        <Button onClick={() => navigate('/celebration')} fullWidth>
-          Confirm & Connect
+        <Button onClick={handleConfirm} fullWidth disabled={isLoading}>
+          {isLoading ? 'Connecting...' : 'Confirm & Connect'}
         </Button>
         <div className="flex items-center justify-center gap-1.5 opacity-60">
           <span className="material-symbols-outlined text-xs">lock</span>

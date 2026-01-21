@@ -1,21 +1,178 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { memoriesApi, reactionsApi } from '../shared/api/client';
+import { useAuth } from '../shared/context/AuthContext';
+import { useSpace } from '../shared/context/SpaceContext';
+import { useToast } from '../shared/components/feedback/Toast';
+
+interface Memory {
+  id: string;
+  spaceId: string;
+  content: string;
+  mood?: string;
+  photos: string[];
+  location?: { name: string; address?: string; latitude?: number; longitude?: number };
+  voiceNote?: string;
+  stickers: string[];
+  createdAt: string;
+  createdBy: string;
+  wordCount?: number;
+}
 
 const MemoryDetail: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const { partner, daysCount, anniversaryDate } = useSpace();
+  const { showToast } = useToast();
 
-  // Mock data for 9-grid layout
-  const images = [
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuARtHTKPIR97TGxNoeadol2bJAMTXhP9K6OVXysy1C_GprC-1a9EDAFk9DaWQ6CG1vWHY3hvLNPsRy3D377EMvRJvKX44HuFjo63nExBahF2XE6Cx2iFRLHX6aaEbeuh_dYH_TTwyGFt3mk7oVqmLZuPVOAm9xuVhyaSCm8S5MoRBD_pV8Qd47VVvXmOU9jkqrOzrF3Cpj4uI1YDotAk8HaSh2yUwKpDDWyRZaz6GoTO1cWzce6rKhJwuVr-0Zl9448XAXeXV1rx7uq", // Sunset
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuCVikP23_Sd9YpmX9W2Pfxq3vMjfeyjaX06LadyYYWucrFukpBTd29UJSOihAYpANaqsp3uEgoB0BYRVxS6hIwU5dPkqvh9WpgyxkOnqopipxEMzeYQ7zEoZzi3ShmRmrGR8mvUIb6B-73xitGqujzr_bCvEaE0x9zk7bNf7aB9nrH_8r4sZJ12i_enCMD5TnrPwZ5-MGGZmU3-e1JKS-qiHFND-eUOzafBdB_MJtsI-HHcrSTMKRTv0UnboXIC5J_ZMi92-xTmdFIN", // Hands
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuBhPCloPMwfO7rU9egZjKAWfO89-_Xl-Oh-cTLCgIJR7dNV_3WwOlbW_-gwB1fvqN3q3BGcjkSKXmyEKGyYZUq5zwY_OpOD2NXkcoX_tLDvI65l3L7ACDNJblUeNtntWlaCPu7m-Y16P_t-VMB8aGXZGt0BReUpBSIgkUgf3Sz6y7vZM-HkxbjKK0mnqeW7-tWpgygwJVQzzNek-ftH8odtuMJfD0Pm1_mj1n_h1Ym3U5rufvYLvHLxLxPSrRUCyxaMieX1SK9ywKxD", // Coffee
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuA8E1niemOXc7hzOhIpvvFyfWeblX_rTMAPZmy0x6Ng6eAYt3kGfDjfTBJf4dV5MyVr1IQ_rXyb8y4EJmjRFDvxvsx94KTZ7Y4k9CK8hZFRugXYIh2rifPIVd6BobAGbo1w1FBcvWCfMJdqW5uOPR5iMkVsmnclZHiXgYGgctYexiaCSAaqIbqWhTJqKqqAP0zdJmG756-3qMarcvguJEv9WdffFef_Dg1XMc9aHfeuJvXmHX0FTZwqSsUib2ZSQbe-HhR3iZF9vhQ0", // Person 1
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuDPPmNYEnXIY0FmIYZsMjrXLFcNix70Hf6mAgI4VV701fxuE75fOqJLFeBO-SFA9y2DQFyZD645jpm92RZO_d8Gpy6vkJR3CiuKTXFclwJLgDIJAXRxwGaFTa6WI19BIxPm1SgX-ZzZKsSaQ7NFRBws9IvJrtGQffSQ08qNPQBAgufdylex26Fg12sidmJrYX2Bg9giDwHgcx8qc7cq4SwHp9N2WEsobt_AeYFzu7gpbcQdTjZhRV7hDLrCbK81cO7_GFfM2UzYY5or", // Person 2
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuDi_BVSbyGdh2-LTpHmC0CY2EF4wh0aQIsBApHLcvxABqytJCklk8f5GOMRenW0c1pUzI0qyC3ZLLauZ210J8bkff7qRJUZWASX8WFIMpeZA32AWV_p6I4S3H1iuRhWJWDIxnRVd7hI8tp0xk7-Zkh5IuUA8F4S_kF9b6bq05LKfsyoxEA6-EYWvgIakSFJHnKeJQVv44rHkJ9HtQrgO_7svGQ0F6v04x8OsGQAyEHoAGarJPAzn9xjV6EcTSZ5hFDd04qI05OhzC8M", // Avatar
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuDKSKS0PQi3pbdwoO92niYuN_xk6CoF7Y2aRRyGHEfr3Esu9vK5gfUD8vyE2Qz8vz2mA7PXefp_m9yqZ7Rzr3iex6tqJsLPtc7GYIG_n9r637rxfU2QR6_IBmv5QXxYZctA7V4ahkfY57URjSmW5-xIeAddxSQaXhgMR1V99JEvTc7LZfZWmzmOzky0t8pVRW3PKOwa3a6trLFoc9R-usHQBYZxQNAVTyaOuvgVJQrkEUjKAjetRLFbGW79NBsa3aaSqlqneGs4pDN", // Avatar
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuCvUWGjC3H82Dmoy0EAd2ipPiGbRYTnIk388mUCRCUwIiDYUMwenrQ7mgEtf_0gQV6PxluOYhcdBDIrgIRWyTZ283UAXuBhQ8p91CJFuC56iDj7okF7YKIe3WRy7eTWXmxWpWqV7o59idmFt21TPBcJ0z8mjKpW_jOEOyRb7HcEMHwtwvWUfSzRPtZQtnqTJib0j28BHPYZF_lVEb4zQu64NcNPJzMGTKuPGEApXkWA24VTgK-CTerTMUo-lLiL9xi-jCKUFWdIy4SV", // Cat
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuC30MsYoNnpEvZsEOP7boz3-OEgWm_8bqG9pKoYD8ZhDpDGV_hjzEkrVmvNkIdIGWifjYPLwK1nWZh8nQTCysRbXCuZVo_-zCjxj2T0YidV92XUCLw6uy-YA7uBmHKzO37CQy8BBHTJbuF2TjFOm984llNGnZkF-yjwffitsV8BYgNUudfWbwy3U-T7jtMxZM6bms9druPx8baOtjjZDKvDGiN_TbVWqygKWhzq58crJqNZsPmQ9nEFCOzAYalxwWYOW1MZITV4l-Sy" // Beach
-  ];
+  const [memory, setMemory] = useState<Memory | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const fetchMemory = async () => {
+      if (!id) return;
+      try {
+        const response = await memoriesApi.getById(id);
+        setMemory(response.data);
+
+        // Fetch reactions
+        const [reactionsRes, myReactionRes] = await Promise.all([
+          reactionsApi.list(id),
+          reactionsApi.getMine(id),
+        ]);
+        setLikeCount(reactionsRes.data.length);
+        setIsLiked(myReactionRes.data !== null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load memory');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMemory();
+  }, [id]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleToggleLike = async () => {
+    if (!id) return;
+    try {
+      const result = await reactionsApi.toggle(id);
+      setIsLiked(result.action === 'added');
+      setLikeCount(prev => result.action === 'added' ? prev + 1 : Math.max(prev - 1, 0));
+    } catch {
+      showToast('Failed to update reaction', 'error');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!id || !window.confirm('Are you sure you want to delete this memory? This action cannot be undone.')) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await memoriesApi.delete(id);
+      navigate('/memories');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete memory');
+      setIsDeleting(false);
+    }
+  };
+
+  const handleEdit = () => {
+    if (!id) return;
+    navigate(`/memory/${id}/edit`);
+  };
+
+  const handlePlayVoiceNote = () => {
+    if (!memory?.voiceNote) return;
+
+    if (isPlayingVoice && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlayingVoice(false);
+      return;
+    }
+
+    const audio = new Audio(memory.voiceNote);
+    audioRef.current = audio;
+    audio.play();
+    setIsPlayingVoice(true);
+
+    audio.onended = () => {
+      setIsPlayingVoice(false);
+    };
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const calculateDayNumber = (memoryDate: string) => {
+    if (!anniversaryDate) return null;
+    const memory = new Date(memoryDate);
+    const anniversary = new Date(anniversaryDate);
+    const diffTime = memory.getTime() - anniversary.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays + 1 : null;
+  };
+
+  const getMoodIcon = (mood?: string) => {
+    switch (mood?.toLowerCase()) {
+      case 'happy': return 'sentiment_very_satisfied';
+      case 'calm': return 'self_improvement';
+      case 'together': return 'favorite';
+      case 'excited': return 'auto_awesome';
+      case 'moody': return 'filter_drama';
+      default: return 'sentiment_satisfied';
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col bg-background-light min-h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="text-soft-gray text-sm mt-4">Loading memory...</p>
+      </div>
+    );
+  }
+
+  if (error || !memory) {
+    return (
+      <div className="flex-1 flex flex-col bg-background-light min-h-screen items-center justify-center px-6">
+        <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">
+          {error || 'Memory not found'}
+        </div>
+        <button
+          onClick={() => navigate(-1)}
+          className="mt-4 text-primary font-medium"
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  const dayNumber = calculateDayNumber(memory.createdAt);
+  const isOwnMemory = memory.createdBy === user?.id;
 
   return (
     <div className="flex-1 flex flex-col bg-background-light min-h-screen relative">
@@ -25,9 +182,33 @@ const MemoryDetail: React.FC = () => {
              <span className="material-symbols-outlined text-ink">arrow_back</span>
           </button>
           <span className="text-sm font-bold uppercase tracking-widest text-ink/60">Memory</span>
-          <button className="p-2 -mr-2 hover:bg-black/5 rounded-full transition-colors">
-             <span className="material-symbols-outlined text-ink">more_horiz</span>
-          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-2 -mr-2 hover:bg-black/5 rounded-full transition-colors"
+            >
+               <span className="material-symbols-outlined text-ink">more_horiz</span>
+            </button>
+            {showMenu && isOwnMemory && (
+              <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-black/5 py-2 min-w-[160px] z-50">
+                <button
+                  onClick={handleEdit}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-black/5 transition-colors text-left"
+                >
+                  <span className="material-symbols-outlined text-[20px] text-ink/70">edit</span>
+                  <span className="text-sm font-medium text-ink">Edit Memory</span>
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 transition-colors text-left disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[20px] text-red-500">delete</span>
+                  <span className="text-sm font-medium text-red-500">{isDeleting ? 'Deleting...' : 'Delete Memory'}</span>
+                </button>
+              </div>
+            )}
+          </div>
        </div>
 
        <main className="flex-1 overflow-y-auto no-scrollbar pb-24">
@@ -35,81 +216,154 @@ const MemoryDetail: React.FC = () => {
              {/* Header Info */}
              <div className="flex justify-between items-start mb-6">
                 <div className="flex flex-col">
-                   <h1 className="font-serif text-2xl text-ink font-bold leading-tight mb-2">Sunset at the Beach</h1>
+                   <div className="flex items-center gap-2 mb-2">
+                     <span className="text-xs font-bold text-accent uppercase tracking-wider">
+                       {isOwnMemory ? 'Your Memory' : `${partner?.nickname || 'Partner'}'s Memory`}
+                     </span>
+                   </div>
                    <div className="flex items-center gap-2 text-soft-gray/80 text-[11px] font-bold uppercase tracking-widest">
-                      <span>Oct 24, 2023</span>
-                      <span className="w-1 h-1 rounded-full bg-current"></span>
-                      <span>Day 127</span>
+                      <span>{formatDate(memory.createdAt)}</span>
+                      {dayNumber && (
+                        <>
+                          <span className="w-1 h-1 rounded-full bg-current"></span>
+                          <span>Day {dayNumber}</span>
+                        </>
+                      )}
                    </div>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-paper flex items-center justify-center text-accent shadow-sm border border-primary/20">
-                   <span className="material-symbols-outlined text-xl" style={{fontVariationSettings: "'FILL' 1"}}>sentiment_very_satisfied</span>
-                </div>
+                {memory.mood && (
+                  <div className="w-10 h-10 rounded-full bg-paper flex items-center justify-center text-accent shadow-sm border border-primary/20">
+                     <span className="material-symbols-outlined text-xl" style={{fontVariationSettings: "'FILL' 1"}}>{getMoodIcon(memory.mood)}</span>
+                  </div>
+                )}
              </div>
 
              {/* Text Content */}
              <div className="prose prose-p:text-ink/80 prose-headings:font-serif mb-8">
-                <p className="font-sans text-base leading-relaxed text-[#4A2B2B]">
-                   A beautiful evening spent watching the waves. We talked about our future home for hours, imagining a small cottage by the sea with a garden full of hydrangeas.
-                   <br/><br/>
-                   The sky turned into this incredible shade of purple and orange. I never want to forget how peaceful you looked staring at the horizon.
+                <p className="font-serif text-lg leading-relaxed text-[#4A2B2B] italic">
+                   "{memory.content}"
                 </p>
              </div>
 
-             {/* 9-Grid Images */}
-             <div className="grid grid-cols-3 gap-1.5 mb-8 rounded-2xl overflow-hidden">
-                {images.map((img, index) => (
-                  <div key={index} className="aspect-square relative group overflow-hidden bg-gray-100 cursor-pointer">
-                    <img 
-                      src={img} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                      alt={`Memory ${index + 1}`} 
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
-                  </div>
-                ))}
-             </div>
+             {/* Photos Grid */}
+             {memory.photos && memory.photos.length > 0 && (
+               <div className={`grid gap-1.5 mb-8 rounded-2xl overflow-hidden ${
+                 memory.photos.length === 1 ? 'grid-cols-1' :
+                 memory.photos.length === 2 ? 'grid-cols-2' :
+                 'grid-cols-3'
+               }`}>
+                  {memory.photos.map((photo, index) => (
+                    <div key={index} className="aspect-square relative group overflow-hidden bg-gray-100 cursor-pointer">
+                      <img
+                        src={photo}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        alt={`Memory ${index + 1}`}
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                    </div>
+                  ))}
+               </div>
+             )}
 
              {/* Meta Tags */}
              <div className="flex gap-2 flex-wrap mb-8">
-                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg border border-primary/10 shadow-sm">
-                    <span className="material-symbols-outlined text-[16px] text-soft-gray">location_on</span>
-                    <span className="text-[10px] font-bold text-soft-gray uppercase tracking-wide">Malibu, CA</span>
-                 </div>
-                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg border border-primary/10 shadow-sm">
-                    <span className="material-symbols-outlined text-[16px] text-soft-gray">sell</span>
-                    <span className="text-[10px] font-bold text-soft-gray uppercase tracking-wide">Date Night</span>
-                 </div>
+                 {memory.location && (
+                   <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg border border-primary/10 shadow-sm">
+                      <span className="material-symbols-outlined text-[16px] text-soft-gray">location_on</span>
+                      <span className="text-[10px] font-bold text-soft-gray uppercase tracking-wide">{memory.location.name}</span>
+                   </div>
+                 )}
+                 {memory.mood && (
+                   <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg border border-primary/10 shadow-sm">
+                      <span className="material-symbols-outlined text-[16px] text-soft-gray">mood</span>
+                      <span className="text-[10px] font-bold text-soft-gray uppercase tracking-wide">{memory.mood}</span>
+                   </div>
+                 )}
+                 {memory.voiceNote && (
+                   <button
+                     onClick={handlePlayVoiceNote}
+                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-sm transition-all ${
+                       isPlayingVoice
+                         ? 'bg-accent/10 border-accent/30 text-accent'
+                         : 'bg-white border-primary/10 text-soft-gray hover:bg-primary/5'
+                     }`}
+                   >
+                      <span
+                        className="material-symbols-outlined text-[16px]"
+                        style={isPlayingVoice ? { fontVariationSettings: "'FILL' 1" } : {}}
+                      >
+                        {isPlayingVoice ? 'pause' : 'play_arrow'}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide">
+                        {isPlayingVoice ? 'Playing...' : 'Voice Note'}
+                      </span>
+                   </button>
+                 )}
              </div>
 
-             {/* Reactions / Comments placeholder */}
+             {/* Stickers */}
+             {memory.stickers && memory.stickers.length > 0 && (
+               <div className="mb-8">
+                 <p className="text-[10px] font-bold text-soft-gray uppercase tracking-widest mb-3">Stickers</p>
+                 <div className="flex gap-3 flex-wrap">
+                   {memory.stickers.map((sticker, index) => (
+                     <div
+                       key={index}
+                       className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"
+                     >
+                       <span
+                         className="material-symbols-outlined text-2xl text-accent"
+                         style={{ fontVariationSettings: "'FILL' 1" }}
+                       >
+                         {sticker}
+                       </span>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             )}
+
+             {/* Reactions */}
              <div className="border-t border-black/[0.05] pt-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="flex -space-x-2">
-                    <div className="w-8 h-8 rounded-full border-2 border-background-light bg-gray-200 bg-cover bg-center" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuA8E1niemOXc7hzOhIpvvFyfWeblX_rTMAPZmy0x6Ng6eAYt3kGfDjfTBJf4dV5MyVr1IQ_rXyb8y4EJmjRFDvxvsx94KTZ7Y4k9CK8hZFRugXYIh2rifPIVd6BobAGbo1w1FBcvWCfMJdqW5uOPR5iMkVsmnclZHiXgYGgctYexiaCSAaqIbqWhTJqKqqAP0zdJmG756-3qMarcvguJEv9WdffFef_Dg1XMc9aHfeuJvXmHX0FTZwqSsUib2ZSQbe-HhR3iZF9vhQ0")'}}></div>
-                    <div className="w-8 h-8 rounded-full border-2 border-background-light bg-gray-200 bg-cover bg-center flex items-center justify-center bg-primary/20 text-accent text-[10px] font-bold">+1</div>
-                  </div>
-                  <span className="text-xs text-ink/40 font-medium">Liked by Alex and You</span>
-                </div>
-                
-                <div className="bg-white p-4 rounded-xl border border-black/[0.03] shadow-sm space-y-3">
-                   <div className="flex gap-3">
-                      <div className="w-6 h-6 rounded-full bg-gray-200 bg-cover bg-center mt-1" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuA8E1niemOXc7hzOhIpvvFyfWeblX_rTMAPZmy0x6Ng6eAYt3kGfDjfTBJf4dV5MyVr1IQ_rXyb8y4EJmjRFDvxvsx94KTZ7Y4k9CK8hZFRugXYIh2rifPIVd6BobAGbo1w1FBcvWCfMJdqW5uOPR5iMkVsmnclZHiXgYGgctYexiaCSAaqIbqWhTJqKqqAP0zdJmG756-3qMarcvguJEv9WdffFef_Dg1XMc9aHfeuJvXmHX0FTZwqSsUib2ZSQbe-HhR3iZF9vhQ0")'}}></div>
-                      <div className="flex-1">
-                        <p className="text-xs text-ink/80 leading-relaxed"><span className="font-bold text-ink mr-1">Alex</span>Can't believe this was already 4 months ago! ❤️</p>
-                      </div>
-                   </div>
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={handleToggleLike}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
+                      isLiked
+                        ? 'bg-accent/10 text-accent'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`material-symbols-outlined text-xl transition-transform ${isLiked ? 'scale-110' : ''}`}
+                      style={isLiked ? { fontVariationSettings: "'FILL' 1" } : {}}
+                    >
+                      favorite
+                    </span>
+                    <span className="text-sm font-medium">
+                      {likeCount > 0 ? `${likeCount} ${likeCount === 1 ? 'Love' : 'Loves'}` : 'Love this'}
+                    </span>
+                  </button>
+
+                  {memory.wordCount && (
+                    <span className="text-xs text-soft-gray">{memory.wordCount} words</span>
+                  )}
                 </div>
              </div>
           </div>
        </main>
 
-       {/* Floating Action / Edit */}
-       <div className="absolute bottom-6 right-6 z-30">
-          <button className="w-14 h-14 bg-primary text-ink rounded-full shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
-             <span className="material-symbols-outlined text-2xl">edit</span>
-          </button>
-       </div>
+       {/* Floating Action / Edit - Only show for own memories */}
+       {isOwnMemory && (
+         <div className="absolute bottom-6 right-6 z-30">
+            <button
+              onClick={handleEdit}
+              className="w-14 h-14 bg-primary text-ink rounded-full shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+            >
+               <span className="material-symbols-outlined text-2xl">edit</span>
+            </button>
+         </div>
+       )}
     </div>
   );
 };

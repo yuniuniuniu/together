@@ -1,21 +1,8 @@
 import { v4 as uuid } from 'uuid';
-import { dbPrepare } from '../db/index.js';
+import { getDatabase, MemoryData } from '../db/database.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getUserSpace } from './spaceService.js';
-
-interface MemoryRow {
-  id: string;
-  space_id: string;
-  content: string;
-  mood: string | null;
-  photos: string | null;
-  location: string | null;
-  voice_note: string | null;
-  stickers: string | null;
-  created_at: string;
-  created_by: string;
-  word_count: number | null;
-}
+import { createNotification } from './notificationService.js';
 
 interface Memory {
   id: string;
@@ -50,7 +37,7 @@ interface CreateMemoryInput {
   stickers?: string[];
 }
 
-function formatMemory(row: MemoryRow): Memory {
+function formatMemory(row: MemoryData): Memory {
   return {
     id: row.id,
     spaceId: row.space_id,
@@ -66,9 +53,11 @@ function formatMemory(row: MemoryRow): Memory {
   };
 }
 
-export function createMemory(userId: string, input: CreateMemoryInput): Memory {
+export async function createMemory(userId: string, input: CreateMemoryInput): Promise<Memory> {
+  const db = getDatabase();
+
   // Get user's space
-  const space = getUserSpace(userId);
+  const space = await getUserSpace(userId);
   if (!space) {
     throw new AppError(400, 'NO_SPACE', 'User is not in a space');
   }
@@ -76,66 +65,77 @@ export function createMemory(userId: string, input: CreateMemoryInput): Memory {
   const id = uuid();
   const wordCount = input.content.split(/\s+/).filter(Boolean).length;
 
-  dbPrepare(`
-    INSERT INTO memories (id, space_id, content, mood, photos, location, voice_note, stickers, created_by, word_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  const memory = await db.createMemory({
     id,
-    space.id,
-    input.content,
-    input.mood || null,
-    input.photos ? JSON.stringify(input.photos) : null,
-    input.location ? JSON.stringify(input.location) : null,
-    input.voiceNote || null,
-    input.stickers ? JSON.stringify(input.stickers) : null,
-    userId,
-    wordCount
-  );
+    space_id: space.id,
+    content: input.content,
+    mood: input.mood || null,
+    photos: input.photos ? JSON.stringify(input.photos) : null,
+    location: input.location ? JSON.stringify(input.location) : null,
+    voice_note: input.voiceNote || null,
+    stickers: input.stickers ? JSON.stringify(input.stickers) : null,
+    created_at: new Date().toISOString(),
+    created_by: userId,
+    word_count: wordCount,
+  });
 
-  return getMemoryById(id, userId)!;
+  // Get creator's info for notification
+  const creator = await db.getUserById(userId);
+
+  // Notify partner about the new memory
+  const spaceMembers = await db.getSpaceMembersBySpaceId(space.id);
+  for (const member of spaceMembers) {
+    if (member.user_id !== userId) {
+      const previewText = input.content.length > 50
+        ? input.content.substring(0, 50) + '...'
+        : input.content;
+      await createNotification(
+        member.user_id,
+        'memory',
+        `${creator?.nickname || 'Your partner'} shared a memory`,
+        previewText,
+        `/memory/${id}`
+      );
+    }
+  }
+
+  return formatMemory(memory);
 }
 
-export function getMemoryById(memoryId: string, userId: string): Memory | null {
-  const row = dbPrepare(`
-    SELECT m.* FROM memories m
-    JOIN space_members sm ON m.space_id = sm.space_id
-    WHERE m.id = ? AND sm.user_id = ?
-  `).get(memoryId, userId) as MemoryRow | undefined;
+export async function getMemoryById(memoryId: string, userId: string): Promise<Memory | null> {
+  const db = getDatabase();
 
-  if (!row) return null;
+  // Get user's space
+  const space = await getUserSpace(userId);
+  if (!space) return null;
 
-  return formatMemory(row);
+  const memory = await db.getMemoryById(memoryId);
+  if (!memory || memory.space_id !== space.id) return null;
+
+  return formatMemory(memory);
 }
 
-export function listMemories(
+export async function listMemories(
   userId: string,
   page: number = 1,
   pageSize: number = 20
-): { data: Memory[]; total: number; page: number; pageSize: number; hasMore: boolean } {
+): Promise<{ data: Memory[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
+  const db = getDatabase();
+
   // Get user's space
-  const space = getUserSpace(userId);
+  const space = await getUserSpace(userId);
   if (!space) {
     return { data: [], total: 0, page, pageSize, hasMore: false };
   }
 
   const offset = (page - 1) * pageSize;
 
-  const rows = dbPrepare(`
-    SELECT * FROM memories
-    WHERE space_id = ?
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-  `).all(space.id, pageSize, offset) as MemoryRow[];
-
-  const countResult = dbPrepare(`
-    SELECT COUNT(*) as count FROM memories WHERE space_id = ?
-  `).get(space.id) as { count: number };
-
-  const total = countResult.count;
-  const hasMore = offset + rows.length < total;
+  const memories = await db.listMemoriesBySpaceId(space.id, pageSize, offset);
+  const total = await db.countMemoriesBySpaceId(space.id);
+  const hasMore = offset + memories.length < total;
 
   return {
-    data: rows.map(formatMemory),
+    data: memories.map(formatMemory),
     total,
     page,
     pageSize,
@@ -143,61 +143,96 @@ export function listMemories(
   };
 }
 
-export function updateMemory(
+export async function updateMemory(
   memoryId: string,
   userId: string,
   updates: Partial<CreateMemoryInput>
-): Memory {
+): Promise<Memory> {
+  const db = getDatabase();
+
   // Check memory exists and user has access
-  const existing = getMemoryById(memoryId, userId);
+  const existing = await getMemoryById(memoryId, userId);
   if (!existing) {
     throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
   }
 
-  const fields: string[] = [];
-  const values: (string | number | null)[] = [];
+  const updateData: Partial<MemoryData> = {};
 
   if (updates.content !== undefined) {
-    fields.push('content = ?');
-    values.push(updates.content);
-    fields.push('word_count = ?');
-    values.push(updates.content.split(/\s+/).filter(Boolean).length);
+    updateData.content = updates.content;
+    updateData.word_count = updates.content.split(/\s+/).filter(Boolean).length;
   }
   if (updates.mood !== undefined) {
-    fields.push('mood = ?');
-    values.push(updates.mood);
+    updateData.mood = updates.mood;
   }
   if (updates.photos !== undefined) {
-    fields.push('photos = ?');
-    values.push(JSON.stringify(updates.photos));
+    updateData.photos = JSON.stringify(updates.photos);
   }
   if (updates.location !== undefined) {
-    fields.push('location = ?');
-    values.push(JSON.stringify(updates.location));
+    updateData.location = JSON.stringify(updates.location);
   }
   if (updates.voiceNote !== undefined) {
-    fields.push('voice_note = ?');
-    values.push(updates.voiceNote);
+    updateData.voice_note = updates.voiceNote;
   }
   if (updates.stickers !== undefined) {
-    fields.push('stickers = ?');
-    values.push(JSON.stringify(updates.stickers));
+    updateData.stickers = JSON.stringify(updates.stickers);
   }
 
-  if (fields.length > 0) {
-    values.push(memoryId);
-    dbPrepare(`UPDATE memories SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  const memory = await db.updateMemory(memoryId, updateData);
+  if (!memory) {
+    throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
   }
 
-  return getMemoryById(memoryId, userId)!;
+  // Notify partner about the edited memory
+  const space = await getUserSpace(userId);
+  if (space) {
+    const editor = await db.getUserById(userId);
+    const spaceMembers = await db.getSpaceMembersBySpaceId(space.id);
+    for (const member of spaceMembers) {
+      if (member.user_id !== userId) {
+        const previewText = (updates.content || existing.content).substring(0, 40) + '...';
+        await createNotification(
+          member.user_id,
+          'memory',
+          `${editor?.nickname || 'Your partner'} edited a memory`,
+          previewText,
+          `/memory/${memoryId}`
+        );
+      }
+    }
+  }
+
+  return formatMemory(memory);
 }
 
-export function deleteMemory(memoryId: string, userId: string): void {
+export async function deleteMemory(memoryId: string, userId: string): Promise<void> {
+  const db = getDatabase();
+
   // Check memory exists and user has access
-  const existing = getMemoryById(memoryId, userId);
+  const existing = await getMemoryById(memoryId, userId);
   if (!existing) {
     throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
   }
 
-  dbPrepare('DELETE FROM memories WHERE id = ?').run(memoryId);
+  // Notify partner about the deleted memory before deleting
+  const space = await getUserSpace(userId);
+  if (space) {
+    const deleter = await db.getUserById(userId);
+    const spaceMembers = await db.getSpaceMembersBySpaceId(space.id);
+    for (const member of spaceMembers) {
+      if (member.user_id !== userId) {
+        const previewText = existing.content.substring(0, 40) + '...';
+        await createNotification(
+          member.user_id,
+          'memory',
+          `${deleter?.nickname || 'Your partner'} deleted a memory`,
+          previewText
+        );
+      }
+    }
+  }
+
+  // Delete reactions first
+  await db.deleteReactionsByMemoryId(memoryId);
+  await db.deleteMemory(memoryId);
 }

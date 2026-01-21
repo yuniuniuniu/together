@@ -1,17 +1,6 @@
 import { v4 as uuid } from 'uuid';
-import { dbPrepare } from '../db/index.js';
+import { getDatabase, NotificationData } from '../db/database.js';
 import { AppError } from '../middleware/errorHandler.js';
-
-interface NotificationRow {
-  id: string;
-  user_id: string;
-  type: string;
-  title: string;
-  message: string;
-  created_at: string;
-  read: number;
-  action_url: string | null;
-}
 
 interface Notification {
   id: string;
@@ -24,7 +13,7 @@ interface Notification {
   actionUrl?: string;
 }
 
-function formatNotification(row: NotificationRow): Notification {
+function formatNotification(row: NotificationData): Notification {
   return {
     id: row.id,
     userId: row.user_id,
@@ -37,53 +26,61 @@ function formatNotification(row: NotificationRow): Notification {
   };
 }
 
-export function listNotifications(userId: string): Notification[] {
-  const rows = dbPrepare(`
-    SELECT * FROM notifications
-    WHERE user_id = ?
-    ORDER BY created_at DESC
-  `).all(userId) as NotificationRow[];
-
-  return rows.map(formatNotification);
+export async function listNotifications(userId: string): Promise<Notification[]> {
+  const db = getDatabase();
+  const notifications = await db.listNotificationsByUserId(userId);
+  return notifications.map(formatNotification);
 }
 
-export function getNotificationById(notificationId: string, userId: string): Notification | null {
-  const row = dbPrepare(`
-    SELECT * FROM notifications
-    WHERE id = ? AND user_id = ?
-  `).get(notificationId, userId) as NotificationRow | undefined;
+export async function getNotificationById(notificationId: string, userId: string): Promise<Notification | null> {
+  const db = getDatabase();
+  const notification = await db.getNotificationById(notificationId);
 
-  if (!row) return null;
+  if (!notification || notification.user_id !== userId) return null;
 
-  return formatNotification(row);
+  return formatNotification(notification);
 }
 
-export function markNotificationAsRead(notificationId: string, userId: string): Notification {
-  const existing = getNotificationById(notificationId, userId);
+export async function markNotificationAsRead(notificationId: string, userId: string): Promise<Notification> {
+  const existing = await getNotificationById(notificationId, userId);
   if (!existing) {
     throw new AppError(404, 'NOTIFICATION_NOT_FOUND', 'Notification not found');
   }
 
-  dbPrepare(`
-    UPDATE notifications SET read = 1 WHERE id = ?
-  `).run(notificationId);
+  const db = getDatabase();
+  const notification = await db.markNotificationRead(notificationId);
+  if (!notification) {
+    throw new AppError(404, 'NOTIFICATION_NOT_FOUND', 'Notification not found');
+  }
 
-  return getNotificationById(notificationId, userId)!;
+  return formatNotification(notification);
 }
 
-export function createNotification(
+export async function createNotification(
   userId: string,
   type: string,
   title: string,
   message: string,
   actionUrl?: string
-): Notification {
+): Promise<Notification> {
+  const db = getDatabase();
   const id = uuid();
 
-  dbPrepare(`
-    INSERT INTO notifications (id, user_id, type, title, message, action_url)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, userId, type, title, message, actionUrl || null);
+  const notification = await db.createNotification({
+    id,
+    user_id: userId,
+    type,
+    title,
+    message,
+    created_at: new Date().toISOString(),
+    read: 0,
+    action_url: actionUrl || null,
+  });
 
-  return getNotificationById(id, userId)!;
+  return formatNotification(notification);
+}
+
+export async function markAllNotificationsAsRead(userId: string): Promise<number> {
+  const db = getDatabase();
+  return await db.markAllNotificationsRead(userId);
 }

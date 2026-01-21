@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppError } from './errorHandler.js';
-import { dbPrepare } from '../db/index.js';
+import { getDatabase } from '../db/database.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 
@@ -16,11 +16,11 @@ export interface AuthRequest extends Request {
   user?: AuthUser;
 }
 
-export function authenticate(
+export async function authenticate(
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): void {
+): Promise<void> {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -33,16 +33,20 @@ export function authenticate(
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
 
-    const user = dbPrepare(`
-      SELECT id, phone, nickname, avatar FROM users WHERE id = ?
-    `).get(payload.userId) as AuthUser | undefined;
+    const db = getDatabase();
+    const user = await db.getUserById(payload.userId);
 
     if (!user) {
       next(new AppError(401, 'USER_NOT_FOUND', 'User not found'));
       return;
     }
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      phone: user.phone || '',
+      nickname: user.nickname,
+      avatar: user.avatar || undefined,
+    };
     next();
   } catch {
     next(new AppError(401, 'INVALID_TOKEN', 'Invalid or expired token'));

@@ -78,5 +78,6 @@ export function validate(schema: ValidationSchema) {
 // Common validation patterns
 export const patterns = {
   phone: /^\+?[1-9]\d{6,14}$/,
+  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   code: /^\d{6}$/,
 };

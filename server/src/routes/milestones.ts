@@ -16,13 +16,17 @@ const router = Router();
 router.use(authenticate);
 
 // GET /api/milestones - List milestones
-router.get('/', (req: AuthRequest, res) => {
-  const milestones = listMilestones(req.user!.id);
+router.get('/', async (req: AuthRequest, res, next) => {
+  try {
+    const milestones = await listMilestones(req.user!.id);
 
-  res.json({
-    success: true,
-    data: milestones,
-  });
+    res.json({
+      success: true,
+      data: milestones,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // POST /api/milestones - Create milestone
@@ -33,16 +37,17 @@ router.post(
     date: { required: true, type: 'string' },
     type: { required: true, type: 'string' },
   }),
-  (req: AuthRequest, res, next) => {
+  async (req: AuthRequest, res, next) => {
     try {
-      const { title, description, date, type, icon, photos } = req.body;
-      const milestone = createMilestone(req.user!.id, {
+      const { title, description, date, type, icon, photos, location } = req.body;
+      const milestone = await createMilestone(req.user!.id, {
         title,
         description,
         date,
         type,
         icon,
         photos,
+        location,
       });
 
       res.status(201).json({
@@ -56,9 +61,10 @@ router.post(
 );
 
 // GET /api/milestones/:id - Get milestone by ID
-router.get('/:id', (req: AuthRequest, res, next) => {
+router.get('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const milestone = getMilestoneById(req.params.id, req.user!.id);
+    const milestoneId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const milestone = await getMilestoneById(milestoneId, req.user!.id);
 
     if (!milestone) {
       throw new AppError(404, 'MILESTONE_NOT_FOUND', 'Milestone not found');
@@ -74,16 +80,18 @@ router.get('/:id', (req: AuthRequest, res, next) => {
 });
 
 // PUT /api/milestones/:id - Update milestone
-router.put('/:id', (req: AuthRequest, res, next) => {
+router.put('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const { title, description, date, type, icon, photos } = req.body;
-    const milestone = updateMilestone(req.params.id, req.user!.id, {
+    const milestoneId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const { title, description, date, type, icon, photos, location } = req.body;
+    const milestone = await updateMilestone(milestoneId, req.user!.id, {
       title,
       description,
       date,
       type,
       icon,
       photos,
+      location,
     });
 
     res.json({
@@ -96,9 +104,10 @@ router.put('/:id', (req: AuthRequest, res, next) => {
 });
 
 // DELETE /api/milestones/:id - Delete milestone
-router.delete('/:id', (req: AuthRequest, res, next) => {
+router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    deleteMilestone(req.params.id, req.user!.id);
+    const milestoneId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    await deleteMilestone(milestoneId, req.user!.id);
 
     res.json({
       success: true,

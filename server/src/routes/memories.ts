@@ -16,16 +16,20 @@ const router = Router();
 router.use(authenticate);
 
 // GET /api/memories - List memories
-router.get('/', (req: AuthRequest, res) => {
-  const page = parseInt(req.query.page as string) || 1;
-  const pageSize = parseInt(req.query.pageSize as string) || 20;
+router.get('/', async (req: AuthRequest, res, next) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 20;
 
-  const result = listMemories(req.user!.id, page, pageSize);
+    const result = await listMemories(req.user!.id, page, pageSize);
 
-  res.json({
-    success: true,
-    ...result,
-  });
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // POST /api/memories - Create memory
@@ -34,10 +38,10 @@ router.post(
   validate({
     content: { required: true, type: 'string', minLength: 1 },
   }),
-  (req: AuthRequest, res, next) => {
+  async (req: AuthRequest, res, next) => {
     try {
       const { content, mood, photos, location, voiceNote, stickers } = req.body;
-      const memory = createMemory(req.user!.id, {
+      const memory = await createMemory(req.user!.id, {
         content,
         mood,
         photos,
@@ -57,9 +61,10 @@ router.post(
 );
 
 // GET /api/memories/:id - Get memory by ID
-router.get('/:id', (req: AuthRequest, res, next) => {
+router.get('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const memory = getMemoryById(req.params.id, req.user!.id);
+    const memoryId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const memory = await getMemoryById(memoryId, req.user!.id);
 
     if (!memory) {
       throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
@@ -75,10 +80,11 @@ router.get('/:id', (req: AuthRequest, res, next) => {
 });
 
 // PUT /api/memories/:id - Update memory
-router.put('/:id', (req: AuthRequest, res, next) => {
+router.put('/:id', async (req: AuthRequest, res, next) => {
   try {
+    const memoryId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const { content, mood, photos, location, voiceNote, stickers } = req.body;
-    const memory = updateMemory(req.params.id, req.user!.id, {
+    const memory = await updateMemory(memoryId, req.user!.id, {
       content,
       mood,
       photos,
@@ -97,9 +103,10 @@ router.put('/:id', (req: AuthRequest, res, next) => {
 });
 
 // DELETE /api/memories/:id - Delete memory
-router.delete('/:id', (req: AuthRequest, res, next) => {
+router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    deleteMemory(req.params.id, req.user!.id);
+    const memoryId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    await deleteMemory(memoryId, req.user!.id);
 
     res.json({
       success: true,

@@ -1,9 +1,22 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { useSpace } from '../shared/context/SpaceContext';
+import { useAuth } from '../shared/context/AuthContext';
 
 const Celebration: React.FC = () => {
   const navigate = useNavigate();
+  const { anniversaryDate, partner } = useSpace();
+  const { user } = useAuth();
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return 'Your Special Day';
+    return date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden bg-[radial-gradient(circle_at_center,#fbf9f9_0%,#f3e9e9_100%)]">
@@ -15,7 +28,7 @@ const Celebration: React.FC = () => {
       </div>
 
       <div className="flex items-center p-6 justify-between z-20">
-        <div 
+        <div
           className="text-[#181010] flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm cursor-pointer"
           onClick={() => navigate('/dashboard')}
         >
@@ -40,7 +53,7 @@ const Celebration: React.FC = () => {
             Together Since
           </h1>
           <p className="text-ink text-4xl font-serif font-bold tracking-tight">
-            October 24, 2023
+            {formatDate(anniversaryDate)}
           </p>
           <p className="text-accent text-xs font-sans font-semibold tracking-wider uppercase pt-2">
             Our Anniversary
@@ -52,21 +65,33 @@ const Celebration: React.FC = () => {
           <div className="flex items-center gap-16 relative">
             <div className="flex flex-col items-center gap-3">
               <div className="size-16 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white/50">
-                <div 
-                  className="w-full h-full bg-center bg-no-repeat bg-cover"
-                  style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuA8E1niemOXc7hzOhIpvvFyfWeblX_rTMAPZmy0x6Ng6eAYt3kGfDjfTBJf4dV5MyVr1IQ_rXyb8y4EJmjRFDvxvsx94KTZ7Y4k9CK8hZFRugXYIh2rifPIVd6BobAGbo1w1FBcvWCfMJdqW5uOPR5iMkVsmnclZHiXgYGgctYexiaCSAaqIbqWhTJqKqqAP0zdJmG756-3qMarcvguJEv9WdffFef_Dg1XMc9aHfeuJvXmHX0FTZwqSsUib2ZSQbe-HhR3iZF9vhQ0")'}}
-                ></div>
+                {user?.avatar ? (
+                  <div
+                    className="w-full h-full bg-center bg-no-repeat bg-cover"
+                    style={{backgroundImage: `url("${user.avatar}")`}}
+                  ></div>
+                ) : (
+                  <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-2xl text-primary" style={{fontVariationSettings: "'FILL' 1"}}>person</span>
+                  </div>
+                )}
               </div>
-              <span className="text-xs font-sans font-semibold text-ink/50 tracking-wider uppercase">Alex</span>
+              <span className="text-xs font-sans font-semibold text-ink/50 tracking-wider uppercase">{user?.nickname || 'You'}</span>
             </div>
             <div className="flex flex-col items-center gap-3">
               <div className="size-16 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white/50">
-                <div 
-                  className="w-full h-full bg-center bg-no-repeat bg-cover"
-                  style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuDPPmNYEnXIY0FmIYZsMjrXLFcNix70Hf6mAgI4VV701fxuE75fOqJLFeBO-SFA9y2DQFyZD645jpm92RZO_d8Gpy6vkJR3CiuKTXFclwJLgDIJAXRxwGaFTa6WI19BIxPm1SgX-ZzZKsSaQ7NFRBws9IvJrtGQffSQ08qNPQBAgufdylex26Fg12sidmJrYX2Bg9giDwHgcx8qc7cq4SwHp9N2WEsobt_AeYFzu7gpbcQdTjZhRV7hDLrCbK81cO7_GFfM2UzYY5or")'}}
-                ></div>
+                {partner?.user?.avatar ? (
+                  <div
+                    className="w-full h-full bg-center bg-no-repeat bg-cover"
+                    style={{backgroundImage: `url("${partner.user.avatar}")`}}
+                  ></div>
+                ) : (
+                  <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-2xl text-primary" style={{fontVariationSettings: "'FILL' 1"}}>person</span>
+                  </div>
+                )}
               </div>
-              <span className="text-xs font-sans font-semibold text-ink/50 tracking-wider uppercase">Sam</span>
+              <span className="text-xs font-sans font-semibold text-ink/50 tracking-wider uppercase">{partner?.user?.nickname || 'Partner'}</span>
             </div>
           </div>
         </div>
@@ -80,7 +105,7 @@ const Celebration: React.FC = () => {
           Your private journey begins
         </p>
       </div>
-      
+
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background-light/50 to-transparent pointer-events-none"></div>
     </div>
   );

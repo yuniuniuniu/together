@@ -1,14 +1,78 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { spacesApi } from '../shared/api/client';
 
 const JoinSpace: React.FC = () => {
   const navigate = useNavigate();
+  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    // Focus first input on mount
+    inputRefs.current[0]?.focus();
+  }, []);
+
+  const handleInputChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return; // Only allow digits
+
+    const newCode = [...code];
+    newCode[index] = value;
+    setCode(newCode);
+    setError('');
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !code[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pastedData.length === 6) {
+      setCode(pastedData.split(''));
+      inputRefs.current[5]?.focus();
+    }
+  };
+
+  const handleFindPartner = async () => {
+    const inviteCode = code.join('');
+    if (inviteCode.length !== 6) {
+      setError('Please enter the complete 6-digit code');
+      return;
+    }
+
+    setError('');
+    setIsLoading(true);
+
+    try {
+      // First, lookup the space by invite code to get partner info
+      const response = await spacesApi.join(inviteCode);
+      // Store space info for confirm page
+      sessionStorage.setItem('pendingSpace', JSON.stringify(response.data));
+      navigate('/confirm');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid code or space not found');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const isComplete = code.every(digit => digit !== '');
 
   return (
     <div className="flex-1 flex flex-col bg-background-light">
       <div className="flex items-center p-4 pb-2 justify-between">
-        <div 
+        <div
           className="text-ink flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-gray-100 rounded-full transition-colors"
           onClick={() => navigate(-1)}
         >
@@ -38,39 +102,63 @@ const JoinSpace: React.FC = () => {
         </p>
       </div>
 
+      {error && (
+        <div className="mx-8 mt-4 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg text-center">
+          {error}
+        </div>
+      )}
+
       <div className="flex justify-center px-4 py-8">
-        <fieldset className="relative flex gap-2 sm:gap-3">
-          {[1, 2, 3].map((i) => (
-            <input 
+        <fieldset className="relative flex gap-2 sm:gap-3" onPaste={handlePaste}>
+          {[0, 1, 2].map((i) => (
+            <input
               key={i}
-              className="flex h-16 w-12 sm:w-14 text-center text-xl font-semibold focus:outline-0 focus:ring-2 focus:ring-primary/50 bg-white border border-[#e3d3d3] rounded-xl transition-all"
+              ref={(el) => { inputRefs.current[i] = el; }}
+              className={`flex h-16 w-12 sm:w-14 text-center text-xl font-semibold focus:outline-0 focus:ring-2 focus:ring-primary/50 bg-white border rounded-xl transition-all ${
+                code[i] ? 'border-primary' : 'border-[#e3d3d3]'
+              }`}
               maxLength={1}
               placeholder="•"
               type="text"
+              inputMode="numeric"
+              value={code[i]}
+              onChange={(e) => handleInputChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
             />
           ))}
           <div className="w-1 flex items-center justify-center opacity-20">—</div>
-          {[4, 5, 6].map((i) => (
-            <input 
+          {[3, 4, 5].map((i) => (
+            <input
               key={i}
-              className="flex h-16 w-12 sm:w-14 text-center text-xl font-semibold focus:outline-0 focus:ring-2 focus:ring-primary/50 bg-white border border-[#e3d3d3] rounded-xl transition-all"
+              ref={(el) => { inputRefs.current[i] = el; }}
+              className={`flex h-16 w-12 sm:w-14 text-center text-xl font-semibold focus:outline-0 focus:ring-2 focus:ring-primary/50 bg-white border rounded-xl transition-all ${
+                code[i] ? 'border-primary' : 'border-[#e3d3d3]'
+              }`}
               maxLength={1}
               placeholder="•"
               type="text"
+              inputMode="numeric"
+              value={code[i]}
+              onChange={(e) => handleInputChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
             />
           ))}
         </fieldset>
       </div>
 
       <div className="mt-auto px-8 pb-12 flex flex-col gap-4">
-        <Button onClick={() => navigate('/confirm')} icon="favorite">
-          Find My Partner
+        <Button
+          onClick={handleFindPartner}
+          icon="favorite"
+          disabled={!isComplete || isLoading}
+        >
+          {isLoading ? 'Finding...' : 'Find My Partner'}
         </Button>
         <button className="w-full bg-transparent hover:bg-primary/10 text-ink/50 font-medium py-2 text-sm transition-colors rounded-lg">
           Need help? Where is my code?
         </button>
       </div>
-      
+
       {/* Decorative */}
       <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
     </div>
