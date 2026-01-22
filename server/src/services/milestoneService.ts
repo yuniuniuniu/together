@@ -3,6 +3,7 @@ import { getDatabase, MilestoneData } from '../db/database.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getUserSpace } from './spaceService.js';
 import { createNotification } from './notificationService.js';
+import { deleteMilestoneFiles, deleteUploadedFiles } from './fileService.js';
 
 interface Location {
   name: string;
@@ -136,6 +137,7 @@ export async function updateMilestone(
   }
 
   const updateData: Partial<MilestoneData> = {};
+  const filesToDelete: string[] = [];
 
   if (updates.title !== undefined) {
     updateData.title = updates.title;
@@ -153,10 +155,22 @@ export async function updateMilestone(
     updateData.icon = updates.icon;
   }
   if (updates.photos !== undefined) {
+    // Find photos that are being removed
+    const newPhotos = new Set(updates.photos);
+    for (const oldPhoto of existing.photos) {
+      if (!newPhotos.has(oldPhoto)) {
+        filesToDelete.push(oldPhoto);
+      }
+    }
     updateData.photos = JSON.stringify(updates.photos);
   }
   if (updates.location !== undefined) {
     updateData.location = updates.location ? JSON.stringify(updates.location) : null;
+  }
+
+  // Delete removed files
+  if (filesToDelete.length > 0) {
+    await deleteUploadedFiles(filesToDelete);
   }
 
   const milestone = await db.updateMilestone(milestoneId, updateData);
@@ -175,6 +189,9 @@ export async function deleteMilestone(milestoneId: string, userId: string): Prom
   if (!existing) {
     throw new AppError(404, 'MILESTONE_NOT_FOUND', 'Milestone not found');
   }
+
+  // Delete associated files (photos)
+  await deleteMilestoneFiles(existing.photos);
 
   await db.deleteMilestone(milestoneId);
 }

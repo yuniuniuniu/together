@@ -35,11 +35,29 @@ const imageFilter = (_req: Express.Request, file: Express.Multer.File, cb: multe
   }
 };
 
+// File filter for audio
+const audioFilter = (_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedTypes = ['audio/webm', 'audio/mp3', 'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/x-m4a', 'audio/mp4'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only audio files are allowed'));
+  }
+};
+
 const upload = multer({
   storage,
   fileFilter: imageFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+});
+
+const audioUpload = multer({
+  storage,
+  fileFilter: audioFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit for audio
   },
 });
 
@@ -93,6 +111,30 @@ router.post('/multiple', upload.array('files', 10), (req: AuthRequest, res) => {
   res.json({
     success: true,
     data: uploadedFiles,
+  });
+});
+
+// POST /api/upload/audio - Upload audio file
+router.post('/audio', audioUpload.single('file'), (req: AuthRequest, res) => {
+  if (!req.file) {
+    res.status(400).json({
+      success: false,
+      error: { code: 'NO_FILE', message: 'No audio file uploaded' },
+    });
+    return;
+  }
+
+  const fileUrl = `/uploads/${req.file.filename}`;
+
+  res.json({
+    success: true,
+    data: {
+      url: fileUrl,
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+    },
   });
 });
 

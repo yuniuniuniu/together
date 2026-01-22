@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { getDatabase, UserData } from '../db/database.js';
-import { generateToken } from '../middleware/auth.js';
+import { createSession, invalidateSession, invalidateAllUserSessions } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { createNotification } from './notificationService.js';
 import { sendVerificationEmail } from './emailService.js';
@@ -79,8 +79,8 @@ export async function verifyCode(email: string, code: string): Promise<{ user: U
     });
   }
 
-  // Generate token
-  const token = generateToken(userData.id);
+  // Create session and generate token
+  const token = await createSession(userData.id);
 
   return { user: formatUser(userData), token };
 }
@@ -139,4 +139,14 @@ export async function updateUserProfile(
   }
 
   return formatUser(userData);
+}
+
+// Logout - invalidate current session
+export async function logout(sessionId: string): Promise<void> {
+  await invalidateSession(sessionId);
+}
+
+// Logout from all devices
+export async function logoutAllDevices(userId: string): Promise<void> {
+  await invalidateAllUserSessions(userId);
 }

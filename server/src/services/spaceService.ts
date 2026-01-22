@@ -32,7 +32,7 @@ function generateInviteCode(): string {
 function formatUser(data: UserData): User {
   return {
     id: data.id,
-    phone: data.phone || '',
+    phone: data.email || '',
     nickname: data.nickname,
     avatar: data.avatar,
   };
@@ -298,4 +298,74 @@ export async function isUserInSpace(userId: string, spaceId: string): Promise<bo
   const db = getDatabase();
   const membership = await db.getSpaceMemberByUserId(userId);
   return !!membership && membership.space_id === spaceId;
+}
+
+// Pet Names
+export interface PetNamesResult {
+  myPetName: string | null;
+  partnerPetName: string | null;
+}
+
+export async function getPetNames(userId: string): Promise<PetNamesResult> {
+  const db = getDatabase();
+  const membership = await db.getSpaceMemberByUserId(userId);
+
+  if (!membership) {
+    throw new AppError(404, 'NOT_IN_SPACE', 'User is not in a space');
+  }
+
+  return {
+    myPetName: membership.pet_name,
+    partnerPetName: membership.partner_pet_name,
+  };
+}
+
+export async function updatePetNames(
+  userId: string,
+  updates: { myPetName?: string | null; partnerPetName?: string | null }
+): Promise<PetNamesResult> {
+  const db = getDatabase();
+  const membership = await db.getSpaceMemberByUserId(userId);
+
+  if (!membership) {
+    throw new AppError(404, 'NOT_IN_SPACE', 'User is not in a space');
+  }
+
+  const dbUpdates: { pet_name?: string | null; partner_pet_name?: string | null } = {};
+
+  if (updates.myPetName !== undefined) {
+    dbUpdates.pet_name = updates.myPetName;
+  }
+  if (updates.partnerPetName !== undefined) {
+    dbUpdates.partner_pet_name = updates.partnerPetName;
+  }
+
+  const updated = await db.updateSpaceMember(membership.space_id, userId, dbUpdates);
+
+  if (!updated) {
+    throw new AppError(500, 'UPDATE_FAILED', 'Failed to update pet names');
+  }
+
+  // Notify partner if their pet name was changed
+  if (updates.partnerPetName !== undefined && updates.partnerPetName !== membership.partner_pet_name) {
+    const members = await db.getSpaceMembersBySpaceId(membership.space_id);
+    const user = await db.getUserById(userId);
+
+    for (const member of members) {
+      if (member.user_id !== userId) {
+        await createNotification(
+          member.user_id,
+          'profile',
+          `${user?.nickname || 'Your partner'} gave you a pet name!`,
+          updates.partnerPetName ? `You're now "${updates.partnerPetName}" 💕` : 'Your pet name was removed',
+          '/settings'
+        );
+      }
+    }
+  }
+
+  return {
+    myPetName: updated.pet_name,
+    partnerPetName: updated.partner_pet_name,
+  };
 }

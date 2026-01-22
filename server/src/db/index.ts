@@ -43,7 +43,40 @@ export async function initializeDatabase(path?: string): Promise<Database> {
   const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf-8');
   db.run(schema);
 
+  // Run migrations for soft delete
+  runMigrations(db);
+
   return db;
+}
+
+function runMigrations(database: Database): void {
+  // Add is_deleted column to existing tables if they don't have it
+  const tables = [
+    'users',
+    'verification_codes',
+    'sessions',
+    'spaces',
+    'space_members',
+    'memories',
+    'milestones',
+    'notifications',
+    'reactions',
+    'unbind_requests',
+  ];
+
+  for (const table of tables) {
+    try {
+      // Check if column exists
+      const columns = database.exec(`PRAGMA table_info(${table})`);
+      const hasIsDeleted = columns[0]?.values?.some((col) => col[1] === 'is_deleted');
+
+      if (!hasIsDeleted) {
+        database.run(`ALTER TABLE ${table} ADD COLUMN is_deleted INTEGER DEFAULT 0`);
+      }
+    } catch {
+      // Column might already exist or table doesn't exist yet
+    }
+  }
 }
 
 export function saveDatabase(): void {

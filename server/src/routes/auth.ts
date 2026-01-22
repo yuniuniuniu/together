@@ -5,6 +5,8 @@ import {
   generateVerificationCode,
   verifyCode,
   updateUserProfile,
+  logout,
+  logoutAllDevices,
 } from '../services/authService.js';
 
 const router = Router();
@@ -69,6 +71,36 @@ router.put('/profile', authenticate, async (req: AuthRequest, res, next) => {
     res.json({
       success: true,
       data: user,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/logout - Logout current session
+router.post('/logout', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    if (req.sessionId) {
+      await logout(req.sessionId);
+    }
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/logout-all - Logout from all devices
+router.post('/logout-all', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    await logoutAllDevices(req.user!.id);
+
+    res.json({
+      success: true,
+      message: 'Logged out from all devices',
     });
   } catch (error) {
     next(error);

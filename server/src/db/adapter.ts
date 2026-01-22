@@ -26,6 +26,14 @@ export interface DatabaseAdapter {
   getSpaceMemberByUserId(userId: string): Promise<SpaceMemberData | null>;
   countSpaceMembers(spaceId: string): Promise<number>;
   deleteSpaceMembersBySpaceId(spaceId: string): Promise<void>;
+  updateSpaceMember(spaceId: string, userId: string, updates: Partial<SpaceMemberData>): Promise<SpaceMemberData | null>;
+
+  // Sessions
+  createSession(session: SessionData): Promise<SessionData>;
+  getSessionByToken(token: string): Promise<SessionData | null>;
+  deleteSession(id: string): Promise<void>;
+  deleteSessionsByUserId(userId: string): Promise<void>;
+  deleteExpiredSessions(): Promise<void>;
 
   // Memories
   createMemory(memory: MemoryData): Promise<MemoryData>;
@@ -83,6 +91,7 @@ export interface UserData {
   nickname: string;
   avatar: string | null;
   created_at: string;
+  is_deleted?: number;
 }
 
 export interface VerificationCodeData {
@@ -91,6 +100,7 @@ export interface VerificationCodeData {
   code: string;
   expires_at: string;
   used: number;
+  is_deleted?: number;
 }
 
 export interface SpaceData {
@@ -98,6 +108,7 @@ export interface SpaceData {
   created_at: string;
   anniversary_date: string;
   invite_code: string;
+  is_deleted?: number;
 }
 
 export interface SpaceMemberData {
@@ -106,6 +117,7 @@ export interface SpaceMemberData {
   pet_name: string | null;
   partner_pet_name: string | null;
   joined_at: string;
+  is_deleted?: number;
 }
 
 export interface MemoryData {
@@ -120,6 +132,7 @@ export interface MemoryData {
   created_at: string;
   created_by: string;
   word_count: number | null;
+  is_deleted?: number;
 }
 
 export interface MilestoneData {
@@ -134,6 +147,7 @@ export interface MilestoneData {
   location: string | null;
   created_at: string;
   created_by: string;
+  is_deleted?: number;
 }
 
 export interface NotificationData {
@@ -145,6 +159,7 @@ export interface NotificationData {
   created_at: string;
   read: number;
   action_url: string | null;
+  is_deleted?: number;
 }
 
 export interface ReactionData {
@@ -153,6 +168,7 @@ export interface ReactionData {
   user_id: string;
   type: string;
   created_at: string;
+  is_deleted?: number;
 }
 
 export interface UnbindRequestData {
@@ -162,6 +178,16 @@ export interface UnbindRequestData {
   requested_at: string;
   expires_at: string;
   status: 'pending' | 'cancelled' | 'completed';
+  is_deleted?: number;
+}
+
+export interface SessionData {
+  id: string;
+  user_id: string;
+  token: string;
+  created_at: string;
+  expires_at: string;
+  is_deleted?: number;
 }
 
 // Export environment check

@@ -9,6 +9,7 @@ import {
   NotificationData,
   ReactionData,
   UnbindRequestData,
+  SessionData,
 } from './adapter.js';
 import { getFirestoreAdmin } from '../config/firebase-admin.js';
 import { COLLECTIONS } from './firestore.js';
@@ -37,6 +38,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const userData = {
       ...user,
       created_at: user.created_at || new Date().toISOString(),
+      is_deleted: 0,
     };
     await db.collection(COLLECTIONS.USERS).doc(user.id).set(userData);
     return userData;
@@ -47,18 +49,20 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const doc = await db.collection(COLLECTIONS.USERS).doc(id).get();
     if (!doc.exists) return null;
     const data = doc.data()!;
+    if (data.is_deleted === 1) return null;
     return {
       id: doc.id,
       email: data.email,
       nickname: data.nickname,
       avatar: data.avatar,
       created_at: timestampToString(data.created_at),
+      is_deleted: data.is_deleted || 0,
     };
   }
 
   async getUserByEmail(email: string): Promise<UserData | null> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.USERS).where('email', '==', email).limit(1).get();
+    const snapshot = await db.collection(COLLECTIONS.USERS).where('email', '==', email).where('is_deleted', '==', 0).limit(1).get();
     if (snapshot.empty) return null;
     const doc = snapshot.docs[0];
     const data = doc.data();
@@ -68,6 +72,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       nickname: data.nickname,
       avatar: data.avatar,
       created_at: timestampToString(data.created_at),
+      is_deleted: data.is_deleted || 0,
     };
   }
 
@@ -87,7 +92,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
   // Verification Codes
   async createVerificationCode(code: VerificationCodeData): Promise<void> {
     const db = getDb();
-    await db.collection(COLLECTIONS.VERIFICATION_CODES).doc(code.id).set(code);
+    await db.collection(COLLECTIONS.VERIFICATION_CODES).doc(code.id).set({ ...code, is_deleted: 0 });
   }
 
   async getVerificationCode(email: string, code: string): Promise<VerificationCodeData | null> {
@@ -98,6 +103,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       .where('email', '==', email)
       .where('code', '==', code)
       .where('used', '==', 0)
+      .where('is_deleted', '==', 0)
       .where('expires_at', '>', now)
       .limit(1)
       .get();
@@ -114,9 +120,9 @@ export class FirestoreAdapter implements DatabaseAdapter {
 
   async deleteVerificationCodesByEmail(email: string): Promise<void> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.VERIFICATION_CODES).where('email', '==', email).get();
+    const snapshot = await db.collection(COLLECTIONS.VERIFICATION_CODES).where('email', '==', email).where('is_deleted', '==', 0).get();
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
     await batch.commit();
   }
 
@@ -126,6 +132,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const spaceData = {
       ...space,
       created_at: space.created_at || new Date().toISOString(),
+      is_deleted: 0,
     };
     await db.collection(COLLECTIONS.SPACES).doc(space.id).set(spaceData);
     return spaceData;
@@ -136,17 +143,19 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const doc = await db.collection(COLLECTIONS.SPACES).doc(id).get();
     if (!doc.exists) return null;
     const data = doc.data()!;
+    if (data.is_deleted === 1) return null;
     return {
       id: doc.id,
       created_at: timestampToString(data.created_at),
       anniversary_date: data.anniversary_date,
       invite_code: data.invite_code,
+      is_deleted: data.is_deleted || 0,
     };
   }
 
   async getSpaceByInviteCode(inviteCode: string): Promise<SpaceData | null> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.SPACES).where('invite_code', '==', inviteCode).limit(1).get();
+    const snapshot = await db.collection(COLLECTIONS.SPACES).where('invite_code', '==', inviteCode).where('is_deleted', '==', 0).limit(1).get();
     if (snapshot.empty) return null;
     const doc = snapshot.docs[0];
     const data = doc.data();
@@ -155,17 +164,18 @@ export class FirestoreAdapter implements DatabaseAdapter {
       created_at: timestampToString(data.created_at),
       anniversary_date: data.anniversary_date,
       invite_code: data.invite_code,
+      is_deleted: data.is_deleted || 0,
     };
   }
 
   async deleteSpace(id: string): Promise<void> {
     const db = getDb();
-    await db.collection(COLLECTIONS.SPACES).doc(id).delete();
+    await db.collection(COLLECTIONS.SPACES).doc(id).update({ is_deleted: 1 });
   }
 
   async getAllSpaces(): Promise<SpaceData[]> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.SPACES).get();
+    const snapshot = await db.collection(COLLECTIONS.SPACES).where('is_deleted', '==', 0).get();
     return snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
@@ -173,6 +183,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
         created_at: timestampToString(data.created_at),
         anniversary_date: data.anniversary_date,
         invite_code: data.invite_code,
+        is_deleted: data.is_deleted || 0,
       };
     });
   }
@@ -184,12 +195,13 @@ export class FirestoreAdapter implements DatabaseAdapter {
     await db.collection(COLLECTIONS.SPACE_MEMBERS).doc(docId).set({
       ...member,
       joined_at: member.joined_at || new Date().toISOString(),
+      is_deleted: 0,
     });
   }
 
   async getSpaceMembersBySpaceId(spaceId: string): Promise<SpaceMemberData[]> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.SPACE_MEMBERS).where('space_id', '==', spaceId).get();
+    const snapshot = await db.collection(COLLECTIONS.SPACE_MEMBERS).where('space_id', '==', spaceId).where('is_deleted', '==', 0).get();
     return snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
@@ -198,13 +210,14 @@ export class FirestoreAdapter implements DatabaseAdapter {
         pet_name: data.pet_name,
         partner_pet_name: data.partner_pet_name,
         joined_at: timestampToString(data.joined_at),
+        is_deleted: data.is_deleted || 0,
       };
     });
   }
 
   async getSpaceMemberByUserId(userId: string): Promise<SpaceMemberData | null> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.SPACE_MEMBERS).where('user_id', '==', userId).limit(1).get();
+    const snapshot = await db.collection(COLLECTIONS.SPACE_MEMBERS).where('user_id', '==', userId).where('is_deleted', '==', 0).limit(1).get();
     if (snapshot.empty) return null;
     const doc = snapshot.docs[0];
     const data = doc.data();
@@ -214,20 +227,105 @@ export class FirestoreAdapter implements DatabaseAdapter {
       pet_name: data.pet_name,
       partner_pet_name: data.partner_pet_name,
       joined_at: timestampToString(data.joined_at),
+      is_deleted: data.is_deleted || 0,
     };
   }
 
   async countSpaceMembers(spaceId: string): Promise<number> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.SPACE_MEMBERS).where('space_id', '==', spaceId).count().get();
+    const snapshot = await db.collection(COLLECTIONS.SPACE_MEMBERS).where('space_id', '==', spaceId).where('is_deleted', '==', 0).count().get();
     return snapshot.data().count;
   }
 
   async deleteSpaceMembersBySpaceId(spaceId: string): Promise<void> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.SPACE_MEMBERS).where('space_id', '==', spaceId).get();
+    const snapshot = await db.collection(COLLECTIONS.SPACE_MEMBERS).where('space_id', '==', spaceId).where('is_deleted', '==', 0).get();
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
+    await batch.commit();
+  }
+
+  async updateSpaceMember(spaceId: string, userId: string, updates: Partial<SpaceMemberData>): Promise<SpaceMemberData | null> {
+    const db = getDb();
+    const docId = `${spaceId}_${userId}`;
+    const updateData: Record<string, unknown> = {};
+
+    if (updates.pet_name !== undefined) updateData.pet_name = updates.pet_name;
+    if (updates.partner_pet_name !== undefined) updateData.partner_pet_name = updates.partner_pet_name;
+
+    if (Object.keys(updateData).length > 0) {
+      await db.collection(COLLECTIONS.SPACE_MEMBERS).doc(docId).update(updateData);
+    }
+
+    const doc = await db.collection(COLLECTIONS.SPACE_MEMBERS).doc(docId).get();
+    if (!doc.exists) return null;
+    const data = doc.data()!;
+    if (data.is_deleted === 1) return null;
+    return {
+      space_id: data.space_id,
+      user_id: data.user_id,
+      pet_name: data.pet_name,
+      partner_pet_name: data.partner_pet_name,
+      joined_at: timestampToString(data.joined_at),
+      is_deleted: data.is_deleted || 0,
+    };
+  }
+
+  // Sessions
+  async createSession(session: SessionData): Promise<SessionData> {
+    const db = getDb();
+    const sessionData = {
+      ...session,
+      created_at: session.created_at || new Date().toISOString(),
+      is_deleted: 0,
+    };
+    await db.collection(COLLECTIONS.SESSIONS).doc(session.id).set(sessionData);
+    return sessionData;
+  }
+
+  async getSessionByToken(token: string): Promise<SessionData | null> {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const snapshot = await db
+      .collection(COLLECTIONS.SESSIONS)
+      .where('token', '==', token)
+      .where('is_deleted', '==', 0)
+      .where('expires_at', '>', now)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+    return {
+      id: doc.id,
+      user_id: data.user_id,
+      token: data.token,
+      created_at: timestampToString(data.created_at),
+      expires_at: data.expires_at,
+      is_deleted: data.is_deleted || 0,
+    };
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    const db = getDb();
+    await db.collection(COLLECTIONS.SESSIONS).doc(id).update({ is_deleted: 1 });
+  }
+
+  async deleteSessionsByUserId(userId: string): Promise<void> {
+    const db = getDb();
+    const snapshot = await db.collection(COLLECTIONS.SESSIONS).where('user_id', '==', userId).where('is_deleted', '==', 0).get();
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
+    await batch.commit();
+  }
+
+  async deleteExpiredSessions(): Promise<void> {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const snapshot = await db.collection(COLLECTIONS.SESSIONS).where('expires_at', '<=', now).where('is_deleted', '==', 0).get();
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
     await batch.commit();
   }
 
@@ -237,6 +335,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const memoryData = {
       ...memory,
       created_at: memory.created_at || new Date().toISOString(),
+      is_deleted: 0,
     };
     await db.collection(COLLECTIONS.MEMORIES).doc(memory.id).set(memoryData);
     return memoryData;
@@ -247,6 +346,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const doc = await db.collection(COLLECTIONS.MEMORIES).doc(id).get();
     if (!doc.exists) return null;
     const data = doc.data()!;
+    if (data.is_deleted === 1) return null;
     return {
       id: doc.id,
       space_id: data.space_id,
@@ -259,6 +359,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       created_at: timestampToString(data.created_at),
       created_by: data.created_by,
       word_count: data.word_count,
+      is_deleted: data.is_deleted || 0,
     };
   }
 
@@ -269,6 +370,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const snapshot = await db
       .collection(COLLECTIONS.MEMORIES)
       .where('space_id', '==', spaceId)
+      .where('is_deleted', '==', 0)
       .orderBy('created_at', 'desc')
       .limit(limit + offset)
       .get();
@@ -287,13 +389,14 @@ export class FirestoreAdapter implements DatabaseAdapter {
         created_at: timestampToString(data.created_at),
         created_by: data.created_by,
         word_count: data.word_count,
+        is_deleted: data.is_deleted || 0,
       };
     });
   }
 
   async countMemoriesBySpaceId(spaceId: string): Promise<number> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.MEMORIES).where('space_id', '==', spaceId).count().get();
+    const snapshot = await db.collection(COLLECTIONS.MEMORIES).where('space_id', '==', spaceId).where('is_deleted', '==', 0).count().get();
     return snapshot.data().count;
   }
 
@@ -316,14 +419,14 @@ export class FirestoreAdapter implements DatabaseAdapter {
 
   async deleteMemory(id: string): Promise<void> {
     const db = getDb();
-    await db.collection(COLLECTIONS.MEMORIES).doc(id).delete();
+    await db.collection(COLLECTIONS.MEMORIES).doc(id).update({ is_deleted: 1 });
   }
 
   async deleteMemoriesBySpaceId(spaceId: string): Promise<void> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.MEMORIES).where('space_id', '==', spaceId).get();
+    const snapshot = await db.collection(COLLECTIONS.MEMORIES).where('space_id', '==', spaceId).where('is_deleted', '==', 0).get();
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
     await batch.commit();
   }
 
@@ -333,6 +436,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const milestoneData = {
       ...milestone,
       created_at: milestone.created_at || new Date().toISOString(),
+      is_deleted: 0,
     };
     await db.collection(COLLECTIONS.MILESTONES).doc(milestone.id).set(milestoneData);
     return milestoneData;
@@ -343,6 +447,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const doc = await db.collection(COLLECTIONS.MILESTONES).doc(id).get();
     if (!doc.exists) return null;
     const data = doc.data()!;
+    if (data.is_deleted === 1) return null;
     return {
       id: doc.id,
       space_id: data.space_id,
@@ -355,6 +460,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       location: data.location || null,
       created_at: timestampToString(data.created_at),
       created_by: data.created_by,
+      is_deleted: data.is_deleted || 0,
     };
   }
 
@@ -363,6 +469,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const snapshot = await db
       .collection(COLLECTIONS.MILESTONES)
       .where('space_id', '==', spaceId)
+      .where('is_deleted', '==', 0)
       .orderBy('date', 'desc')
       .get();
 
@@ -380,6 +487,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
         location: data.location || null,
         created_at: timestampToString(data.created_at),
         created_by: data.created_by,
+        is_deleted: data.is_deleted || 0,
       };
     });
   }
@@ -403,14 +511,14 @@ export class FirestoreAdapter implements DatabaseAdapter {
 
   async deleteMilestone(id: string): Promise<void> {
     const db = getDb();
-    await db.collection(COLLECTIONS.MILESTONES).doc(id).delete();
+    await db.collection(COLLECTIONS.MILESTONES).doc(id).update({ is_deleted: 1 });
   }
 
   async deleteMilestonesBySpaceId(spaceId: string): Promise<void> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.MILESTONES).where('space_id', '==', spaceId).get();
+    const snapshot = await db.collection(COLLECTIONS.MILESTONES).where('space_id', '==', spaceId).where('is_deleted', '==', 0).get();
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
     await batch.commit();
   }
 
@@ -420,6 +528,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const notificationData = {
       ...notification,
       created_at: notification.created_at || new Date().toISOString(),
+      is_deleted: 0,
     };
     await db.collection(COLLECTIONS.NOTIFICATIONS).doc(notification.id).set(notificationData);
     return notificationData;
@@ -430,6 +539,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const doc = await db.collection(COLLECTIONS.NOTIFICATIONS).doc(id).get();
     if (!doc.exists) return null;
     const data = doc.data()!;
+    if (data.is_deleted === 1) return null;
     return {
       id: doc.id,
       user_id: data.user_id,
@@ -439,6 +549,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       created_at: timestampToString(data.created_at),
       read: data.read,
       action_url: data.action_url,
+      is_deleted: data.is_deleted || 0,
     };
   }
 
@@ -447,6 +558,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const snapshot = await db
       .collection(COLLECTIONS.NOTIFICATIONS)
       .where('user_id', '==', userId)
+      .where('is_deleted', '==', 0)
       .orderBy('created_at', 'desc')
       .get();
 
@@ -461,6 +573,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
         created_at: timestampToString(data.created_at),
         read: data.read,
         action_url: data.action_url,
+        is_deleted: data.is_deleted || 0,
       };
     });
   }
@@ -477,6 +590,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       .collection(COLLECTIONS.NOTIFICATIONS)
       .where('user_id', '==', userId)
       .where('read', '==', 0)
+      .where('is_deleted', '==', 0)
       .get();
 
     if (snapshot.empty) return 0;
@@ -493,9 +607,9 @@ export class FirestoreAdapter implements DatabaseAdapter {
     // Firestore 'in' queries are limited to 10 items
     for (let i = 0; i < userIds.length; i += 10) {
       const chunk = userIds.slice(i, i + 10);
-      const snapshot = await db.collection(COLLECTIONS.NOTIFICATIONS).where('user_id', 'in', chunk).get();
+      const snapshot = await db.collection(COLLECTIONS.NOTIFICATIONS).where('user_id', 'in', chunk).where('is_deleted', '==', 0).get();
       const batch = db.batch();
-      snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+      snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
       await batch.commit();
     }
   }
@@ -506,6 +620,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const reactionData = {
       ...reaction,
       created_at: reaction.created_at || new Date().toISOString(),
+      is_deleted: 0,
     };
     await db.collection(COLLECTIONS.REACTIONS).doc(reaction.id).set(reactionData);
     return reactionData;
@@ -517,6 +632,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       .collection(COLLECTIONS.REACTIONS)
       .where('memory_id', '==', memoryId)
       .where('user_id', '==', userId)
+      .where('is_deleted', '==', 0)
       .limit(1)
       .get();
 
@@ -529,6 +645,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       user_id: data.user_id,
       type: data.type,
       created_at: timestampToString(data.created_at),
+      is_deleted: data.is_deleted || 0,
     };
   }
 
@@ -537,6 +654,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const snapshot = await db
       .collection(COLLECTIONS.REACTIONS)
       .where('memory_id', '==', memoryId)
+      .where('is_deleted', '==', 0)
       .orderBy('created_at', 'desc')
       .get();
 
@@ -548,20 +666,21 @@ export class FirestoreAdapter implements DatabaseAdapter {
         user_id: data.user_id,
         type: data.type,
         created_at: timestampToString(data.created_at),
+        is_deleted: data.is_deleted || 0,
       };
     });
   }
 
   async deleteReaction(id: string): Promise<void> {
     const db = getDb();
-    await db.collection(COLLECTIONS.REACTIONS).doc(id).delete();
+    await db.collection(COLLECTIONS.REACTIONS).doc(id).update({ is_deleted: 1 });
   }
 
   async deleteReactionsByMemoryId(memoryId: string): Promise<void> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.REACTIONS).where('memory_id', '==', memoryId).get();
+    const snapshot = await db.collection(COLLECTIONS.REACTIONS).where('memory_id', '==', memoryId).where('is_deleted', '==', 0).get();
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
     await batch.commit();
   }
 
@@ -571,6 +690,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const requestData = {
       ...request,
       requested_at: request.requested_at || new Date().toISOString(),
+      is_deleted: 0,
     };
     await db.collection(COLLECTIONS.UNBIND_REQUESTS).doc(request.id).set(requestData);
     return requestData;
@@ -582,6 +702,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       .collection(COLLECTIONS.UNBIND_REQUESTS)
       .where('space_id', '==', spaceId)
       .where('status', '==', 'pending')
+      .where('is_deleted', '==', 0)
       .orderBy('requested_at', 'desc')
       .limit(1)
       .get();
@@ -596,6 +717,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
       requested_at: timestampToString(data.requested_at),
       expires_at: data.expires_at,
       status: data.status,
+      is_deleted: data.is_deleted || 0,
     };
   }
 
@@ -605,6 +727,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const doc = await db.collection(COLLECTIONS.UNBIND_REQUESTS).doc(id).get();
     if (!doc.exists) return null;
     const data = doc.data()!;
+    if (data.is_deleted === 1) return null;
     return {
       id: doc.id,
       space_id: data.space_id,
@@ -612,14 +735,15 @@ export class FirestoreAdapter implements DatabaseAdapter {
       requested_at: timestampToString(data.requested_at),
       expires_at: data.expires_at,
       status: data.status,
+      is_deleted: data.is_deleted || 0,
     };
   }
 
   async deleteUnbindRequestsBySpaceId(spaceId: string): Promise<void> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.UNBIND_REQUESTS).where('space_id', '==', spaceId).get();
+    const snapshot = await db.collection(COLLECTIONS.UNBIND_REQUESTS).where('space_id', '==', spaceId).where('is_deleted', '==', 0).get();
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
     await batch.commit();
   }
 
@@ -629,6 +753,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const snapshot = await db
       .collection(COLLECTIONS.UNBIND_REQUESTS)
       .where('status', '==', 'pending')
+      .where('is_deleted', '==', 0)
       .where('expires_at', '<=', now)
       .get();
 
@@ -641,6 +766,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
         requested_at: timestampToString(data.requested_at),
         expires_at: data.expires_at,
         status: data.status,
+        is_deleted: data.is_deleted || 0,
       };
     });
   }
@@ -670,13 +796,16 @@ export class FirestoreAdapter implements DatabaseAdapter {
       const snapshot = await db.collection(COLLECTIONS.USERS).where('__name__', 'in', chunk).get();
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
-        users.push({
-          id: doc.id,
-          email: data.email,
-          nickname: data.nickname,
-          avatar: data.avatar,
-          created_at: timestampToString(data.created_at),
-        });
+        if (data.is_deleted !== 1) {
+          users.push({
+            id: doc.id,
+            email: data.email,
+            nickname: data.nickname,
+            avatar: data.avatar,
+            created_at: timestampToString(data.created_at),
+            is_deleted: data.is_deleted || 0,
+          });
+        }
       });
     }
 

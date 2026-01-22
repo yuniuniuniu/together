@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE,
   nickname TEXT NOT NULL,
   avatar TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER DEFAULT 0
 );
 
 -- Verification codes (email verification)
@@ -13,7 +14,8 @@ CREATE TABLE IF NOT EXISTS verification_codes (
   email TEXT NOT NULL,
   code TEXT NOT NULL,
   expires_at DATETIME NOT NULL,
-  used INTEGER DEFAULT 0
+  used INTEGER DEFAULT 0,
+  is_deleted INTEGER DEFAULT 0
 );
 
 -- Sessions (JWT tracking)
@@ -22,7 +24,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id TEXT NOT NULL REFERENCES users(id),
   token TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  expires_at DATETIME NOT NULL
+  expires_at DATETIME NOT NULL,
+  is_deleted INTEGER DEFAULT 0
 );
 
 -- Spaces (couple's shared space)
@@ -30,7 +33,8 @@ CREATE TABLE IF NOT EXISTS spaces (
   id TEXT PRIMARY KEY,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   anniversary_date DATE NOT NULL,
-  invite_code TEXT UNIQUE
+  invite_code TEXT UNIQUE,
+  is_deleted INTEGER DEFAULT 0
 );
 
 -- Space members (junction table)
@@ -40,6 +44,7 @@ CREATE TABLE IF NOT EXISTS space_members (
   pet_name TEXT,
   partner_pet_name TEXT,
   joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER DEFAULT 0,
   PRIMARY KEY (space_id, user_id)
 );
 
@@ -55,7 +60,8 @@ CREATE TABLE IF NOT EXISTS memories (
   stickers TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   created_by TEXT NOT NULL REFERENCES users(id),
-  word_count INTEGER
+  word_count INTEGER,
+  is_deleted INTEGER DEFAULT 0
 );
 
 -- Milestones
@@ -70,7 +76,8 @@ CREATE TABLE IF NOT EXISTS milestones (
   photos TEXT,
   location TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  created_by TEXT NOT NULL REFERENCES users(id)
+  created_by TEXT NOT NULL REFERENCES users(id),
+  is_deleted INTEGER DEFAULT 0
 );
 
 -- Notifications
@@ -82,7 +89,8 @@ CREATE TABLE IF NOT EXISTS notifications (
   message TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   read INTEGER DEFAULT 0,
-  action_url TEXT
+  action_url TEXT,
+  is_deleted INTEGER DEFAULT 0
 );
 
 -- Reactions (likes on memories)
@@ -92,6 +100,7 @@ CREATE TABLE IF NOT EXISTS reactions (
   user_id TEXT NOT NULL REFERENCES users(id),
   type TEXT NOT NULL DEFAULT 'love',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER DEFAULT 0,
   UNIQUE(memory_id, user_id)
 );
 
@@ -102,7 +111,8 @@ CREATE TABLE IF NOT EXISTS unbind_requests (
   requested_by TEXT NOT NULL REFERENCES users(id),
   requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   expires_at DATETIME NOT NULL,
-  status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'cancelled', 'completed'))
+  status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'cancelled', 'completed')),
+  is_deleted INTEGER DEFAULT 0
 );
 
 -- Create indexes for common queries

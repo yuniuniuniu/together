@@ -9,6 +9,7 @@ import {
   NotificationData,
   ReactionData,
   UnbindRequestData,
+  SessionData,
 } from './adapter.js';
 import { dbPrepare, saveDatabase } from './index.js';
 
@@ -25,20 +26,20 @@ export class SQLiteAdapter implements DatabaseAdapter {
   // Users
   async createUser(user: UserData): Promise<UserData> {
     dbPrepare(`
-      INSERT INTO users (id, email, nickname, avatar, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, nickname, avatar, created_at, is_deleted)
+      VALUES (?, ?, ?, ?, ?, 0)
     `).run(user.id, user.email, user.nickname, user.avatar, user.created_at || new Date().toISOString());
     saveDatabase();
     return (await this.getUserById(user.id))!;
   }
 
   async getUserById(id: string): Promise<UserData | null> {
-    const row = dbPrepare('SELECT * FROM users WHERE id = ?').get(id);
+    const row = dbPrepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').get(id);
     return asType<UserData>(row);
   }
 
   async getUserByEmail(email: string): Promise<UserData | null> {
-    const row = dbPrepare('SELECT * FROM users WHERE email = ?').get(email);
+    const row = dbPrepare('SELECT * FROM users WHERE email = ? AND is_deleted = 0').get(email);
     return asType<UserData>(row);
   }
 
@@ -71,8 +72,8 @@ export class SQLiteAdapter implements DatabaseAdapter {
   // Verification Codes
   async createVerificationCode(code: VerificationCodeData): Promise<void> {
     dbPrepare(`
-      INSERT INTO verification_codes (id, email, code, expires_at, used)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO verification_codes (id, email, code, expires_at, used, is_deleted)
+      VALUES (?, ?, ?, ?, ?, 0)
     `).run(code.id, code.email, code.code, code.expires_at, code.used || 0);
     saveDatabase();
   }
@@ -80,85 +81,141 @@ export class SQLiteAdapter implements DatabaseAdapter {
   async getVerificationCode(email: string, code: string): Promise<VerificationCodeData | null> {
     const row = dbPrepare(`
       SELECT * FROM verification_codes
-      WHERE email = ? AND code = ? AND used = 0 AND expires_at > datetime('now')
+      WHERE email = ? AND code = ? AND used = 0 AND expires_at > datetime('now') AND is_deleted = 0
     `).get(email, code);
     return asType<VerificationCodeData>(row);
   }
 
   async markVerificationCodeUsed(id: string): Promise<void> {
-    dbPrepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(id);
+    dbPrepare('UPDATE verification_codes SET used = 1 WHERE id = ? AND is_deleted = 0').run(id);
     saveDatabase();
   }
 
   async deleteVerificationCodesByEmail(email: string): Promise<void> {
-    dbPrepare('DELETE FROM verification_codes WHERE email = ?').run(email);
+    dbPrepare('UPDATE verification_codes SET is_deleted = 1 WHERE email = ? AND is_deleted = 0').run(email);
     saveDatabase();
   }
 
   // Spaces
   async createSpace(space: SpaceData): Promise<SpaceData> {
     dbPrepare(`
-      INSERT INTO spaces (id, anniversary_date, invite_code, created_at)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO spaces (id, anniversary_date, invite_code, created_at, is_deleted)
+      VALUES (?, ?, ?, ?, 0)
     `).run(space.id, space.anniversary_date, space.invite_code, space.created_at || new Date().toISOString());
     saveDatabase();
     return (await this.getSpaceById(space.id))!;
   }
 
   async getSpaceById(id: string): Promise<SpaceData | null> {
-    const row = dbPrepare('SELECT * FROM spaces WHERE id = ?').get(id);
+    const row = dbPrepare('SELECT * FROM spaces WHERE id = ? AND is_deleted = 0').get(id);
     return asType<SpaceData>(row);
   }
 
   async getSpaceByInviteCode(inviteCode: string): Promise<SpaceData | null> {
-    const row = dbPrepare('SELECT * FROM spaces WHERE invite_code = ?').get(inviteCode);
+    const row = dbPrepare('SELECT * FROM spaces WHERE invite_code = ? AND is_deleted = 0').get(inviteCode);
     return asType<SpaceData>(row);
   }
 
   async deleteSpace(id: string): Promise<void> {
-    dbPrepare('DELETE FROM spaces WHERE id = ?').run(id);
+    dbPrepare('UPDATE spaces SET is_deleted = 1 WHERE id = ? AND is_deleted = 0').run(id);
     saveDatabase();
   }
 
   async getAllSpaces(): Promise<SpaceData[]> {
-    const rows = dbPrepare('SELECT * FROM spaces').all();
+    const rows = dbPrepare('SELECT * FROM spaces WHERE is_deleted = 0').all();
     return asTypeArray<SpaceData>(rows);
   }
 
   // Space Members
   async addSpaceMember(member: SpaceMemberData): Promise<void> {
     dbPrepare(`
-      INSERT INTO space_members (space_id, user_id, pet_name, partner_pet_name, joined_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO space_members (space_id, user_id, pet_name, partner_pet_name, joined_at, is_deleted)
+      VALUES (?, ?, ?, ?, ?, 0)
     `).run(member.space_id, member.user_id, member.pet_name, member.partner_pet_name, member.joined_at || new Date().toISOString());
     saveDatabase();
   }
 
   async getSpaceMembersBySpaceId(spaceId: string): Promise<SpaceMemberData[]> {
-    const rows = dbPrepare('SELECT * FROM space_members WHERE space_id = ?').all(spaceId);
+    const rows = dbPrepare('SELECT * FROM space_members WHERE space_id = ? AND is_deleted = 0').all(spaceId);
     return asTypeArray<SpaceMemberData>(rows);
   }
 
   async getSpaceMemberByUserId(userId: string): Promise<SpaceMemberData | null> {
-    const row = dbPrepare('SELECT * FROM space_members WHERE user_id = ?').get(userId);
+    const row = dbPrepare('SELECT * FROM space_members WHERE user_id = ? AND is_deleted = 0').get(userId);
     return asType<SpaceMemberData>(row);
   }
 
   async countSpaceMembers(spaceId: string): Promise<number> {
-    const result = dbPrepare('SELECT COUNT(*) as count FROM space_members WHERE space_id = ?').get(spaceId) as { count: number };
+    const result = dbPrepare('SELECT COUNT(*) as count FROM space_members WHERE space_id = ? AND is_deleted = 0').get(spaceId) as { count: number };
     return result.count;
   }
 
   async deleteSpaceMembersBySpaceId(spaceId: string): Promise<void> {
-    dbPrepare('DELETE FROM space_members WHERE space_id = ?').run(spaceId);
+    dbPrepare('UPDATE space_members SET is_deleted = 1 WHERE space_id = ? AND is_deleted = 0').run(spaceId);
+    saveDatabase();
+  }
+
+  async updateSpaceMember(spaceId: string, userId: string, updates: Partial<SpaceMemberData>): Promise<SpaceMemberData | null> {
+    const fields: string[] = [];
+    const values: (string | null | undefined)[] = [];
+
+    if (updates.pet_name !== undefined) {
+      fields.push('pet_name = ?');
+      values.push(updates.pet_name);
+    }
+    if (updates.partner_pet_name !== undefined) {
+      fields.push('partner_pet_name = ?');
+      values.push(updates.partner_pet_name);
+    }
+
+    if (fields.length > 0) {
+      values.push(spaceId, userId);
+      dbPrepare(`UPDATE space_members SET ${fields.join(', ')} WHERE space_id = ? AND user_id = ? AND is_deleted = 0`).run(...values);
+      saveDatabase();
+    }
+
+    const row = dbPrepare('SELECT * FROM space_members WHERE space_id = ? AND user_id = ? AND is_deleted = 0').get(spaceId, userId);
+    return asType<SpaceMemberData>(row);
+  }
+
+  // Sessions
+  async createSession(session: SessionData): Promise<SessionData> {
+    dbPrepare(`
+      INSERT INTO sessions (id, user_id, token, created_at, expires_at, is_deleted)
+      VALUES (?, ?, ?, ?, ?, 0)
+    `).run(session.id, session.user_id, session.token, session.created_at || new Date().toISOString(), session.expires_at);
+    saveDatabase();
+    return session;
+  }
+
+  async getSessionByToken(token: string): Promise<SessionData | null> {
+    const row = dbPrepare(`
+      SELECT * FROM sessions
+      WHERE token = ? AND expires_at > datetime('now') AND is_deleted = 0
+    `).get(token);
+    return asType<SessionData>(row);
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    dbPrepare('UPDATE sessions SET is_deleted = 1 WHERE id = ? AND is_deleted = 0').run(id);
+    saveDatabase();
+  }
+
+  async deleteSessionsByUserId(userId: string): Promise<void> {
+    dbPrepare('UPDATE sessions SET is_deleted = 1 WHERE user_id = ? AND is_deleted = 0').run(userId);
+    saveDatabase();
+  }
+
+  async deleteExpiredSessions(): Promise<void> {
+    dbPrepare("UPDATE sessions SET is_deleted = 1 WHERE expires_at <= datetime('now') AND is_deleted = 0").run();
     saveDatabase();
   }
 
   // Memories
   async createMemory(memory: MemoryData): Promise<MemoryData> {
     dbPrepare(`
-      INSERT INTO memories (id, space_id, content, mood, photos, location, voice_note, stickers, created_at, created_by, word_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO memories (id, space_id, content, mood, photos, location, voice_note, stickers, created_at, created_by, word_count, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     `).run(
       memory.id,
       memory.space_id,
@@ -177,14 +234,14 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async getMemoryById(id: string): Promise<MemoryData | null> {
-    const row = dbPrepare('SELECT * FROM memories WHERE id = ?').get(id);
+    const row = dbPrepare('SELECT * FROM memories WHERE id = ? AND is_deleted = 0').get(id);
     return asType<MemoryData>(row);
   }
 
   async listMemoriesBySpaceId(spaceId: string, limit: number, offset: number): Promise<MemoryData[]> {
     const rows = dbPrepare(`
       SELECT * FROM memories
-      WHERE space_id = ?
+      WHERE space_id = ? AND is_deleted = 0
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `).all(spaceId, limit, offset);
@@ -192,7 +249,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async countMemoriesBySpaceId(spaceId: string): Promise<number> {
-    const result = dbPrepare('SELECT COUNT(*) as count FROM memories WHERE space_id = ?').get(spaceId) as { count: number };
+    const result = dbPrepare('SELECT COUNT(*) as count FROM memories WHERE space_id = ? AND is_deleted = 0').get(spaceId) as { count: number };
     return result.count;
   }
 
@@ -231,7 +288,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
     if (fields.length > 0) {
       values.push(id);
-      dbPrepare(`UPDATE memories SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+      dbPrepare(`UPDATE memories SET ${fields.join(', ')} WHERE id = ? AND is_deleted = 0`).run(...values);
       saveDatabase();
     }
 
@@ -239,20 +296,20 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async deleteMemory(id: string): Promise<void> {
-    dbPrepare('DELETE FROM memories WHERE id = ?').run(id);
+    dbPrepare('UPDATE memories SET is_deleted = 1 WHERE id = ? AND is_deleted = 0').run(id);
     saveDatabase();
   }
 
   async deleteMemoriesBySpaceId(spaceId: string): Promise<void> {
-    dbPrepare('DELETE FROM memories WHERE space_id = ?').run(spaceId);
+    dbPrepare('UPDATE memories SET is_deleted = 1 WHERE space_id = ? AND is_deleted = 0').run(spaceId);
     saveDatabase();
   }
 
   // Milestones
   async createMilestone(milestone: MilestoneData): Promise<MilestoneData> {
     dbPrepare(`
-      INSERT INTO milestones (id, space_id, title, description, date, type, icon, photos, location, created_at, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO milestones (id, space_id, title, description, date, type, icon, photos, location, created_at, created_by, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     `).run(
       milestone.id,
       milestone.space_id,
@@ -271,12 +328,12 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async getMilestoneById(id: string): Promise<MilestoneData | null> {
-    const row = dbPrepare('SELECT * FROM milestones WHERE id = ?').get(id);
+    const row = dbPrepare('SELECT * FROM milestones WHERE id = ? AND is_deleted = 0').get(id);
     return asType<MilestoneData>(row);
   }
 
   async listMilestonesBySpaceId(spaceId: string): Promise<MilestoneData[]> {
-    const rows = dbPrepare('SELECT * FROM milestones WHERE space_id = ? ORDER BY date DESC').all(spaceId);
+    const rows = dbPrepare('SELECT * FROM milestones WHERE space_id = ? AND is_deleted = 0 ORDER BY date DESC').all(spaceId);
     return asTypeArray<MilestoneData>(rows);
   }
 
@@ -315,7 +372,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
     if (fields.length > 0) {
       values.push(id);
-      dbPrepare(`UPDATE milestones SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+      dbPrepare(`UPDATE milestones SET ${fields.join(', ')} WHERE id = ? AND is_deleted = 0`).run(...values);
       saveDatabase();
     }
 
@@ -323,20 +380,20 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async deleteMilestone(id: string): Promise<void> {
-    dbPrepare('DELETE FROM milestones WHERE id = ?').run(id);
+    dbPrepare('UPDATE milestones SET is_deleted = 1 WHERE id = ? AND is_deleted = 0').run(id);
     saveDatabase();
   }
 
   async deleteMilestonesBySpaceId(spaceId: string): Promise<void> {
-    dbPrepare('DELETE FROM milestones WHERE space_id = ?').run(spaceId);
+    dbPrepare('UPDATE milestones SET is_deleted = 1 WHERE space_id = ? AND is_deleted = 0').run(spaceId);
     saveDatabase();
   }
 
   // Notifications
   async createNotification(notification: NotificationData): Promise<NotificationData> {
     dbPrepare(`
-      INSERT INTO notifications (id, user_id, type, title, message, created_at, read, action_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO notifications (id, user_id, type, title, message, created_at, read, action_url, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
     `).run(
       notification.id,
       notification.user_id,
@@ -352,27 +409,27 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async getNotificationById(id: string): Promise<NotificationData | null> {
-    const row = dbPrepare('SELECT * FROM notifications WHERE id = ?').get(id);
+    const row = dbPrepare('SELECT * FROM notifications WHERE id = ? AND is_deleted = 0').get(id);
     return asType<NotificationData>(row);
   }
 
   async listNotificationsByUserId(userId: string): Promise<NotificationData[]> {
-    const rows = dbPrepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+    const rows = dbPrepare('SELECT * FROM notifications WHERE user_id = ? AND is_deleted = 0 ORDER BY created_at DESC').all(userId);
     return asTypeArray<NotificationData>(rows);
   }
 
   async markNotificationRead(id: string): Promise<NotificationData | null> {
-    dbPrepare('UPDATE notifications SET read = 1 WHERE id = ?').run(id);
+    dbPrepare('UPDATE notifications SET read = 1 WHERE id = ? AND is_deleted = 0').run(id);
     saveDatabase();
     return this.getNotificationById(id);
   }
 
   async markAllNotificationsRead(userId: string): Promise<number> {
     // First count unread notifications
-    const countResult = dbPrepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = 0').get(userId) as { count: number } | undefined;
+    const countResult = dbPrepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = 0 AND is_deleted = 0').get(userId) as { count: number } | undefined;
     const count = countResult?.count || 0;
     // Then update them
-    dbPrepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0').run(userId);
+    dbPrepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0 AND is_deleted = 0').run(userId);
     saveDatabase();
     return count;
   }
@@ -380,15 +437,15 @@ export class SQLiteAdapter implements DatabaseAdapter {
   async deleteNotificationsByUserIds(userIds: string[]): Promise<void> {
     if (userIds.length === 0) return;
     const placeholders = userIds.map(() => '?').join(', ');
-    dbPrepare(`DELETE FROM notifications WHERE user_id IN (${placeholders})`).run(...userIds);
+    dbPrepare(`UPDATE notifications SET is_deleted = 1 WHERE user_id IN (${placeholders}) AND is_deleted = 0`).run(...userIds);
     saveDatabase();
   }
 
   // Reactions
   async createReaction(reaction: ReactionData): Promise<ReactionData> {
     dbPrepare(`
-      INSERT INTO reactions (id, memory_id, user_id, type, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO reactions (id, memory_id, user_id, type, created_at, is_deleted)
+      VALUES (?, ?, ?, ?, ?, 0)
     `).run(
       reaction.id,
       reaction.memory_id,
@@ -401,30 +458,30 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async getReactionByMemoryAndUser(memoryId: string, userId: string): Promise<ReactionData | null> {
-    const row = dbPrepare('SELECT * FROM reactions WHERE memory_id = ? AND user_id = ?').get(memoryId, userId);
+    const row = dbPrepare('SELECT * FROM reactions WHERE memory_id = ? AND user_id = ? AND is_deleted = 0').get(memoryId, userId);
     return asType<ReactionData>(row);
   }
 
   async listReactionsByMemoryId(memoryId: string): Promise<ReactionData[]> {
-    const rows = dbPrepare('SELECT * FROM reactions WHERE memory_id = ? ORDER BY created_at DESC').all(memoryId);
+    const rows = dbPrepare('SELECT * FROM reactions WHERE memory_id = ? AND is_deleted = 0 ORDER BY created_at DESC').all(memoryId);
     return asTypeArray<ReactionData>(rows);
   }
 
   async deleteReaction(id: string): Promise<void> {
-    dbPrepare('DELETE FROM reactions WHERE id = ?').run(id);
+    dbPrepare('UPDATE reactions SET is_deleted = 1 WHERE id = ? AND is_deleted = 0').run(id);
     saveDatabase();
   }
 
   async deleteReactionsByMemoryId(memoryId: string): Promise<void> {
-    dbPrepare('DELETE FROM reactions WHERE memory_id = ?').run(memoryId);
+    dbPrepare('UPDATE reactions SET is_deleted = 1 WHERE memory_id = ? AND is_deleted = 0').run(memoryId);
     saveDatabase();
   }
 
   // Unbind Requests
   async createUnbindRequest(request: UnbindRequestData): Promise<UnbindRequestData> {
     dbPrepare(`
-      INSERT INTO unbind_requests (id, space_id, requested_by, requested_at, expires_at, status)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO unbind_requests (id, space_id, requested_by, requested_at, expires_at, status, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, 0)
     `).run(
       request.id,
       request.space_id,
@@ -440,7 +497,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
   async getUnbindRequestBySpaceId(spaceId: string): Promise<UnbindRequestData | null> {
     const row = dbPrepare(`
       SELECT * FROM unbind_requests
-      WHERE space_id = ? AND status = 'pending'
+      WHERE space_id = ? AND status = 'pending' AND is_deleted = 0
       ORDER BY requested_at DESC
       LIMIT 1
     `).get(spaceId);
@@ -448,21 +505,21 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async updateUnbindRequestStatus(id: string, status: 'pending' | 'cancelled' | 'completed'): Promise<UnbindRequestData | null> {
-    dbPrepare('UPDATE unbind_requests SET status = ? WHERE id = ?').run(status, id);
+    dbPrepare('UPDATE unbind_requests SET status = ? WHERE id = ? AND is_deleted = 0').run(status, id);
     saveDatabase();
-    const row = dbPrepare('SELECT * FROM unbind_requests WHERE id = ?').get(id);
+    const row = dbPrepare('SELECT * FROM unbind_requests WHERE id = ? AND is_deleted = 0').get(id);
     return asType<UnbindRequestData>(row);
   }
 
   async deleteUnbindRequestsBySpaceId(spaceId: string): Promise<void> {
-    dbPrepare('DELETE FROM unbind_requests WHERE space_id = ?').run(spaceId);
+    dbPrepare('UPDATE unbind_requests SET is_deleted = 1 WHERE space_id = ? AND is_deleted = 0').run(spaceId);
     saveDatabase();
   }
 
   async getExpiredUnbindRequests(): Promise<UnbindRequestData[]> {
     const rows = dbPrepare(`
       SELECT * FROM unbind_requests
-      WHERE status = 'pending' AND expires_at <= datetime('now')
+      WHERE status = 'pending' AND expires_at <= datetime('now') AND is_deleted = 0
     `).all();
     return asTypeArray<UnbindRequestData>(rows);
   }
@@ -483,7 +540,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
     if (fields.length > 0) {
       values.push(id);
-      dbPrepare(`UPDATE spaces SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+      dbPrepare(`UPDATE spaces SET ${fields.join(', ')} WHERE id = ? AND is_deleted = 0`).run(...values);
       saveDatabase();
     }
 
@@ -494,7 +551,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
   async getUsersByIds(ids: string[]): Promise<UserData[]> {
     if (ids.length === 0) return [];
     const placeholders = ids.map(() => '?').join(', ');
-    const rows = dbPrepare(`SELECT * FROM users WHERE id IN (${placeholders})`).all(...ids);
+    const rows = dbPrepare(`SELECT * FROM users WHERE id IN (${placeholders}) AND is_deleted = 0`).all(...ids);
     return asTypeArray<UserData>(rows);
   }
 }

@@ -11,6 +11,8 @@ import {
   cancelUnbind,
   getUnbindStatus,
   updateAnniversaryDate,
+  getPetNames,
+  updatePetNames,
 } from '../services/spaceService.js';
 import { AppError } from '../middleware/errorHandler.js';
 
@@ -171,6 +173,35 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
     res.json({
       success: true,
       message: 'Space deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/spaces/pet-names - Get pet names
+router.get('/pet-names', async (req: AuthRequest, res, next) => {
+  try {
+    const petNames = await getPetNames(req.user!.id);
+
+    res.json({
+      success: true,
+      data: petNames,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/spaces/pet-names - Update pet names
+router.put('/pet-names', async (req: AuthRequest, res, next) => {
+  try {
+    const { myPetName, partnerPetName } = req.body;
+    const petNames = await updatePetNames(req.user!.id, { myPetName, partnerPetName });
+
+    res.json({
+      success: true,
+      data: petNames,
     });
   } catch (error) {
     next(error);

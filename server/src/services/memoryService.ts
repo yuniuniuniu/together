@@ -3,6 +3,7 @@ import { getDatabase, MemoryData } from '../db/database.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getUserSpace } from './spaceService.js';
 import { createNotification } from './notificationService.js';
+import { deleteMemoryFiles, deleteUploadedFiles } from './fileService.js';
 
 interface Memory {
   id: string;
@@ -157,6 +158,7 @@ export async function updateMemory(
   }
 
   const updateData: Partial<MemoryData> = {};
+  const filesToDelete: string[] = [];
 
   if (updates.content !== undefined) {
     updateData.content = updates.content;
@@ -166,16 +168,32 @@ export async function updateMemory(
     updateData.mood = updates.mood;
   }
   if (updates.photos !== undefined) {
+    // Find photos that are being removed
+    const newPhotos = new Set(updates.photos);
+    for (const oldPhoto of existing.photos) {
+      if (!newPhotos.has(oldPhoto)) {
+        filesToDelete.push(oldPhoto);
+      }
+    }
     updateData.photos = JSON.stringify(updates.photos);
   }
   if (updates.location !== undefined) {
     updateData.location = JSON.stringify(updates.location);
   }
   if (updates.voiceNote !== undefined) {
+    // If voice note changed, delete the old one
+    if (existing.voiceNote && existing.voiceNote !== updates.voiceNote) {
+      filesToDelete.push(existing.voiceNote);
+    }
     updateData.voice_note = updates.voiceNote;
   }
   if (updates.stickers !== undefined) {
     updateData.stickers = JSON.stringify(updates.stickers);
+  }
+
+  // Delete removed files
+  if (filesToDelete.length > 0) {
+    await deleteUploadedFiles(filesToDelete);
   }
 
   const memory = await db.updateMemory(memoryId, updateData);
@@ -231,6 +249,9 @@ export async function deleteMemory(memoryId: string, userId: string): Promise<vo
       }
     }
   }
+
+  // Delete associated files (photos, voice note)
+  await deleteMemoryFiles(existing.photos, existing.voiceNote || null);
 
   // Delete reactions first
   await db.deleteReactionsByMemoryId(memoryId);

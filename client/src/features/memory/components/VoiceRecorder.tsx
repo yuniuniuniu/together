@@ -1,0 +1,339 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+
+interface VoiceRecorderProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (audioDataUrl: string, duration: number) => void;
+  initialVoiceNote?: string | null;
+  maxDuration?: number;
+}
+
+export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  initialVoiceNote = null,
+  maxDuration = 60,
+}) => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [voiceNote, setVoiceNote] = useState<string | null>(initialVoiceNote);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldSaveRef = useRef<boolean>(true);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Reset state when opening
+  useEffect(() => {
+    if (isOpen) {
+      setVoiceNote(initialVoiceNote);
+      setRecordingTime(0);
+      setIsRecording(false);
+      setIsPlayingPreview(false);
+    }
+  }, [isOpen, initialVoiceNote]);
+
+  // Cleanup on unmount or close
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, []);
+
+  const cleanup = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+  }, []);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      shouldSaveRef.current = true;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        if (shouldSaveRef.current && audioChunksRef.current.length > 0) {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setVoiceNote(reader.result as string);
+          };
+          reader.readAsDataURL(audioBlob);
+        }
+        stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => {
+          const newTime = prev + 1;
+          if (newTime >= maxDuration) {
+            stopRecording();
+          }
+          return newTime;
+        });
+      }, 1000);
+    } catch {
+      console.error('Unable to access microphone');
+    }
+  };
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      shouldSaveRef.current = true;
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  }, [isRecording]);
+
+  const cancelRecording = useCallback(() => {
+    shouldSaveRef.current = false;
+
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
+    cleanup();
+    onClose();
+  }, [isRecording, cleanup, onClose]);
+
+  const deleteVoiceNote = useCallback(() => {
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+    setIsPlayingPreview(false);
+    setVoiceNote(null);
+    setRecordingTime(0);
+  }, []);
+
+  const togglePreviewPlayback = useCallback(() => {
+    if (!voiceNote) return;
+
+    if (isPlayingPreview && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+      setIsPlayingPreview(false);
+      return;
+    }
+
+    const audio = new Audio(voiceNote);
+    previewAudioRef.current = audio;
+    audio.play();
+    setIsPlayingPreview(true);
+
+    audio.onended = () => {
+      setIsPlayingPreview(false);
+    };
+  }, [voiceNote, isPlayingPreview]);
+
+  const handleDone = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    }
+    if (voiceNote) {
+      onSave(voiceNote, recordingTime);
+    }
+    cleanup();
+    onClose();
+  }, [isRecording, voiceNote, recordingTime, stopRecording, onSave, cleanup, onClose]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-auto bg-ink/5 backdrop-blur-[2px]">
+      <div
+        className="absolute inset-0 z-0"
+        onClick={() => !isRecording && cancelRecording()}
+      />
+      <div className="relative w-full bg-paper/95 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] border-t border-white/40 pb-12 pt-8 px-6 transition-all duration-300 transform translate-y-0">
+        <div className="w-12 h-1.5 bg-ink/10 rounded-full mx-auto mb-8" />
+
+        {/* Title */}
+        <h3 className="text-center text-ink font-bold text-lg mb-6">
+          {voiceNote && !isRecording ? 'Preview Recording' : isRecording ? 'Recording...' : 'Voice Note'}
+        </h3>
+
+        {/* Waveform */}
+        <div className="flex items-center justify-center gap-[3px] h-16 mb-6 px-8">
+          {isRecording ? (
+            <>
+              <div className="w-1.5 bg-accent/30 rounded-full h-4 animate-[pulse_1s_ease-in-out_infinite]" />
+              <div className="w-1.5 bg-accent/40 rounded-full h-8 animate-[pulse_1.2s_ease-in-out_infinite] delay-75" />
+              <div className="w-1.5 bg-accent/50 rounded-full h-12 animate-[pulse_0.8s_ease-in-out_infinite] delay-100" />
+              <div className="w-1.5 bg-accent rounded-full h-16 animate-[pulse_1.5s_ease-in-out_infinite]" />
+              <div className="w-1.5 bg-accent/80 rounded-full h-10 animate-[pulse_1.1s_ease-in-out_infinite] delay-150" />
+              <div className="w-1.5 bg-accent/60 rounded-full h-14 animate-[pulse_0.9s_ease-in-out_infinite] delay-75" />
+              <div className="w-1.5 bg-accent/40 rounded-full h-6 animate-[pulse_1.3s_ease-in-out_infinite]" />
+              <div className="w-1.5 bg-accent/50 rounded-full h-12 animate-[pulse_1s_ease-in-out_infinite] delay-200" />
+              <div className="w-1.5 bg-accent/30 rounded-full h-5 animate-[pulse_1.4s_ease-in-out_infinite] delay-100" />
+            </>
+          ) : voiceNote ? (
+            <>
+              <div className="w-1.5 bg-green-400/30 rounded-full h-4" />
+              <div className="w-1.5 bg-green-400/40 rounded-full h-8" />
+              <div className="w-1.5 bg-green-400/50 rounded-full h-12" />
+              <div className="w-1.5 bg-green-500 rounded-full h-16" />
+              <div className="w-1.5 bg-green-400/80 rounded-full h-10" />
+              <div className="w-1.5 bg-green-400/60 rounded-full h-14" />
+              <div className="w-1.5 bg-green-400/40 rounded-full h-6" />
+              <div className="w-1.5 bg-green-400/50 rounded-full h-12" />
+              <div className="w-1.5 bg-green-400/30 rounded-full h-5" />
+            </>
+          ) : (
+            <>
+              <div className="w-1.5 bg-ink/10 rounded-full h-4" />
+              <div className="w-1.5 bg-ink/10 rounded-full h-8" />
+              <div className="w-1.5 bg-ink/10 rounded-full h-12" />
+              <div className="w-1.5 bg-ink/20 rounded-full h-16" />
+              <div className="w-1.5 bg-ink/10 rounded-full h-10" />
+              <div className="w-1.5 bg-ink/10 rounded-full h-14" />
+              <div className="w-1.5 bg-ink/10 rounded-full h-6" />
+              <div className="w-1.5 bg-ink/10 rounded-full h-12" />
+              <div className="w-1.5 bg-ink/10 rounded-full h-5" />
+            </>
+          )}
+        </div>
+
+        {/* Timer */}
+        <div className="text-center mb-4">
+          <span className="font-sans font-bold text-3xl text-ink tracking-widest tabular-nums drop-shadow-sm">
+            {formatTime(recordingTime)}
+          </span>
+          {isRecording && (
+            <span className="text-ink/40 text-sm ml-2">/ {formatTime(maxDuration)}</span>
+          )}
+        </div>
+
+        {/* Progress bar */}
+        {isRecording && (
+          <div className="w-full max-w-xs mx-auto mb-8 h-1 bg-ink/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-dusty-rose transition-all duration-1000 ease-linear"
+              style={{ width: `${(recordingTime / maxDuration) * 100}%` }}
+            />
+          </div>
+        )}
+
+        {/* Preview controls */}
+        {voiceNote && !isRecording && (
+          <div className="flex items-center justify-center gap-4 mb-8">
+            <button
+              onClick={togglePreviewPlayback}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
+                isPlayingPreview
+                  ? 'bg-green-500 text-white'
+                  : 'bg-ink/5 text-ink hover:bg-ink/10'
+              }`}
+            >
+              <span className="material-symbols-outlined text-xl">
+                {isPlayingPreview ? 'pause' : 'play_arrow'}
+              </span>
+              <span className="text-sm font-medium">
+                {isPlayingPreview ? 'Pause' : 'Play'}
+              </span>
+            </button>
+            <button
+              onClick={deleteVoiceNote}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+            >
+              <span className="material-symbols-outlined text-xl">delete</span>
+              <span className="text-sm font-medium">Delete</span>
+            </button>
+          </div>
+        )}
+
+        {/* Main Controls */}
+        <div className="flex items-center justify-between max-w-xs mx-auto px-4">
+          <button
+            className="text-ink/40 font-bold text-xs uppercase tracking-widest hover:text-ink transition-colors py-4"
+            onClick={cancelRecording}
+          >
+            Cancel
+          </button>
+
+          <div
+            className="relative group cursor-pointer"
+            onClick={isRecording ? stopRecording : !voiceNote ? startRecording : undefined}
+          >
+            {isRecording && (
+              <>
+                <div className="absolute inset-0 bg-dusty-rose rounded-full animate-ping opacity-40" />
+                <div className="absolute inset-0 bg-dusty-rose rounded-full animate-pulse opacity-60 delay-75" />
+              </>
+            )}
+            <button
+              className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg transform transition-transform active:scale-95 border-4 border-white/40 ${
+                voiceNote && !isRecording ? 'bg-green-500' : 'bg-dusty-rose'
+              }`}
+              disabled={voiceNote !== null && !isRecording}
+            >
+              {isRecording ? (
+                <div className="w-6 h-6 bg-white rounded-sm shadow-sm" />
+              ) : voiceNote ? (
+                <span className="material-symbols-outlined text-white text-3xl">check</span>
+              ) : (
+                <span className="material-symbols-outlined text-white text-3xl">mic</span>
+              )}
+            </button>
+          </div>
+
+          <button
+            className="text-accent font-bold text-xs uppercase tracking-widest hover:text-accent/80 transition-colors py-4 disabled:opacity-30 disabled:text-ink/40"
+            onClick={handleDone}
+            disabled={!voiceNote && !isRecording}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

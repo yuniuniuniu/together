@@ -11,53 +11,58 @@ Sanctuary is a private, encrypted space for couples to share memories, track ann
 - **Target**: ES2022, modern browsers
 - **Module System**: ESNext modules
 
+## Project Structure (Monorepo)
+
+```
+together/
+├── client/                      # Frontend application
+│   ├── src/
+│   │   ├── App.tsx              # Root component with providers and routing
+│   │   ├── index.tsx            # Entry point
+│   │   ├── index.css            # Tailwind theme and custom styles
+│   │   ├── pages/               # Route entry points
+│   │   ├── components/          # Legacy components (being migrated)
+│   │   ├── features/            # Domain-specific modules
+│   │   │   ├── auth/            # Authentication module
+│   │   │   ├── memory/          # Memory/journal module
+│   │   │   ├── milestone/       # Milestone tracking module
+│   │   │   └── space/           # Couple space management
+│   │   └── shared/              # Cross-cutting concerns
+│   │       ├── api/             # API client (client.ts)
+│   │       ├── components/      # Reusable UI components
+│   │       ├── context/         # React Contexts
+│   │       ├── hooks/           # Shared hooks
+│   │       └── types/           # TypeScript types
+│   ├── tests/                   # Frontend tests
+│   ├── index.html
+│   ├── vite.config.ts
+│   ├── vitest.config.ts
+│   ├── tsconfig.json
+│   └── package.json
+├── server/                      # Backend application
+│   ├── src/
+│   │   ├── index.ts             # Entry point
+│   │   ├── app.ts               # Express configuration
+│   │   ├── db/                  # Database layer
+│   │   ├── routes/              # API route handlers
+│   │   ├── services/            # Business logic
+│   │   └── middleware/          # Express middleware
+│   ├── tests/                   # Backend tests
+│   └── package.json
+├── package.json                 # Workspace root configuration
+└── openspec/                    # Specification documents
+```
+
 ## Project Conventions
 
 ### Code Style
 - No enforced linter/formatter configuration
 - TypeScript with `React.FC` type annotations for components
 - Functional components with hooks
-- Path aliases: `@/*` maps to project root
+- Path aliases: `@/*` maps to `client/src/`
 - Tailwind utility classes for styling (no CSS modules)
 
 ### Architecture Patterns
-
-#### Directory Structure (Feature-Based)
-```
-├── features/                    # Domain-specific modules
-│   ├── auth/                    # Authentication module
-│   │   ├── hooks/               # useAuth
-│   │   ├── types.ts
-│   │   └── index.ts
-│   ├── memory/                  # Memory/journal module
-│   │   ├── components/          # VoiceRecorder, LocationPicker, StickerPicker
-│   │   ├── hooks/               # useMemories
-│   │   ├── types.ts
-│   │   └── index.ts
-│   ├── milestone/               # Milestone tracking module
-│   │   ├── hooks/               # useMilestones
-│   │   ├── types.ts
-│   │   └── index.ts
-│   └── space/                   # Couple space management
-│       ├── hooks/               # useSpace
-│       ├── types.ts
-│       └── index.ts
-├── shared/                      # Cross-cutting concerns
-│   ├── api/                     # API client
-│   │   └── client.ts            # Backend API communication
-│   ├── components/              # Reusable UI components
-│   │   ├── layout/              # MobileWrapper, Header, BottomNav, PageLayout
-│   │   ├── form/                # Button, Input
-│   │   ├── feedback/            # BottomSheet, Modal
-│   │   └── display/             # Avatar, Card
-│   ├── context/                 # React Contexts (AuthContext, SpaceContext)
-│   ├── hooks/                   # Shared hooks (useApi, useLocalStorage)
-│   └── types/                   # Shared TypeScript types (index.ts, ui.ts)
-├── pages/                       # Route entry points
-├── components/                  # Legacy components (being migrated)
-├── App.tsx                      # Root component with providers and routing
-└── index.tsx                    # Entry point
-```
 
 #### State Management
 - **React Context** for global state: `AuthContext`, `SpaceContext`
@@ -83,8 +88,8 @@ Sanctuary is a private, encrypted space for couples to share memories, track ann
 - Custom CSS classes for complex effects (`.bottom-sheet`, `.glass-panel`, etc.)
 
 ### Testing Strategy
-- **Backend**: Vitest test suite with 62 tests across 6 test files covering all API endpoints
-- **Frontend**: No automated testing currently in place
+- **Backend**: Vitest test suite covering all API endpoints
+- **Frontend**: Vitest + Testing Library for component and integration tests
 
 ### Git Workflow
 - Feature branch workflow with pull requests
@@ -118,19 +123,6 @@ Key user flows:
 - **Authentication**: JWT tokens
 - **Testing**: Vitest with supertest
 
-### Backend Directory Structure
-```
-├── server/
-│   ├── src/
-│   │   ├── index.ts            # Entry point
-│   │   ├── app.ts              # Express configuration
-│   │   ├── db/                 # Database layer (schema.sql, index.ts, seed.ts)
-│   │   ├── routes/             # API route handlers (auth, spaces, memories, milestones, notifications, reactions)
-│   │   ├── services/           # Business logic (*Service.ts files)
-│   │   └── middleware/         # Express middleware (auth, validate, errorHandler)
-│   └── tests/                  # Vitest test files
-```
-
 ### API Conventions
 - All endpoints prefixed with `/api`
 - Response format: `{ success: boolean, data?: T, message?: string }`
@@ -147,6 +139,7 @@ Key user flows:
 
 ### Development
 - Backend runs on port 3001
+- Frontend runs on port 3000
 - Frontend connects via `VITE_API_URL` environment variable
 - Database file stored at `server/data/sanctuary.db`
 
@@ -156,10 +149,18 @@ Key user flows:
 - **Google Images CDN**: External image hosting (lh3.googleusercontent.com)
 
 ## Key Files
-- `index.css` - Tailwind theme configuration and custom styles
-- `App.tsx` - Root component with context providers and routing
-- `shared/types/index.ts` - Core business types (User, Space, Memory, Milestone)
-- `shared/context/` - Global state management
-- `shared/api/client.ts` - API client for backend communication
+- `client/src/index.css` - Tailwind theme configuration and custom styles
+- `client/src/App.tsx` - Root component with context providers and routing
+- `client/src/shared/types/index.ts` - Core business types (User, Space, Memory, Milestone)
+- `client/src/shared/context/` - Global state management
+- `client/src/shared/api/client.ts` - API client for backend communication
 - `server/src/app.ts` - Express application setup
 - `server/src/db/schema.sql` - Database schema definition
+
+## NPM Scripts
+- `npm run dev` - Start frontend dev server
+- `npm run dev:server` - Start backend dev server
+- `npm run dev:all` - Start both frontend and backend
+- `npm run test` - Run all tests
+- `npm run test:client` - Run frontend tests only
+- `npm run test:server` - Run backend tests only
