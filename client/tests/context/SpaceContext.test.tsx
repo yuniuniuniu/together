@@ -19,6 +19,9 @@ vi.mock('@/shared/api/client', () => ({
     getById: vi.fn(),
     join: vi.fn(),
     delete: vi.fn(),
+    requestUnbind: vi.fn(),
+    cancelUnbind: vi.fn(),
+    getUnbindStatus: vi.fn(),
   },
 }));
 
@@ -31,6 +34,9 @@ const mockSpacesApi = client.spacesApi as {
   getMy: ReturnType<typeof vi.fn>;
   join: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
+  requestUnbind: ReturnType<typeof vi.fn>;
+  cancelUnbind: ReturnType<typeof vi.fn>;
+  getUnbindStatus: ReturnType<typeof vi.fn>;
 };
 
 // Wrapper component with both providers
@@ -277,6 +283,85 @@ describe('SpaceContext', () => {
       });
 
       expect(mockSpacesApi.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('unbind requests', () => {
+    const mockUser = { id: 'user-1', phone: '+1234567890', nickname: 'User1' };
+    const mockSpace = {
+      id: 'space-1',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      anniversaryDate: '2024-02-14',
+      inviteCode: '123456',
+      partners: [mockUser],
+    };
+
+    beforeEach(() => {
+      localStorage.setItem('auth_token', 'valid-token');
+      mockAuthApi.getMe.mockResolvedValue({ data: mockUser });
+      mockSpacesApi.getMy.mockResolvedValue({ data: mockSpace });
+    });
+
+    it('should request unbind and return status', async () => {
+      const mockRequest = {
+        id: 'request-1',
+        spaceId: 'space-1',
+        requestedBy: 'user-1',
+        requestedAt: '2024-01-02T00:00:00.000Z',
+        expiresAt: '2024-01-09T00:00:00.000Z',
+        status: 'pending',
+      };
+      mockSpacesApi.requestUnbind.mockResolvedValue({ data: mockRequest });
+
+      const { result } = renderHook(() => useSpace(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.space).not.toBeNull();
+      });
+
+      const response = await act(async () => result.current.requestUnbind());
+
+      expect(mockSpacesApi.requestUnbind).toHaveBeenCalledWith('space-1');
+      expect(response).toEqual(mockRequest);
+    });
+
+    it('should cancel unbind request', async () => {
+      mockSpacesApi.cancelUnbind.mockResolvedValue({});
+
+      const { result } = renderHook(() => useSpace(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.space).not.toBeNull();
+      });
+
+      await act(async () => {
+        await result.current.cancelUnbind();
+      });
+
+      expect(mockSpacesApi.cancelUnbind).toHaveBeenCalledWith('space-1');
+    });
+
+    it('should get unbind status', async () => {
+      const mockRequest = {
+        id: 'request-1',
+        spaceId: 'space-1',
+        requestedBy: 'user-1',
+        requestedAt: '2024-01-02T00:00:00.000Z',
+        expiresAt: '2024-01-09T00:00:00.000Z',
+        status: 'pending',
+      };
+      mockSpacesApi.getUnbindStatus.mockResolvedValue({ data: mockRequest });
+
+      const { result } = renderHook(() => useSpace(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.space).not.toBeNull();
+      });
+
+      const response = await act(async () => result.current.getUnbindStatus());
+
+      expect(mockSpacesApi.getUnbindStatus).toHaveBeenCalledWith('space-1');
+      expect(response).toEqual(mockRequest);
     });
   });
 

@@ -318,6 +318,25 @@ describe('CreateSpace Page', () => {
         expect(screen.getByText('Waiting for partner to join...')).toBeInTheDocument();
       });
     });
+
+    it('should refresh space during polling', async () => {
+      vi.useFakeTimers();
+      mockSpacesApi.getMy.mockResolvedValue({ data: createMockSpace() });
+
+      renderCreateSpace();
+
+      await waitFor(() => {
+        expect(mockSpacesApi.getMy).toHaveBeenCalledTimes(1);
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      await waitFor(() => {
+        expect(mockSpacesApi.getMy).toHaveBeenCalledTimes(2);
+      });
+    });
   });
 
   describe('existing space', () => {

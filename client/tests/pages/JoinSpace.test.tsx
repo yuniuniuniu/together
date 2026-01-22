@@ -61,14 +61,14 @@ describe('JoinSpace Page', () => {
   });
 
   describe('code input', () => {
-    it('should accept digit input', async () => {
+    it('should accept alphanumeric input and uppercase it', async () => {
       const user = userEvent.setup();
       renderJoinSpace();
 
       const inputs = screen.getAllByRole('textbox');
-      await user.type(inputs[0], '1');
+      await user.type(inputs[0], 'a');
 
-      expect(inputs[0]).toHaveValue('1');
+      expect(inputs[0]).toHaveValue('A');
     });
 
     it('should auto-focus next input after entering digit', async () => {
@@ -82,7 +82,7 @@ describe('JoinSpace Page', () => {
       expect(inputs[0]).toHaveValue('1');
     });
 
-    it('should handle paste of full code', async () => {
+    it('should handle paste of full alphanumeric code', async () => {
       const user = userEvent.setup();
       renderJoinSpace();
 
@@ -90,23 +90,23 @@ describe('JoinSpace Page', () => {
 
       // Focus first input and paste
       await user.click(inputs[0]);
-      await user.paste('123456');
+      await user.paste('ab12C3');
 
       // All inputs should have values
-      expect(inputs[0]).toHaveValue('1');
-      expect(inputs[1]).toHaveValue('2');
-      expect(inputs[2]).toHaveValue('3');
-      expect(inputs[3]).toHaveValue('4');
-      expect(inputs[4]).toHaveValue('5');
-      expect(inputs[5]).toHaveValue('6');
+      expect(inputs[0]).toHaveValue('A');
+      expect(inputs[1]).toHaveValue('B');
+      expect(inputs[2]).toHaveValue('1');
+      expect(inputs[3]).toHaveValue('2');
+      expect(inputs[4]).toHaveValue('C');
+      expect(inputs[5]).toHaveValue('3');
     });
 
-    it('should only accept numeric input', async () => {
+    it('should reject non-alphanumeric input', async () => {
       const user = userEvent.setup();
       renderJoinSpace();
 
       const inputs = screen.getAllByRole('textbox');
-      await user.type(inputs[0], 'a');
+      await user.type(inputs[0], '@');
 
       expect(inputs[0]).toHaveValue('');
     });
@@ -134,13 +134,13 @@ describe('JoinSpace Page', () => {
   });
 
   describe('join flow', () => {
-    it('should call API and navigate on success', async () => {
+    it('should call API with uppercased code and navigate on success', async () => {
       const user = userEvent.setup();
       const mockSpace = {
         id: 'space-1',
         createdAt: '2024-01-01T00:00:00.000Z',
         anniversaryDate: '2024-02-14',
-        inviteCode: '123456',
+        inviteCode: 'AB12C3',
         partners: [
           { id: 'user-1', phone: '+1234567890', nickname: 'Partner1' },
           { id: 'user-2', phone: '+9876543210', nickname: 'Partner2' },
@@ -152,13 +152,13 @@ describe('JoinSpace Page', () => {
 
       const inputs = screen.getAllByRole('textbox');
       await user.click(inputs[0]);
-      await user.paste('123456');
+      await user.paste('ab12c3');
 
       const submitButton = screen.getByText('Find My Partner');
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(mockSpacesApi.join).toHaveBeenCalledWith('123456');
+        expect(mockSpacesApi.join).toHaveBeenCalledWith('AB12C3');
       });
 
       await waitFor(() => {
