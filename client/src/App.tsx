@@ -55,21 +55,21 @@ const App: React.FC = () => {
               <Route path="/setup/create" element={<ProtectedRoute><CreateSpace /></ProtectedRoute>} />
 
               {/* Main app routes - protected */}
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/record-type" element={<ProtectedRoute><SelectRecordType /></ProtectedRoute>} />
-              <Route path="/milestone/new" element={<ProtectedRoute><NewMilestone /></ProtectedRoute>} />
-              <Route path="/milestone/:id" element={<ProtectedRoute><MilestoneDetail /></ProtectedRoute>} />
-              <Route path="/milestone/:id/edit" element={<ProtectedRoute><EditMilestone /></ProtectedRoute>} />
-              <Route path="/milestones" element={<ProtectedRoute><MilestoneTimeline /></ProtectedRoute>} />
-              <Route path="/memory/map" element={<ProtectedRoute><MemoryMap /></ProtectedRoute>} />
-              <Route path="/memory/timeline" element={<ProtectedRoute><MemoryTimeline /></ProtectedRoute>} />
-              <Route path="/memories" element={<ProtectedRoute><MemoryTimeline /></ProtectedRoute>} />
-              <Route path="/memory/new" element={<ProtectedRoute><NewMemory /></ProtectedRoute>} />
-              <Route path="/memory/:id" element={<ProtectedRoute><MemoryDetail /></ProtectedRoute>} />
-              <Route path="/memory/:id/edit" element={<ProtectedRoute><EditMemory /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-              <Route path="/settings/unbind" element={<ProtectedRoute><Unbinding /></ProtectedRoute>} />
-              <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute requireSpace><Dashboard /></ProtectedRoute>} />
+              <Route path="/record-type" element={<ProtectedRoute requireSpace><SelectRecordType /></ProtectedRoute>} />
+              <Route path="/milestone/new" element={<ProtectedRoute requireSpace><NewMilestone /></ProtectedRoute>} />
+              <Route path="/milestone/:id" element={<ProtectedRoute requireSpace><MilestoneDetail /></ProtectedRoute>} />
+              <Route path="/milestone/:id/edit" element={<ProtectedRoute requireSpace><EditMilestone /></ProtectedRoute>} />
+              <Route path="/milestones" element={<ProtectedRoute requireSpace><MilestoneTimeline /></ProtectedRoute>} />
+              <Route path="/memory/map" element={<ProtectedRoute requireSpace><MemoryMap /></ProtectedRoute>} />
+              <Route path="/memory/timeline" element={<ProtectedRoute requireSpace><MemoryTimeline /></ProtectedRoute>} />
+              <Route path="/memories" element={<ProtectedRoute requireSpace><MemoryTimeline /></ProtectedRoute>} />
+              <Route path="/memory/new" element={<ProtectedRoute requireSpace><NewMemory /></ProtectedRoute>} />
+              <Route path="/memory/:id" element={<ProtectedRoute requireSpace><MemoryDetail /></ProtectedRoute>} />
+              <Route path="/memory/:id/edit" element={<ProtectedRoute requireSpace><EditMemory /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute requireSpace><Settings /></ProtectedRoute>} />
+              <Route path="/settings/unbind" element={<ProtectedRoute requireSpace><Unbinding /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute requireSpace><Notifications /></ProtectedRoute>} />
 
               {/* Legal pages - public */}
               <Route path="/terms" element={<Terms />} />

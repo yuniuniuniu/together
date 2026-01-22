@@ -18,6 +18,9 @@ interface SpaceContextValue extends SpaceState {
   createSpace: (anniversaryDate: Date) => Promise<void>;
   joinSpace: (inviteCode: string) => Promise<void>;
   unbind: () => Promise<void>;
+  requestUnbind: () => Promise<UnbindRequest | null>;
+  cancelUnbind: () => Promise<void>;
+  getUnbindStatus: () => Promise<UnbindRequest | null>;
   refreshSpace: () => Promise<void>;
 }
 
@@ -25,6 +28,15 @@ const SpaceContext = createContext<SpaceContextValue | null>(null);
 
 interface SpaceProviderProps {
   children: ReactNode;
+}
+
+interface UnbindRequest {
+  id: string;
+  spaceId: string;
+  requestedBy: string;
+  requestedAt: string;
+  expiresAt: string;
+  status: 'pending' | 'cancelled' | 'completed';
 }
 
 export function SpaceProvider({ children }: SpaceProviderProps) {
@@ -163,6 +175,33 @@ export function SpaceProvider({ children }: SpaceProviderProps) {
     }
   }, [state.space]);
 
+  const requestUnbind = useCallback(async (): Promise<UnbindRequest | null> => {
+    if (!state.space) return null;
+    setState(prev => ({ ...prev, isLoading: true }));
+    try {
+      const response = await spacesApi.requestUnbind(state.space.id);
+      return response.data;
+    } finally {
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [state.space]);
+
+  const cancelUnbind = useCallback(async (): Promise<void> => {
+    if (!state.space) return;
+    setState(prev => ({ ...prev, isLoading: true }));
+    try {
+      await spacesApi.cancelUnbind(state.space.id);
+    } finally {
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [state.space]);
+
+  const getUnbindStatus = useCallback(async (): Promise<UnbindRequest | null> => {
+    if (!state.space) return null;
+    const response = await spacesApi.getUnbindStatus(state.space.id);
+    return response.data;
+  }, [state.space]);
+
   const value: SpaceContextValue = {
     ...state,
     daysCount,
@@ -173,6 +212,9 @@ export function SpaceProvider({ children }: SpaceProviderProps) {
     createSpace,
     joinSpace,
     unbind,
+    requestUnbind,
+    cancelUnbind,
+    getUnbindStatus,
     refreshSpace,
   };
 

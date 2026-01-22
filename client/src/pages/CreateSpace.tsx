@@ -4,7 +4,7 @@ import { useSpace } from '../shared/context/SpaceContext';
 
 const CreateSpace: React.FC = () => {
   const navigate = useNavigate();
-  const { createSpace, space, isLoading } = useSpace();
+  const { createSpace, space, isLoading, refreshSpace } = useSpace();
 
   const [inviteCode, setInviteCode] = useState('');
   const [anniversaryDate, setAnniversaryDate] = useState('');
@@ -46,11 +46,18 @@ const CreateSpace: React.FC = () => {
     }
   }, [space]);
 
+  useEffect(() => {
+    if (space?.partners && space.partners.length >= 2) {
+      navigate('/dashboard');
+    }
+  }, [space, navigate]);
+
   // Poll for partner joining
   useEffect(() => {
     if (!space) return;
 
     const checkPartner = setInterval(() => {
+      refreshSpace();
       if (space.partners && space.partners.length >= 2) {
         clearInterval(checkPartner);
         navigate('/dashboard');
@@ -58,7 +65,7 @@ const CreateSpace: React.FC = () => {
     }, 3000);
 
     return () => clearInterval(checkPartner);
-  }, [space, navigate]);
+  }, [space, navigate, refreshSpace]);
 
   const handleCopyCode = async () => {
     if (!inviteCode) return;

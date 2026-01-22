@@ -369,3 +369,21 @@ export async function updatePetNames(
     partnerPetName: updated.partner_pet_name,
   };
 }
+
+export async function finalizeExpiredUnbindRequests(): Promise<void> {
+  const db = getDatabase();
+  const expiredRequests = await db.getExpiredUnbindRequests();
+
+  for (const request of expiredRequests) {
+    const spaceId = request.space_id;
+    const members = await db.getSpaceMembersBySpaceId(spaceId);
+    const userIds = members.map((m) => m.user_id);
+
+    await db.deleteNotificationsByUserIds(userIds);
+    await db.deleteMilestonesBySpaceId(spaceId);
+    await db.deleteMemoriesBySpaceId(spaceId);
+    await db.deleteSpaceMembersBySpaceId(spaceId);
+    await db.deleteSpace(spaceId);
+    await db.updateUnbindRequestStatus(request.id, 'completed');
+  }
+}

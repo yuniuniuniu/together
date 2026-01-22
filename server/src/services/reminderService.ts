@@ -1,5 +1,6 @@
 import { getDatabase } from '../db/database.js';
 import { createNotification } from './notificationService.js';
+import { finalizeExpiredUnbindRequests } from './spaceService.js';
 
 // Check for upcoming anniversaries and milestones
 export async function checkUpcomingReminders(): Promise<void> {
@@ -27,6 +28,9 @@ export async function checkUpcomingReminders(): Promise<void> {
 
     // Check milestone reminders
     await checkMilestoneReminders(db, today, tomorrow, inThreeDays, inOneWeek);
+
+    // Process expired unbind requests
+    await finalizeExpiredUnbindRequests();
   } catch (error) {
     console.error('[Reminder] Error checking reminders:', error);
   }

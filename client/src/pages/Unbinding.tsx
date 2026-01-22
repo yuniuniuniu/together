@@ -1,29 +1,83 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpace } from '../shared/context/SpaceContext';
 
 const Unbinding: React.FC = () => {
   const navigate = useNavigate();
-  const { unbind, isLoading } = useSpace();
+  const { space, requestUnbind, cancelUnbind, getUnbindStatus, isLoading } = useSpace();
   const [isUnbinding, setIsUnbinding] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [error, setError] = useState('');
+  const [status, setStatus] = useState<{
+    id: string;
+    spaceId: string;
+    requestedBy: string;
+    requestedAt: string;
+    expiresAt: string;
+    status: 'pending' | 'cancelled' | 'completed';
+  } | null>(null);
+  const [isFetchingStatus, setIsFetchingStatus] = useState(true);
+
+  useEffect(() => {
+    if (!space) return;
+    const fetchStatus = async () => {
+      setIsFetchingStatus(true);
+      try {
+        const response = await getUnbindStatus();
+        setStatus(response);
+      } catch {
+        setStatus(null);
+      } finally {
+        setIsFetchingStatus(false);
+      }
+    };
+    fetchStatus();
+  }, [space, getUnbindStatus]);
 
   const handleUnbind = async () => {
-    if (!window.confirm('Are you sure you want to unbind? This action cannot be undone after 7 days.')) {
+    if (!space) return;
+    if (!window.confirm('Are you sure you want to start unbinding? You can cancel within 7 days.')) {
       return;
     }
 
     setError('');
     setIsUnbinding(true);
     try {
-      await unbind();
-      navigate('/');
+      const response = await requestUnbind();
+      setStatus(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to unbind');
     } finally {
       setIsUnbinding(false);
     }
   };
+
+  const handleCancelUnbind = async () => {
+    if (!space) return;
+    setError('');
+    setIsCancelling(true);
+    try {
+      await cancelUnbind();
+      setStatus(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel unbind');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const formatDateTime = (value: string) => {
+    const date = new Date(value);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const isPending = status?.status === 'pending';
 
   return (
     <div className="flex-1 flex flex-col bg-background-light relative h-full min-h-screen">
@@ -99,6 +153,19 @@ const Unbinding: React.FC = () => {
           </div>
         </div>
 
+        {(isFetchingStatus || isPending) && (
+          <div className="bg-white rounded-3xl p-6 shadow-soft mb-6 border border-primary/20">
+            <h3 className="text-sm font-semibold text-ink mb-2">
+              {isFetchingStatus ? 'Checking unbind status...' : 'Unbind request active'}
+            </h3>
+            {isPending && (
+              <p className="text-xs text-ink/50">
+                Requested on {formatDateTime(status.requestedAt)} · Expires on {formatDateTime(status.expiresAt)}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Backup Tip */}
         <div className="flex items-start gap-3 px-2 mb-6 opacity-80">
           <span className="material-symbols-outlined text-ink/40 shrink-0" style={{fontSize: '20px'}}>inventory_2</span>
@@ -121,13 +188,23 @@ const Unbinding: React.FC = () => {
             <span>Back to Our Space</span>
             <span className="material-symbols-outlined" style={{fontSize: '20px', fontVariationSettings: "'FILL' 1"}}>favorite</span>
           </button>
-          <button
-            onClick={handleUnbind}
-            disabled={isUnbinding || isLoading}
-            className="w-full h-12 rounded-full flex items-center justify-center text-ink/40 hover:text-red-500 transition-colors text-sm font-medium disabled:opacity-50"
-          >
-            {isUnbinding ? 'Unbinding...' : 'Continue to Unbind'}
-          </button>
+          {isPending ? (
+            <button
+              onClick={handleCancelUnbind}
+              disabled={isCancelling || isLoading}
+              className="w-full h-12 rounded-full flex items-center justify-center text-ink/40 hover:text-ink transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              {isCancelling ? 'Cancelling...' : 'Cancel Unbind Request'}
+            </button>
+          ) : (
+            <button
+              onClick={handleUnbind}
+              disabled={isUnbinding || isLoading}
+              className="w-full h-12 rounded-full flex items-center justify-center text-ink/40 hover:text-red-500 transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              {isUnbinding ? 'Submitting...' : 'Start Unbinding'}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -16,10 +16,11 @@ const JoinSpace: React.FC = () => {
   }, []);
 
   const handleInputChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return; // Only allow digits
+    const sanitized = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (!sanitized && value) return;
 
     const newCode = [...code];
-    newCode[index] = value;
+    newCode[index] = sanitized;
     setCode(newCode);
     setError('');
 
@@ -37,7 +38,11 @@ const JoinSpace: React.FC = () => {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const pastedData = e.clipboardData
+      .getData('text')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 6);
     if (pastedData.length === 6) {
       setCode(pastedData.split(''));
       inputRefs.current[5]?.focus();
@@ -45,7 +50,7 @@ const JoinSpace: React.FC = () => {
   };
 
   const handleFindPartner = async () => {
-    const inviteCode = code.join('');
+    const inviteCode = code.join('').toUpperCase();
     if (inviteCode.length !== 6) {
       setError('Please enter the complete 6-digit code');
       return;
