@@ -138,13 +138,13 @@ Key user flows:
 - **Reactions**: `/api/reactions` (like/unlike memories)
 
 ### Development
-- Backend runs on port 3001
+- Backend runs on port 3005
 - Frontend runs on port 3000
 - Frontend connects via `VITE_API_URL` environment variable
 - Database file stored at `server/data/sanctuary.db`
 
 ## External Dependencies
-- **Local Backend**: Express.js API server (port 3001) with SQLite
+- **Local Backend**: Express.js API server (port 3005) with SQLite
 - **Gemini API**: Google's AI API (requires `GEMINI_API_KEY`)
 - **Google Images CDN**: External image hosting (lh3.googleusercontent.com)
 

@@ -235,7 +235,7 @@ describe('POST /api/auth/send-code', () => {
 Create `shared/api/client.ts`:
 
 ```typescript
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3005/api';
 
 export async function apiClient<T>(
   endpoint: string,
@@ -313,12 +313,12 @@ npm run dev
 
 Frontend `.env`:
 ```
-VITE_API_URL=http://localhost:3001/api
+VITE_API_URL=http://localhost:3005/api
 ```
 
 Backend `.env`:
 ```
-PORT=3001
+PORT=3005
 JWT_SECRET=dev-secret-key
 NODE_ENV=development
 ```

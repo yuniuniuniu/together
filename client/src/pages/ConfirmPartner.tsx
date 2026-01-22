@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
+import { spacesApi } from '../shared/api/client';
 
 interface SpaceData {
   id: string;
   createdAt: string;
   anniversaryDate: string;
   inviteCode: string;
+  pendingInviteCode?: string;
   partners: Array<{ id: string; phone: string; nickname: string; avatar?: string }>;
 }
 
@@ -40,14 +42,22 @@ const ConfirmPartner: React.FC = () => {
   }, [navigate, user?.id]);
 
   const handleConfirm = async () => {
+    if (!spaceData?.pendingInviteCode) {
+      navigate('/join');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Space was already joined in JoinSpace, just refresh and navigate
+      // Actually join the space now
+      await spacesApi.join(spaceData.pendingInviteCode);
       await refreshSpace();
       sessionStorage.removeItem('pendingSpace');
       navigate('/celebration');
-    } catch {
-      navigate('/celebration');
+    } catch (err) {
+      // If join fails, show error but don't navigate away
+      console.error('Failed to join space:', err);
+      setIsLoading(false);
     }
   };
 

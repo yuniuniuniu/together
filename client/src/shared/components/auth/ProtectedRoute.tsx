@@ -39,9 +39,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 };
 
 export const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const { space, isLoading: isSpaceLoading } = useSpace();
 
-  if (isLoading) {
+  if (isLoading || isSpaceLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background-light">
         <div className="flex flex-col items-center gap-4">
@@ -53,6 +54,15 @@ export const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ child
   }
 
   if (isAuthenticated) {
+    // Check if user has completed profile setup
+    if (!user?.nickname) {
+      return <Navigate to="/setup/profile" replace />;
+    }
+    // Check if user has a space
+    if (!space) {
+      return <Navigate to="/sanctuary" replace />;
+    }
+    // User is fully set up, go to dashboard
     return <Navigate to="/dashboard" replace />;
   }
 

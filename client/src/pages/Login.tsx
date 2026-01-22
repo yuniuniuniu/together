@@ -133,10 +133,15 @@ const Login: React.FC = () => {
             onClick={handleLogin}
             fullWidth
             className="mt-4 shadow-glow"
-            disabled={isLoading || !email.trim() || !code.trim() || !termsAccepted}
+            disabled={isLoading || !email.trim() || !code.trim()}
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
+          {!termsAccepted && email.trim() && code.trim() && (
+            <p className="text-amber-600 text-xs text-center mt-2">
+              Please accept the Terms of Service and Privacy Policy to continue
+            </p>
+          )}
         </div>
       </div>
 

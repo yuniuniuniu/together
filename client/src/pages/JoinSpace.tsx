@@ -60,10 +60,13 @@ const JoinSpace: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // First, lookup the space by invite code to get partner info
-      const response = await spacesApi.join(inviteCode);
-      // Store space info for confirm page
-      sessionStorage.setItem('pendingSpace', JSON.stringify(response.data));
+      // Lookup the space by invite code (without joining yet)
+      const response = await spacesApi.lookup(inviteCode);
+      // Store space info and invite code for confirm page
+      sessionStorage.setItem('pendingSpace', JSON.stringify({
+        ...response.data,
+        pendingInviteCode: inviteCode,
+      }));
       navigate('/confirm');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid code or space not found');

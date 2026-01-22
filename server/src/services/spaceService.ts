@@ -106,6 +106,30 @@ export async function getUserSpace(userId: string): Promise<SpaceWithPartners | 
   return getSpaceById(membership.space_id);
 }
 
+export async function lookupSpaceByInviteCode(inviteCode: string): Promise<SpaceWithPartners> {
+  const db = getDatabase();
+
+  // Find space by invite code
+  const space = await db.getSpaceByInviteCode(inviteCode);
+
+  if (!space) {
+    throw new AppError(404, 'SPACE_NOT_FOUND', 'Invalid invite code');
+  }
+
+  // Check if space already has 2 members
+  const memberCount = await db.countSpaceMembers(space.id);
+
+  if (memberCount >= 2) {
+    throw new AppError(400, 'SPACE_FULL', 'Space already has 2 members');
+  }
+
+  const members = await db.getSpaceMembersBySpaceId(space.id);
+  const userIds = members.map((m) => m.user_id);
+  const users = await db.getUsersByIds(userIds);
+
+  return formatSpace(space, users.map(formatUser));
+}
+
 export async function joinSpaceByInviteCode(userId: string, inviteCode: string): Promise<SpaceWithPartners> {
   const db = getDatabase();
 

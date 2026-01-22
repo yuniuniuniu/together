@@ -57,7 +57,7 @@ together/
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start frontend dev server (port 3000) |
-| `npm run dev:server` | Start backend dev server (port 3001) |
+| `npm run dev:server` | Start backend dev server (port 3005) |
 | `npm run dev:all` | Start both frontend and backend |
 | `npm run build` | Build frontend for production |
 | `npm run test` | Run all tests (client + server) |

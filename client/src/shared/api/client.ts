@@ -1,6 +1,6 @@
 import type { ApiResponse } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3005/api';
 
 export async function apiClient<T>(
   endpoint: string,
@@ -89,6 +89,18 @@ export const spacesApi = {
       inviteCode: string;
       partners: Array<{ id: string; email: string; nickname: string; avatar?: string }>;
     }>(`/spaces/${id}`),
+
+  lookup: (inviteCode: string) =>
+    apiClient<{
+      id: string;
+      createdAt: string;
+      anniversaryDate: string;
+      inviteCode: string;
+      partners: Array<{ id: string; email: string; nickname: string; avatar?: string }>;
+    }>('/spaces/lookup', {
+      method: 'POST',
+      body: JSON.stringify({ inviteCode }),
+    }),
 
   join: (inviteCode: string) =>
     apiClient<{
@@ -415,7 +427,7 @@ export const reactionsApi = {
 };
 
 // Upload API
-const UPLOAD_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+const UPLOAD_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3005';
 
 export const uploadApi = {
   uploadFile: async (file: File): Promise<{ url: string; filename: string }> => {

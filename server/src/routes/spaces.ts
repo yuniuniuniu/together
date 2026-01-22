@@ -5,6 +5,7 @@ import {
   createSpace,
   getSpaceById,
   getUserSpace,
+  lookupSpaceByInviteCode,
   joinSpaceByInviteCode,
   deleteSpace,
   requestUnbind,
@@ -55,6 +56,27 @@ router.get('/my', async (req: AuthRequest, res, next) => {
     next(error);
   }
 });
+
+// POST /api/spaces/lookup - Lookup space by invite code (without joining)
+router.post(
+  '/lookup',
+  validate({
+    inviteCode: { required: true, type: 'string' },
+  }),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const { inviteCode } = req.body;
+      const space = await lookupSpaceByInviteCode(inviteCode);
+
+      res.json({
+        success: true,
+        data: space,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 // POST /api/spaces/join - Join space via invite code
 router.post(
