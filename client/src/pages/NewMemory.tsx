@@ -27,6 +27,13 @@ interface POIResult {
   distance?: number;
 }
 
+interface MediaItem {
+  url: string;
+  type: 'image' | 'gif' | 'video';
+}
+
+const MAX_VIDEO_DURATION = 30; // Maximum video duration in seconds
+
 const NewMemory: React.FC = () => {
   const navigate = useNavigate();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -41,10 +48,13 @@ const NewMemory: React.FC = () => {
   const [locationSearch, setLocationSearch] = useState('');
   const [stickers, setStickers] = useState<string[]>([]);
 
-  // Photo upload states
-  const [photos, setPhotos] = useState<string[]>([]);
+  // Media upload states (photos, GIFs, videos)
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]); // Legacy compatibility
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
@@ -199,10 +209,12 @@ const NewMemory: React.FC = () => {
     setError('');
     setIsLoading(true);
     try {
+      // Combine legacy photos with new media URLs for backwards compatibility
+      const allMediaUrls = [...photos, ...media.map(m => m.url)];
       await memoriesApi.create({
         content: content.trim(),
         mood,
-        photos: photos.length > 0 ? photos : undefined,
+        photos: allMediaUrls.length > 0 ? allMediaUrls : undefined,
         location: location || undefined,
         voiceNote: voiceNote || undefined,
         stickers: stickers.length > 0 ? stickers : undefined,
@@ -215,7 +227,72 @@ const NewMemory: React.FC = () => {
     }
   };
 
-  // Photo upload handler
+  // Helper to check video duration
+  const checkVideoDuration = (file: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        resolve(video.duration);
+      };
+      video.onerror = () => {
+        reject(new Error('Failed to load video'));
+      };
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Media upload handler (images, GIFs, videos)
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setError('');
+    setUploadProgress('');
+
+    try {
+      const uploadResults: MediaItem[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress(`Uploading ${i + 1}/${files.length}...`);
+
+        // Check if it's a video and validate duration
+        if (file.type.startsWith('video/')) {
+          const duration = await checkVideoDuration(file);
+          if (duration > MAX_VIDEO_DURATION) {
+            setError(`Video must be ${MAX_VIDEO_DURATION} seconds or less. This video is ${Math.round(duration)} seconds.`);
+            continue;
+          }
+        }
+
+        const result = await uploadApi.uploadMedia(file);
+        uploadResults.push({
+          url: result.url,
+          type: result.type,
+        });
+      }
+
+      setMedia(prev => [...prev, ...uploadResults]);
+      // Also update legacy photos array for backwards compatibility
+      setPhotos(prev => [...prev, ...uploadResults.map(r => r.url)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload media');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      if (videoInputRef.current) {
+        videoInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Photo upload handler (legacy, still used for images only)
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -235,6 +312,13 @@ const NewMemory: React.FC = () => {
         fileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleRemoveMedia = (index: number) => {
+    const item = media[index];
+    setMedia(prev => prev.filter((_, i) => i !== index));
+    // Also remove from legacy photos array
+    setPhotos(prev => prev.filter(url => url !== item?.url));
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -553,27 +637,60 @@ const NewMemory: React.FC = () => {
 
         <div className="py-8">
           <p className="text-[10px] uppercase tracking-widest text-ink/40 font-bold mb-4">Attach Moments</p>
+          {/* Hidden file inputs */}
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,image/gif,video/*"
             multiple
-            onChange={handlePhotoUpload}
+            onChange={handleMediaUpload}
             className="hidden"
           />
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/*"
+            onChange={handleMediaUpload}
+            className="hidden"
+          />
+
+          {/* Upload progress */}
+          {uploadProgress && (
+            <div className="mb-4 text-sm text-accent font-medium">{uploadProgress}</div>
+          )}
+
           <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 no-scrollbar">
-            {/* Uploaded Photos */}
-            {photos.map((photo, index) => (
+            {/* Uploaded Media (photos, GIFs, videos) */}
+            {media.map((item, index) => (
               <div key={index} className="flex-shrink-0 w-32">
                 <div className="bg-white p-2 pb-6 rounded-sm shadow-sm transition-transform active:scale-95" style={{ transform: `rotate(${(index % 3 - 1) * 2}deg)` }}>
                   <div className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group">
-                    <img
-                      alt={`Memory ${index + 1}`}
-                      className="w-full h-full object-cover grayscale-[20%] sepia-[10%]"
-                      src={photo}
-                    />
+                    {item.type === 'video' ? (
+                      <>
+                        <video
+                          src={item.url}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                          <span className="material-symbols-outlined text-white text-3xl drop-shadow-lg">play_circle</span>
+                        </div>
+                      </>
+                    ) : (
+                      <img
+                        alt={`Memory ${index + 1}`}
+                        className="w-full h-full object-cover grayscale-[20%] sepia-[10%]"
+                        src={item.url}
+                      />
+                    )}
+                    {item.type === 'gif' && (
+                      <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                        GIF
+                      </div>
+                    )}
                     <button
-                      onClick={() => handleRemovePhoto(index)}
+                      onClick={() => handleRemoveMedia(index)}
                       className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <span className="material-symbols-outlined text-sm">close</span>
@@ -582,30 +699,34 @@ const NewMemory: React.FC = () => {
                 </div>
               </div>
             ))}
-            {/* Add Button */}
+            {/* Add Photo/GIF Button */}
             <div className="flex-shrink-0 w-32">
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
                 className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[1deg] w-full flex flex-col items-center transition-transform active:scale-95 disabled:opacity-50"
               >
-                <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex items-center justify-center hover:bg-gray-50">
+                <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center hover:bg-gray-50 gap-1">
                   {isUploading ? (
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   ) : (
-                    <span className="material-symbols-outlined text-ink/20 text-3xl">add_a_photo</span>
+                    <>
+                      <span className="material-symbols-outlined text-ink/20 text-2xl">add_a_photo</span>
+                      <span className="text-[8px] text-ink/30 font-bold">PHOTO/GIF/VIDEO</span>
+                    </>
                   )}
                 </div>
               </button>
             </div>
-            {/* Placeholder - only show if no photos */}
-            {photos.length === 0 && (
+            {/* Video hint */}
+            {media.length === 0 && (
               <div className="flex-shrink-0 w-32">
-                <button className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[-1deg] w-full flex flex-col items-center opacity-60 cursor-default">
-                  <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex items-center justify-center">
-                    <span className="material-symbols-outlined text-ink/10 text-3xl">add</span>
+                <div className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[-1deg] w-full flex flex-col items-center opacity-60">
+                  <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center gap-1">
+                    <span className="material-symbols-outlined text-ink/10 text-2xl">videocam</span>
+                    <span className="text-[8px] text-ink/20 font-bold">MAX 30s</span>
                   </div>
-                </button>
+                </div>
               </div>
             )}
           </div>

@@ -507,4 +507,56 @@ export const uploadApi = {
       filename: json.data.filename,
     };
   },
+
+  uploadVideo: async (file: File): Promise<{ url: string; filename: string; type: string }> => {
+    const token = localStorage.getItem('auth_token');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${UPLOAD_BASE}/api/upload/video`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json.message || 'Video upload failed');
+    }
+
+    return {
+      url: `${UPLOAD_BASE}${json.data.url}`,
+      filename: json.data.filename,
+      type: json.data.type,
+    };
+  },
+
+  uploadMedia: async (file: File): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> => {
+    const token = localStorage.getItem('auth_token');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${UPLOAD_BASE}/api/upload/media`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json.message || 'Media upload failed');
+    }
+
+    return {
+      url: `${UPLOAD_BASE}${json.data.url}`,
+      filename: json.data.filename,
+      type: json.data.type,
+    };
+  },
 };

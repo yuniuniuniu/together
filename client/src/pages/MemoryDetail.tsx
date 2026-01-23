@@ -253,31 +253,52 @@ const MemoryDetail: React.FC = () => {
                 </p>
              </div>
 
-             {/* Photos Grid */}
+             {/* Media Grid (Photos, GIFs, Videos) */}
              {memory.photos && memory.photos.length > 0 && (
                <div className={`grid gap-1.5 mb-8 rounded-2xl overflow-hidden ${
                  memory.photos.length === 1 ? 'grid-cols-1' :
                  memory.photos.length === 2 ? 'grid-cols-2' :
                  'grid-cols-3'
                }`}>
-                  {memory.photos.map((photo, index) => (
-                    <div
-                      key={index}
-                      className="aspect-square relative group overflow-hidden bg-gray-100 cursor-pointer"
-                      onClick={() => handleImageClick(index)}
-                    >
-                      <img
-                        src={photo}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        alt={`Memory ${index + 1}`}
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                        <span className="material-symbols-outlined text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg">
-                          fullscreen
-                        </span>
+                  {memory.photos.map((mediaUrl, index) => {
+                    const isVideo = mediaUrl.match(/\.(mp4|webm|mov|avi|m4v)$/i);
+                    const isGif = mediaUrl.match(/\.gif$/i);
+
+                    return (
+                      <div
+                        key={index}
+                        className="aspect-square relative group overflow-hidden bg-gray-100 cursor-pointer"
+                        onClick={() => !isVideo && handleImageClick(index)}
+                      >
+                        {isVideo ? (
+                          <video
+                            src={mediaUrl}
+                            className="w-full h-full object-cover"
+                            controls
+                            playsInline
+                          />
+                        ) : (
+                          <>
+                            <img
+                              src={mediaUrl}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              alt={`Memory ${index + 1}`}
+                            />
+                            {isGif && (
+                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                                GIF
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                              <span className="material-symbols-outlined text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg">
+                                fullscreen
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                </div>
              )}
 

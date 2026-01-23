@@ -63,7 +63,8 @@ const Login: React.FC = () => {
     setError('');
     try {
       await login(email, code);
-      navigate('/setup/profile');
+      // Always go to profile setup after login, ProtectedRoute will handle subsequent routing
+      navigate('/setup/profile', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }

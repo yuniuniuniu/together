@@ -41,12 +41,21 @@ export interface Location {
   icon?: string;
 }
 
+export type MediaType = 'image' | 'gif' | 'video';
+
+export interface MediaItem {
+  url: string;
+  type: MediaType;
+  thumbnail?: string; // For video thumbnails
+}
+
 export interface Memory {
   id: string;
   spaceId: string;
   content: string;
   mood?: MoodType;
-  photos: string[];
+  photos: string[]; // Legacy: simple URL array for backwards compatibility
+  media?: MediaItem[]; // New: typed media array with type info
   location?: Location;
   voiceNote?: string;
   stickers?: string[];

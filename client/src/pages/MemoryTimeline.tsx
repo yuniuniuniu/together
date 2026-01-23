@@ -244,8 +244,39 @@ const MemoryTimeline: React.FC = () => {
                       "{memory.content}"
                     </p>
                     {memory.photos && memory.photos.length > 0 && (
-                      <div className="rounded-2xl overflow-hidden shadow-sm aspect-[4/3] w-full mt-4">
-                        <img className="w-full h-full object-cover" alt="Memory" src={memory.photos[0]} />
+                      <div className="rounded-2xl overflow-hidden shadow-sm aspect-[4/3] w-full mt-4 relative">
+                        {(() => {
+                          const firstMedia = memory.photos[0];
+                          const isVideo = firstMedia.match(/\.(mp4|webm|mov|avi|m4v)$/i);
+                          const isGif = firstMedia.match(/\.gif$/i);
+
+                          if (isVideo) {
+                            return (
+                              <>
+                                <video
+                                  className="w-full h-full object-cover"
+                                  src={firstMedia}
+                                  muted
+                                  playsInline
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                  <span className="material-symbols-outlined text-white text-4xl drop-shadow-lg">play_circle</span>
+                                </div>
+                              </>
+                            );
+                          }
+
+                          return (
+                            <>
+                              <img className="w-full h-full object-cover" alt="Memory" src={firstMedia} />
+                              {isGif && (
+                                <div className="absolute bottom-2 left-2 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                                  GIF
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                     {/* Like Button */}
