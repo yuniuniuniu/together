@@ -21,58 +21,6 @@ const Settings: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Pet name states
-  const [myPetName, setMyPetName] = useState<string | null>(null);
-  const [partnerPetName, setPartnerPetName] = useState<string | null>(null);
-  const [isEditingMyPetName, setIsEditingMyPetName] = useState(false);
-  const [isEditingPartnerPetName, setIsEditingPartnerPetName] = useState(false);
-  const [newMyPetName, setNewMyPetName] = useState('');
-  const [newPartnerPetName, setNewPartnerPetName] = useState('');
-  const [isSavingPetName, setIsSavingPetName] = useState(false);
-
-  // Fetch pet names on mount
-  useEffect(() => {
-    const fetchPetNames = async () => {
-      try {
-        const response = await spacesApi.getPetNames();
-        if (response.data) {
-          setMyPetName(response.data.myPetName);
-          setPartnerPetName(response.data.partnerPetName);
-        }
-      } catch {
-        // Silently fail if user doesn't have a space
-      }
-    };
-    fetchPetNames();
-  }, []);
-
-  const handleSaveMyPetName = async () => {
-    setIsSavingPetName(true);
-    try {
-      const response = await spacesApi.updatePetNames({ myPetName: newMyPetName.trim() || null });
-      setMyPetName(response.data.myPetName);
-      setIsEditingMyPetName(false);
-      showToast('Pet name updated', 'success');
-    } catch {
-      showToast('Failed to update pet name', 'error');
-    } finally {
-      setIsSavingPetName(false);
-    }
-  };
-
-  const handleSavePartnerPetName = async () => {
-    setIsSavingPetName(true);
-    try {
-      const response = await spacesApi.updatePetNames({ partnerPetName: newPartnerPetName.trim() || null });
-      setPartnerPetName(response.data.partnerPetName);
-      setIsEditingPartnerPetName(false);
-      showToast('Partner pet name updated', 'success');
-    } catch {
-      showToast('Failed to update pet name', 'error');
-    } finally {
-      setIsSavingPetName(false);
-    }
-  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -327,7 +275,7 @@ const Settings: React.FC = () => {
                   </div>
                   <div className="flex-1 text-left">
                     <p className="text-[10px] font-bold text-soft-gray/60 uppercase tracking-widest mb-1">My Partner</p>
-                    <p className="font-serif text-lg text-ink leading-none">{partner?.nickname || 'Waiting for partner...'}</p>
+                    <p className="font-serif text-lg text-ink leading-none">{partner?.user?.nickname || 'Waiting for partner...'}</p>
                   </div>
                 </div>
                 <div className="h-[1px] bg-black/[0.03] mx-5"></div>
@@ -384,120 +332,6 @@ const Settings: React.FC = () => {
               </div>
             </section>
 
-            {/* Pet Names Section */}
-            <section className="space-y-4 mt-6">
-              <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-soft-gray/60">Pet Names</h3>
-              </div>
-
-              <div className="bg-white rounded-2xl overflow-hidden shadow-soft border border-black/[0.02]">
-                {/* My Pet Name (what my partner calls me) */}
-                <div className="w-full flex items-center gap-4 px-5 py-5">
-                  <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent shrink-0">
-                    <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>emoji_emotions</span>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-[10px] font-bold text-soft-gray/60 uppercase tracking-widest mb-1">My Pet Name</p>
-                    {isEditingMyPetName ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={newMyPetName}
-                          onChange={(e) => setNewMyPetName(e.target.value)}
-                          placeholder="e.g., Honey, Babe..."
-                          className="font-serif text-lg text-ink leading-none border-b border-primary focus:outline-none bg-transparent w-full"
-                          autoFocus
-                        />
-                        <button
-                          onClick={handleSaveMyPetName}
-                          disabled={isSavingPetName}
-                          className="text-primary font-medium text-sm"
-                        >
-                          {isSavingPetName ? '...' : 'Save'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setIsEditingMyPetName(false);
-                            setNewMyPetName(myPetName || '');
-                          }}
-                          className="text-gray-400 font-medium text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="font-serif text-lg text-ink leading-none">{myPetName || 'Not set'}</p>
-                    )}
-                  </div>
-                  {!isEditingMyPetName && (
-                    <button
-                      onClick={() => {
-                        setIsEditingMyPetName(true);
-                        setNewMyPetName(myPetName || '');
-                      }}
-                      className="text-gray-300 hover:text-primary transition-all"
-                    >
-                      <span className="material-symbols-outlined">edit</span>
-                    </button>
-                  )}
-                </div>
-                <div className="h-[1px] bg-black/[0.03] mx-5"></div>
-
-                {/* Partner's Pet Name (what I call my partner) */}
-                <div className="w-full flex items-center gap-4 px-5 py-5">
-                  <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent shrink-0">
-                    <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-[10px] font-bold text-soft-gray/60 uppercase tracking-widest mb-1">I Call My Partner</p>
-                    {isEditingPartnerPetName ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={newPartnerPetName}
-                          onChange={(e) => setNewPartnerPetName(e.target.value)}
-                          placeholder="e.g., Sweetie, Love..."
-                          className="font-serif text-lg text-ink leading-none border-b border-primary focus:outline-none bg-transparent w-full"
-                          autoFocus
-                        />
-                        <button
-                          onClick={handleSavePartnerPetName}
-                          disabled={isSavingPetName}
-                          className="text-primary font-medium text-sm"
-                        >
-                          {isSavingPetName ? '...' : 'Save'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setIsEditingPartnerPetName(false);
-                            setNewPartnerPetName(partnerPetName || '');
-                          }}
-                          className="text-gray-400 font-medium text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="font-serif text-lg text-ink leading-none">{partnerPetName || 'Not set'}</p>
-                    )}
-                  </div>
-                  {!isEditingPartnerPetName && (
-                    <button
-                      onClick={() => {
-                        setIsEditingPartnerPetName(true);
-                        setNewPartnerPetName(partnerPetName || '');
-                      }}
-                      className="text-gray-300 hover:text-primary transition-all"
-                    >
-                      <span className="material-symbols-outlined">edit</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-              <p className="text-xs text-soft-gray/50 text-center px-4">
-                Pet names are private between you and your partner 💕
-              </p>
-            </section>
           </>
         )}
 

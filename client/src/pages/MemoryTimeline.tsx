@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { reactionsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
+import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 
@@ -26,6 +27,7 @@ interface ReactionState {
 const MemoryTimeline: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { partner } = useSpace();
   const { showToast } = useToast();
   const { data: memories = [], isLoading, error } = useMemoriesQuery();
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
@@ -219,9 +221,30 @@ const MemoryTimeline: React.FC = () => {
                   >
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-full ring-2 ring-stone-100 dark:ring-zinc-800 p-0.5 bg-primary/20 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-primary text-xl" style={{fontVariationSettings: "'FILL' 1"}}>person</span>
-                        </div>
+                        {(() => {
+                          const isOwn = memory.createdBy === user?.id;
+                          const avatarUrl = isOwn ? user?.avatar : partner?.user?.avatar;
+                          const fallbackName = isOwn ? user?.nickname : partner?.user?.nickname;
+                          if (avatarUrl) {
+                            return (
+                              <div
+                                className="size-10 rounded-full ring-2 ring-stone-100 dark:ring-zinc-800 p-0.5 bg-cover bg-center"
+                                style={{ backgroundImage: `url("${avatarUrl}")` }}
+                              ></div>
+                            );
+                          }
+                          return (
+                            <div className="size-10 rounded-full ring-2 ring-stone-100 dark:ring-zinc-800 p-0.5 bg-primary/20 flex items-center justify-center">
+                              {fallbackName ? (
+                                <span className="text-xs font-bold text-primary">
+                                  {fallbackName.slice(0, 1).toUpperCase()}
+                                </span>
+                              ) : (
+                                <span className="material-symbols-outlined text-primary text-xl" style={{fontVariationSettings: "'FILL' 1"}}>person</span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div>
                           <p className="text-sm font-bold text-charcoal dark:text-zinc-200">
                             {memory.createdBy === user?.id ? 'You' : 'Partner'}
