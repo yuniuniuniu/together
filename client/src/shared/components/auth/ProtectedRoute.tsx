@@ -16,6 +16,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { space, isLoading: isSpaceLoading } = useSpace();
   const location = useLocation();
   const isProfileComplete = !!(user?.nickname && user?.avatar);
+  // Space is complete when both partners have joined
+  const isSpaceComplete = space && space.partners && space.partners.length >= 2;
 
   if (isLoading || (requireSpace && isSpaceLoading)) {
     return (
@@ -36,11 +38,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/setup/profile" state={{ from: location }} replace />;
   }
 
-  if (!requireSpace && space && isProfileComplete) {
+  // Only redirect to dashboard if space is complete (both partners joined)
+  if (!requireSpace && isSpaceComplete && isProfileComplete) {
     return <Navigate to="/dashboard" state={{ from: location }} replace />;
   }
 
-  if (requireSpace && !space) {
+  // For routes that require a complete space
+  if (requireSpace && !isSpaceComplete) {
+    // If has incomplete space, go to create page to wait for partner
+    if (space) {
+      return <Navigate to="/setup/create" state={{ from: location }} replace />;
+    }
+    // No space at all, go to sanctuary
     return <Navigate to="/sanctuary" state={{ from: location }} replace />;
   }
 
@@ -51,6 +60,8 @@ export const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ child
   const { isAuthenticated, isLoading, user } = useAuth();
   const { space, isLoading: isSpaceLoading } = useSpace();
   const isProfileComplete = !!(user?.nickname && user?.avatar);
+  // Space is complete when both partners have joined
+  const isSpaceComplete = space && space.partners && space.partners.length >= 2;
 
   if (isLoading || isSpaceLoading) {
     return (
@@ -68,12 +79,17 @@ export const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ child
     if (!isProfileComplete) {
       return <Navigate to="/setup/profile" replace />;
     }
-    // Check if user has a space
-    if (!space) {
-      return <Navigate to="/sanctuary" replace />;
+    // Check if user has a complete space (both partners joined)
+    if (isSpaceComplete) {
+      // User is fully set up with complete space, go to dashboard
+      return <Navigate to="/dashboard" replace />;
     }
-    // User is fully set up, go to dashboard
-    return <Navigate to="/dashboard" replace />;
+    // If has space but not complete, go to create page to wait for partner
+    if (space) {
+      return <Navigate to="/setup/create" replace />;
+    }
+    // No space at all, go to sanctuary
+    return <Navigate to="/sanctuary" replace />;
   }
 
   return <>{children}</>;
