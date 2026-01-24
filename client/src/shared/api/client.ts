@@ -19,6 +19,12 @@ export async function apiClient<T>(
     },
   });
 
+  // Handle sliding expiration: check for new token in response header
+  const newToken = response.headers.get('X-New-Token');
+  if (newToken) {
+    localStorage.setItem('auth_token', newToken);
+  }
+
   const json = await response.json();
 
   if (!response.ok) {

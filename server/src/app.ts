@@ -12,7 +12,9 @@ import uploadRoutes from './routes/upload.js';
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  exposedHeaders: ['X-New-Token'], // Allow frontend to read token refresh header
+}));
 app.use(express.json());
 
 // Serve uploaded files statically

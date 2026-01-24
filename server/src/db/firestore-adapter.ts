@@ -300,6 +300,14 @@ export class FirestoreAdapter implements DatabaseAdapter {
     };
   }
 
+  async updateSessionToken(id: string, newToken: string, newExpiresAt: string): Promise<void> {
+    const db = getDb();
+    await db.collection(COLLECTIONS.SESSIONS).doc(id).update({
+      token: newToken,
+      expires_at: newExpiresAt,
+    });
+  }
+
   async deleteSession(id: string): Promise<void> {
     const db = getDb();
     await db.collection(COLLECTIONS.SESSIONS).doc(id).update({ is_deleted: 1 });

@@ -192,6 +192,11 @@ export class SQLiteAdapter implements DatabaseAdapter {
     return asType<SessionData>(row);
   }
 
+  async updateSessionToken(id: string, newToken: string, newExpiresAt: string): Promise<void> {
+    dbPrepare('UPDATE sessions SET token = ?, expires_at = ? WHERE id = ? AND is_deleted = 0').run(newToken, newExpiresAt, id);
+    saveDatabase();
+  }
+
   async deleteSession(id: string): Promise<void> {
     dbPrepare('UPDATE sessions SET is_deleted = 1 WHERE id = ? AND is_deleted = 0').run(id);
     saveDatabase();

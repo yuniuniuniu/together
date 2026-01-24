@@ -31,6 +31,7 @@ export interface DatabaseAdapter {
   // Sessions
   createSession(session: SessionData): Promise<SessionData>;
   getSessionByToken(token: string): Promise<SessionData | null>;
+  updateSessionToken(id: string, newToken: string, newExpiresAt: string): Promise<void>;
   deleteSession(id: string): Promise<void>;
   deleteSessionsByUserId(userId: string): Promise<void>;
   deleteExpiredSessions(): Promise<void>;

@@ -6,6 +6,7 @@ import { getDatabase } from '../db/database.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 const TOKEN_EXPIRY_DAYS = 7;
+const TOKEN_REFRESH_THRESHOLD_DAYS = 1; // Refresh if less than 1 day remaining
 
 export interface AuthUser {
   id: string;
@@ -34,7 +35,7 @@ export async function authenticate(
   const token = authHeader.substring(7);
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string; exp: number };
 
     const db = getDatabase();
 
@@ -59,6 +60,24 @@ export async function authenticate(
       avatar: user.avatar || undefined,
     };
     req.sessionId = session.id;
+
+    // Sliding expiration: refresh token if less than threshold remaining
+    const now = Math.floor(Date.now() / 1000);
+    const timeRemaining = payload.exp - now;
+    const thresholdSeconds = TOKEN_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60;
+
+    if (timeRemaining < thresholdSeconds) {
+      // Generate new token and update session
+      const newToken = generateToken(user.id);
+      const newExpiresAt = new Date();
+      newExpiresAt.setDate(newExpiresAt.getDate() + TOKEN_EXPIRY_DAYS);
+
+      await db.updateSessionToken(session.id, newToken, newExpiresAt.toISOString());
+
+      // Send new token in response header
+      res.setHeader('X-New-Token', newToken);
+    }
+
     next();
   } catch {
     next(new AppError(401, 'INVALID_TOKEN', 'Invalid or expired token'));
