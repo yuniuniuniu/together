@@ -209,8 +209,11 @@ const NewMemory: React.FC = () => {
     setError('');
     setIsLoading(true);
     try {
-      // Combine legacy photos with new media URLs for backwards compatibility
-      const allMediaUrls = [...photos, ...media.map(m => m.url)];
+      // Combine media URLs while avoiding duplicates (videos live in media, legacy photos in photos)
+      const allMediaUrls = Array.from(new Set([
+        ...media.map(m => m.url),
+        ...photos,
+      ]));
       await memoriesApi.create({
         content: content.trim(),
         mood,
@@ -276,8 +279,14 @@ const NewMemory: React.FC = () => {
       }
 
       setMedia(prev => [...prev, ...uploadResults]);
-      // Also update legacy photos array for backwards compatibility
-      setPhotos(prev => [...prev, ...uploadResults.map(r => r.url)]);
+      // Also update legacy photos array for backwards compatibility (skip videos to avoid duplicates)
+      setPhotos(prev => {
+        const photoUrls = uploadResults
+          .filter(r => r.type !== 'video')
+          .map(r => r.url);
+        if (photoUrls.length === 0) return prev;
+        return Array.from(new Set([...prev, ...photoUrls]));
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload media');
     } finally {

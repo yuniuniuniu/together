@@ -181,6 +181,10 @@ const MemoryDetail: React.FC = () => {
 
   const dayNumber = calculateDayNumber(memory.createdAt);
   const isOwnMemory = memory.createdBy === user?.id;
+  const computedWordCount = memory.content
+    ? memory.content.trim().split(/\s+/).filter(Boolean).length
+    : 0;
+  const wordCount = memory.wordCount ?? computedWordCount;
 
   return (
     <div className="flex-1 flex flex-col bg-background-light min-h-screen relative">
@@ -382,8 +386,8 @@ const MemoryDetail: React.FC = () => {
                     </span>
                   </button>
 
-                  {memory.wordCount && (
-                    <span className="text-xs text-soft-gray">{memory.wordCount} words</span>
+                  {wordCount > 0 && (
+                    <span className="text-xs text-soft-gray">{wordCount} words</span>
                   )}
                 </div>
              </div>

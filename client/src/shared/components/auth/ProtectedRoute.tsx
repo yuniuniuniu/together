@@ -12,9 +12,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requireSpace = false
 }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { space, isLoading: isSpaceLoading } = useSpace();
   const location = useLocation();
+  const isProfileComplete = !!(user?.nickname && user?.avatar);
 
   if (isLoading || (requireSpace && isSpaceLoading)) {
     return (
@@ -31,6 +32,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
+  if (!isProfileComplete && location.pathname !== '/setup/profile') {
+    return <Navigate to="/setup/profile" state={{ from: location }} replace />;
+  }
+
   if (requireSpace && !space) {
     return <Navigate to="/sanctuary" state={{ from: location }} replace />;
   }
@@ -41,6 +46,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 export const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { space, isLoading: isSpaceLoading } = useSpace();
+  const isProfileComplete = !!(user?.nickname && user?.avatar);
 
   if (isLoading || isSpaceLoading) {
     return (
@@ -55,7 +61,7 @@ export const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ child
 
   if (isAuthenticated) {
     // Check if user has completed profile setup
-    if (!user?.nickname) {
+    if (!isProfileComplete) {
       return <Navigate to="/setup/profile" replace />;
     }
     // Check if user has a space

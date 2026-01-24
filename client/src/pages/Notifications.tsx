@@ -45,8 +45,10 @@ const Notifications: React.FC = () => {
     if (!notification.read) {
       handleMarkAsRead(notification.id);
     }
-    if (notification.actionUrl) {
-      navigate(notification.actionUrl);
+    const actionUrl = notification.actionUrl?.trim();
+    // Avoid sending users back to the landing page for notifications without a deep link
+    if (actionUrl && actionUrl !== '/') {
+      navigate(actionUrl);
     }
   };
 
