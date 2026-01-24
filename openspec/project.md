@@ -4,12 +4,26 @@
 Sanctuary is a private, encrypted space for couples to share memories, track anniversaries, and journal together. It's a mobile-first web application designed to help partners document and celebrate their relationship journey.
 
 ## Tech Stack
+
+### Frontend
 - **Framework**: React 19 with TypeScript
 - **Build Tool**: Vite 6
 - **Routing**: React Router DOM 7 (HashRouter for client-side routing)
+- **Data Fetching**: TanStack React Query 5
 - **Styling**: Tailwind CSS v4 (CSS-based configuration with `@theme` in `index.css`)
+- **Maps**: Leaflet + React-Leaflet, AMap (Gaode Maps)
+- **Auth**: Firebase Authentication
 - **Target**: ES2022, modern browsers
 - **Module System**: ESNext modules
+
+### Backend
+- **Runtime**: Node.js with TypeScript
+- **Framework**: Express.js
+- **Database**: SQLite (sql.js) or Firestore (configurable via adapter pattern)
+- **Authentication**: Firebase Admin SDK + JWT
+- **File Storage**: Cloudflare R2 (S3-compatible)
+- **Email**: Nodemailer
+- **Testing**: Vitest + Supertest
 
 ## Project Structure (Monorepo)
 
@@ -20,7 +34,7 @@ together/
 │   │   ├── App.tsx              # Root component with providers and routing
 │   │   ├── index.tsx            # Entry point
 │   │   ├── index.css            # Tailwind theme and custom styles
-│   │   ├── pages/               # Route entry points
+│   │   ├── pages/               # Route entry points (24 pages)
 │   │   ├── components/          # Legacy components (being migrated)
 │   │   ├── features/            # Domain-specific modules
 │   │   │   ├── auth/            # Authentication module
@@ -30,8 +44,14 @@ together/
 │   │   └── shared/              # Cross-cutting concerns
 │   │       ├── api/             # API client (client.ts)
 │   │       ├── components/      # Reusable UI components
-│   │       ├── context/         # React Contexts
-│   │       ├── hooks/           # Shared hooks
+│   │       │   ├── auth/        # ProtectedRoute
+│   │       │   ├── display/     # Avatar, Card, ImageViewer
+│   │       │   ├── feedback/    # BottomSheet, Modal, Toast
+│   │       │   ├── form/        # Button, Input
+│   │       │   └── layout/      # BottomNav, Header, MobileWrapper, PageLayout
+│   │       ├── config/          # Firebase configuration
+│   │       ├── context/         # React Contexts (Auth, Space, Notification)
+│   │       ├── hooks/           # Shared hooks (useApi, useLocalStorage, query hooks)
 │   │       └── types/           # TypeScript types
 │   ├── tests/                   # Frontend tests
 │   ├── index.html
@@ -43,13 +63,30 @@ together/
 │   ├── src/
 │   │   ├── index.ts             # Entry point
 │   │   ├── app.ts               # Express configuration
+│   │   ├── config/              # Firebase Admin configuration
 │   │   ├── db/                  # Database layer
+│   │   │   ├── adapter.ts       # Database adapter interface
+│   │   │   ├── sqlite-adapter.ts
+│   │   │   ├── firestore-adapter.ts
+│   │   │   └── schema.sql
 │   │   ├── routes/              # API route handlers
 │   │   ├── services/            # Business logic
+│   │   │   ├── authService.ts
+│   │   │   ├── emailService.ts
+│   │   │   ├── fileService.ts
+│   │   │   ├── memoryService.ts
+│   │   │   ├── milestoneService.ts
+│   │   │   ├── notificationService.ts
+│   │   │   ├── r2Service.ts     # Cloudflare R2 file storage
+│   │   │   ├── reactionService.ts
+│   │   │   ├── reminderService.ts
+│   │   │   └── spaceService.ts
 │   │   └── middleware/          # Express middleware
 │   ├── tests/                   # Backend tests
 │   └── package.json
 ├── package.json                 # Workspace root configuration
+├── scripts/                     # Utility scripts
+│   └── reset-data.sh
 └── openspec/                    # Specification documents
 ```
 
@@ -75,7 +112,9 @@ together/
 - Preserve exact existing UI when refactoring (no visual changes)
 
 #### Data Fetching
-- Custom hooks with `useApi` for consistent loading/error states
+- **TanStack React Query** for server state management
+- Query hooks: `useMemoriesQuery()`, `useMilestonesQuery()` with caching and background refetching
+- Legacy `useApi` hook for simpler cases with loading/error states
 - Feature-specific hooks: `useMemories()`, `useMilestones()`
 
 ### Routing
@@ -116,12 +155,11 @@ Key user flows:
 
 ## Backend Architecture
 
-### Tech Stack
-- **Runtime**: Node.js with TypeScript
-- **Framework**: Express.js
-- **Database**: SQLite with sql.js (pure JavaScript implementation)
-- **Authentication**: JWT tokens
-- **Testing**: Vitest with supertest
+### Database Layer
+- **Adapter Pattern**: Supports multiple database backends via `DatabaseAdapter` interface
+  - `sqlite-adapter.ts`: SQLite with sql.js (pure JavaScript, local development)
+  - `firestore-adapter.ts`: Google Firestore (production, cloud-native)
+- Database selection via environment variable or configuration
 
 ### API Conventions
 - All endpoints prefixed with `/api`
@@ -136,31 +174,56 @@ Key user flows:
 - **Milestones**: `/api/milestones` (CRUD)
 - **Notifications**: `/api/notifications`, `/api/notifications/:id/read`
 - **Reactions**: `/api/reactions` (like/unlike memories)
+- **Upload**: `/api/upload` (file upload to R2)
 
 ### Development
 - Backend runs on port 3005
 - Frontend runs on port 3000
 - Frontend connects via `VITE_API_URL` environment variable
-- Database file stored at `server/data/sanctuary.db`
+- SQLite database stored at `server/data/sanctuary.db` (local dev)
 
 ## External Dependencies
-- **Local Backend**: Express.js API server (port 3005) with SQLite
-- **Gemini API**: Google's AI API (requires `GEMINI_API_KEY`)
-- **Google Images CDN**: External image hosting (lh3.googleusercontent.com)
+- **Firebase**: Authentication (frontend + backend via Admin SDK), Firestore (optional database)
+- **Cloudflare R2**: S3-compatible object storage for file uploads (images, audio)
+- **AMap (Gaode Maps)**: Chinese map service for memory location display
+- **Leaflet**: Open-source map library (fallback/international)
+- **Gemini API**: Google's AI API for AI features (requires `GEMINI_API_KEY`)
+- **Nodemailer**: Email service for verification codes and notifications
 
 ## Key Files
 - `client/src/index.css` - Tailwind theme configuration and custom styles
 - `client/src/App.tsx` - Root component with context providers and routing
 - `client/src/shared/types/index.ts` - Core business types (User, Space, Memory, Milestone)
-- `client/src/shared/context/` - Global state management
+- `client/src/shared/context/` - Global state management (Auth, Space, Notification)
 - `client/src/shared/api/client.ts` - API client for backend communication
+- `client/src/shared/config/firebase.ts` - Firebase client configuration
+- `client/src/shared/hooks/useMemoriesQuery.ts` - React Query hook for memories
 - `server/src/app.ts` - Express application setup
-- `server/src/db/schema.sql` - Database schema definition
+- `server/src/db/adapter.ts` - Database adapter interface
+- `server/src/db/schema.sql` - SQLite database schema
+- `server/src/config/firebase-admin.ts` - Firebase Admin SDK configuration
+- `server/src/services/r2Service.ts` - Cloudflare R2 file storage service
 
 ## NPM Scripts
-- `npm run dev` - Start frontend dev server
-- `npm run dev:server` - Start backend dev server
-- `npm run dev:all` - Start both frontend and backend
-- `npm run test` - Run all tests
+- `npm run dev` - Start frontend dev server (port 3000)
+- `npm run dev:server` - Start backend dev server (port 3005)
+- `npm run dev:all` - Start both frontend and backend concurrently
+- `npm run build` - Build frontend for production
+- `npm run build:server` - Build backend for production
+- `npm run test` - Run all tests (client + server)
 - `npm run test:client` - Run frontend tests only
 - `npm run test:server` - Run backend tests only
+
+## Environment Variables
+
+### Client (.env)
+- `VITE_API_URL` - Backend API URL
+- `VITE_FIREBASE_*` - Firebase configuration (apiKey, authDomain, projectId, etc.)
+- `GEMINI_API_KEY` - Google Gemini API key
+
+### Server (.env)
+- `PORT` - Server port (default: 3005)
+- `JWT_SECRET` - JWT signing secret
+- `FIREBASE_*` - Firebase Admin SDK credentials
+- `R2_*` - Cloudflare R2 configuration (accountId, accessKeyId, secretAccessKey, bucket)
+- `SMTP_*` - Email service configuration
