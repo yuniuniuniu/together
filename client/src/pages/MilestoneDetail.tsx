@@ -297,13 +297,35 @@ const MilestoneDetail: React.FC = () => {
         <div className="border-t border-zinc-100 dark:border-zinc-800 pt-6 mt-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary text-xl" style={{fontVariationSettings: "'FILL' 1"}}>person</span>
-              </div>
+              {(() => {
+                const avatarUrl = isOwnMilestone ? user?.avatar : partner?.user?.avatar;
+                const fallbackName = isOwnMilestone ? user?.nickname : partner?.user?.nickname;
+                if (avatarUrl) {
+                  return (
+                    <div className="size-10 rounded-full ring-2 ring-white dark:ring-zinc-800 shadow-sm">
+                      <div
+                        className="w-full h-full rounded-full bg-cover bg-center"
+                        style={{ backgroundImage: `url("${avatarUrl}")` }}
+                      ></div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="size-10 rounded-full bg-stone-100 dark:bg-zinc-800 flex items-center justify-center">
+                    {fallbackName ? (
+                      <span className="text-sm font-bold text-stone-400">
+                        {fallbackName.slice(0, 1).toUpperCase()}
+                      </span>
+                    ) : (
+                      <span className="material-symbols-outlined text-stone-300 text-xl">person</span>
+                    )}
+                  </div>
+                );
+              })()}
               <div>
                 <p className="text-xs text-zinc-400">Created by</p>
                 <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                  {isOwnMilestone ? 'You' : partner?.nickname || 'Partner'}
+                  {isOwnMilestone ? (user?.nickname || 'You') : (partner?.user?.nickname || 'Partner')}
                 </p>
               </div>
             </div>

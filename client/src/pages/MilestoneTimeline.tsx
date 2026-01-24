@@ -20,7 +20,7 @@ interface Milestone {
 const MilestoneTimeline: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { anniversaryDate } = useSpace();
+  const { anniversaryDate, partner } = useSpace();
   const { data: milestones = [], isLoading, error } = useMilestonesQuery();
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
 
@@ -167,11 +167,34 @@ const MilestoneTimeline: React.FC = () => {
                       {/* Author */}
                       <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-700">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-[14px] text-primary" style={{fontVariationSettings: "'FILL' 1"}}>person</span>
-                          </div>
+                          {(() => {
+                            const isOwn = milestone.createdBy === user?.id;
+                            const avatarUrl = isOwn ? user?.avatar : partner?.user?.avatar;
+                            const fallbackName = isOwn ? user?.nickname : partner?.user?.nickname;
+                            if (avatarUrl) {
+                              return (
+                                <div className="size-6 rounded-full ring-1 ring-white dark:ring-zinc-800 shadow-sm">
+                                  <div
+                                    className="w-full h-full rounded-full bg-cover bg-center"
+                                    style={{ backgroundImage: `url("${avatarUrl}")` }}
+                                  ></div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="size-6 rounded-full bg-stone-100 dark:bg-zinc-800 flex items-center justify-center">
+                                {fallbackName ? (
+                                  <span className="text-[10px] font-bold text-stone-400">
+                                    {fallbackName.slice(0, 1).toUpperCase()}
+                                  </span>
+                                ) : (
+                                  <span className="material-symbols-outlined text-stone-300 text-[14px]">person</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                            {milestone.createdBy === user?.id ? 'You' : 'Partner'}
+                            {milestone.createdBy === user?.id ? (user?.nickname || 'You') : (partner?.user?.nickname || 'Partner')}
                           </span>
                         </div>
                         {milestone.photos && milestone.photos.length > 1 && (
