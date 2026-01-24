@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 
@@ -13,6 +13,64 @@ const DateSelection: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(9); // October (0-indexed)
   const [selectedDay, setSelectedDay] = useState(14);
   const [selectedYear, setSelectedYear] = useState(currentYear - 1);
+  const touchStartY = useRef<{ month: number | null; day: number | null; year: number | null }>({
+    month: null,
+    day: null,
+    year: null,
+  });
+  const wheelCooldown = useRef<{ month: boolean; day: boolean; year: boolean }>({
+    month: false,
+    day: false,
+    year: false,
+  });
+
+  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+  const changeMonth = (delta: number) => {
+    setSelectedMonth(prev => clamp(prev + delta, 0, months.length - 1));
+  };
+
+  const changeDay = (delta: number) => {
+    setSelectedDay(prev => clamp(prev + delta, 1, days.length));
+  };
+
+  const changeYear = (delta: number) => {
+    setSelectedYear(prev => {
+      const index = years.indexOf(prev);
+      const nextIndex = clamp(index + delta, 0, years.length - 1);
+      return years[nextIndex];
+    });
+  };
+
+  const handleTouchStart = (key: 'month' | 'day' | 'year') => (event: React.TouchEvent) => {
+    touchStartY.current[key] = event.touches[0]?.clientY ?? null;
+  };
+
+  const handleTouchMove = (key: 'month' | 'day' | 'year', onChange: (delta: number) => void) =>
+    (event: React.TouchEvent) => {
+      const startY = touchStartY.current[key];
+      if (startY === null) return;
+      const currentY = event.touches[0]?.clientY ?? startY;
+      const delta = currentY - startY;
+      const threshold = 18;
+      if (Math.abs(delta) < threshold) return;
+      onChange(delta > 0 ? -1 : 1);
+      touchStartY.current[key] = currentY;
+    };
+
+  const handleTouchEnd = (key: 'month' | 'day' | 'year') => () => {
+    touchStartY.current[key] = null;
+  };
+
+  const handleWheel = (key: 'month' | 'day' | 'year', onChange: (delta: number) => void) =>
+    (event: React.WheelEvent) => {
+      if (wheelCooldown.current[key]) return;
+      wheelCooldown.current[key] = true;
+      onChange(event.deltaY > 0 ? 1 : -1);
+      window.setTimeout(() => {
+        wheelCooldown.current[key] = false;
+      }, 120);
+    };
 
   const handleContinue = () => {
     const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
@@ -60,7 +118,13 @@ const DateSelection: React.FC = () => {
 
             <div className="relative z-10 grid grid-cols-3 w-full px-6 gap-2 text-center h-full">
               {/* Month */}
-              <div className="flex flex-col items-center justify-center h-full gap-5">
+              <div
+                className="flex flex-col items-center justify-center h-full gap-5 touch-none"
+                onTouchStart={handleTouchStart('month')}
+                onTouchMove={handleTouchMove('month', changeMonth)}
+                onTouchEnd={handleTouchEnd('month')}
+                onWheel={handleWheel('month', changeMonth)}
+              >
                 <button
                   className="text-lg text-gray-400 font-medium translate-y-2 hover:text-gray-600 transition-colors"
                   onClick={() => selectedMonth > 0 && setSelectedMonth(selectedMonth - 1)}
@@ -78,7 +142,13 @@ const DateSelection: React.FC = () => {
                 </button>
               </div>
               {/* Day */}
-              <div className="flex flex-col items-center justify-center h-full gap-5">
+              <div
+                className="flex flex-col items-center justify-center h-full gap-5 touch-none"
+                onTouchStart={handleTouchStart('day')}
+                onTouchMove={handleTouchMove('day', changeDay)}
+                onTouchEnd={handleTouchEnd('day')}
+                onWheel={handleWheel('day', changeDay)}
+              >
                 <button
                   className="text-lg text-gray-400 font-medium translate-y-2 hover:text-gray-600 transition-colors"
                   onClick={() => selectedDay > 1 && setSelectedDay(selectedDay - 1)}
@@ -96,7 +166,13 @@ const DateSelection: React.FC = () => {
                 </button>
               </div>
               {/* Year */}
-              <div className="flex flex-col items-center justify-center h-full gap-5">
+              <div
+                className="flex flex-col items-center justify-center h-full gap-5 touch-none"
+                onTouchStart={handleTouchStart('year')}
+                onTouchMove={handleTouchMove('year', changeYear)}
+                onTouchEnd={handleTouchEnd('year')}
+                onWheel={handleWheel('year', changeYear)}
+              >
                 <button
                   className="text-lg text-gray-400 font-medium translate-y-2 hover:text-gray-600 transition-colors"
                   onClick={() => yearIndex > 0 && setSelectedYear(years[yearIndex - 1])}
