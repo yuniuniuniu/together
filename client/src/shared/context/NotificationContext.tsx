@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { notificationsApi } from '../api/client';
 import { useAuth } from './AuthContext';
+import { useSpace } from './SpaceContext';
 
 interface Notification {
   id: string;
@@ -33,22 +34,32 @@ interface NotificationProviderProps {
 
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const { isAuthenticated } = useAuth();
+  const { refreshSpace } = useSpace();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
 
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) return;
 
     try {
       const response = await notificationsApi.list();
-      setNotifications(response.data || []);
+      const nextNotifications = response.data || [];
+      const hasNewProfileUpdate = nextNotifications.some(
+        notification => notification.type === 'profile' && !seenIdsRef.current.has(notification.id)
+      );
+      setNotifications(nextNotifications);
       setError(null);
+      seenIdsRef.current = new Set(nextNotifications.map(notification => notification.id));
+      if (hasNewProfileUpdate) {
+        refreshSpace().catch(() => undefined);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load notifications');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, refreshSpace]);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -80,6 +91,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   useEffect(() => {
     if (!isAuthenticated) {
       setNotifications([]);
+      seenIdsRef.current = new Set();
       return;
     }
 

@@ -36,6 +36,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/setup/profile" state={{ from: location }} replace />;
   }
 
+  if (!requireSpace && space && isProfileComplete) {
+    return <Navigate to="/dashboard" state={{ from: location }} replace />;
+  }
+
   if (requireSpace && !space) {
     return <Navigate to="/sanctuary" state={{ from: location }} replace />;
   }
