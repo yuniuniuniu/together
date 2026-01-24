@@ -92,10 +92,10 @@ const Dashboard: React.FC = () => {
             </div>
             {/* Partner Avatar */}
             <div className="relative group cursor-pointer" onClick={() => navigate('/settings')}>
-              {partner?.avatar ? (
+              {partner?.user?.avatar ? (
                 <div
                   className="size-[88px] rounded-full border-[3px] border-white dark:border-zinc-800 shadow-soft bg-cover bg-center ring-1 ring-primary/20 transition-transform hover:scale-105 duration-300"
-                  style={{ backgroundImage: `url("${partner.avatar}")` }}
+                  style={{ backgroundImage: `url("${partner.user.avatar}")` }}
                 ></div>
               ) : (
                 <div className="size-[88px] rounded-full border-[3px] border-white dark:border-zinc-800 shadow-soft ring-1 ring-primary/20 transition-transform hover:scale-105 duration-300 bg-primary/20 flex items-center justify-center">
@@ -103,7 +103,7 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
               <div className="absolute -bottom-1 -right-1 bg-white dark:bg-zinc-800 rounded-full px-2 py-0.5 shadow-sm border border-primary/20">
-                <span className="text-[10px] font-bold text-ink">{partner?.nickname || 'Partner'}</span>
+                <span className="text-[10px] font-bold text-ink">{partner?.user?.nickname || 'Partner'}</span>
               </div>
             </div>
           </div>

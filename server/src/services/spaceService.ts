@@ -176,8 +176,7 @@ export async function joinSpaceByInviteCode(userId: string, inviteCode: string):
         member.user_id,
         'milestone',
         'Your Partner Has Joined! 💕',
-        `${joiningUser.nickname} has joined your space. Start creating memories together!`,
-        '/dashboard'
+        `${joiningUser.nickname} has joined your space. Start creating memories together!`
       );
     }
   }

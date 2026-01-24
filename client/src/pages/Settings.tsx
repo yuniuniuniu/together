@@ -247,10 +247,10 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
                 {/* Partner Avatar - Not editable */}
-                {partner?.avatar ? (
+                {partner?.user?.avatar ? (
                   <div
                     className="w-24 h-24 rounded-full border-4 border-white bg-cover bg-center shadow-lg relative z-10"
-                    style={{ backgroundImage: `url("${partner.avatar}")` }}
+                    style={{ backgroundImage: `url("${partner.user.avatar}")` }}
                   ></div>
                 ) : (
                   <div className="w-24 h-24 rounded-full border-4 border-white shadow-lg relative z-10 bg-primary/20 flex items-center justify-center">
