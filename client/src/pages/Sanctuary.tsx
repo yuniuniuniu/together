@@ -12,7 +12,7 @@ const Sanctuary: React.FC = () => {
           <span className="material-symbols-outlined text-ink text-xl">close</span>
         </div>
         <div className="flex-1 text-center">
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">Sanctuary</span>
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">Together</span>
         </div>
         <div className="size-10"></div>
       </div>
@@ -28,7 +28,7 @@ const Sanctuary: React.FC = () => {
 
         <div className="text-center max-w-sm mx-auto mb-10">
           <h2 className="text-ink tracking-tight text-3xl font-bold leading-tight mb-4">
-            This is your private sanctuary
+            This is your private space
           </h2>
           <p className="text-gray-500 text-base font-normal leading-relaxed px-2">
             A quiet space for the two of you to breathe, remember, and grow together.

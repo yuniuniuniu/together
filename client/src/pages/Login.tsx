@@ -102,97 +102,122 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-between px-8 py-12">
-      <div className="w-full flex flex-col items-center pt-6 mb-8">
-        <div className="w-20 h-20 mb-6 flex items-center justify-center relative">
-          <div className="absolute inset-0 bg-primary/30 rounded-full blur-2xl"></div>
-          <span className="material-symbols-outlined text-5xl text-accent font-light relative z-10">
-            all_inclusive
-          </span>
+    <div className="flex-1 flex flex-col items-center justify-between px-6 py-10 bg-background-light dark:bg-background-dark min-h-screen relative overflow-hidden">
+      {/* Background Decoration */}
+      <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
+      <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <div className="w-full flex flex-col items-center pt-12 mb-8 relative z-10">
+        <div className="w-24 h-24 mb-6 flex items-center justify-center relative">
+          <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent rounded-full blur-xl animate-pulse-slow"></div>
+          <div className="relative size-20 bg-white dark:bg-zinc-800 rounded-2xl shadow-soft rotate-3 flex items-center justify-center border border-white/50 dark:border-zinc-700">
+            <span className="material-symbols-outlined text-4xl text-primary" style={{fontVariationSettings: "'FILL' 1"}}>
+              favorite
+            </span>
+          </div>
+          <div className="absolute -bottom-2 -left-2 size-10 bg-primary/10 rounded-full blur-md"></div>
         </div>
-        <h1 className="text-ink text-2xl font-bold tracking-tight text-center">
-          Welcome Back
+        <h1 className="text-[#4A2B2B] dark:text-zinc-100 text-4xl font-serif italic font-medium tracking-tight text-center">
+          Together
         </h1>
-        <p className="mt-2 text-soft-gray text-sm font-normal text-center">
-          A space just for the two of you
+        <p className="mt-3 text-[#8c5a5a] dark:text-zinc-400 text-xs font-bold tracking-[0.2em] uppercase text-center">
+          Our Shared Journey
         </p>
       </div>
 
-      <div className="w-full space-y-8 flex-grow flex flex-col justify-start pt-4">
-        <div className="space-y-6">
+      <div className="w-full max-w-sm space-y-8 flex-grow flex flex-col justify-start pt-4 relative z-10">
+        <div className="space-y-5">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
+            <div className="bg-red-50 border border-red-100 text-red-600 text-xs font-medium px-4 py-3 rounded-2xl text-center shadow-sm animate-in fade-in slide-in-from-top-2">
               {error}
             </div>
           )}
-          <div className="group">
-            <label className="text-soft-gray text-[11px] font-bold uppercase tracking-wider px-0">Email Address</label>
-            <div className="flex items-center border-b border-primary/50 focus-within:border-accent transition-all">
+          
+          <div className="group space-y-2">
+            <label className="text-[#8c5a5a] dark:text-zinc-500 text-[11px] font-bold uppercase tracking-wider pl-1">Email Address</label>
+            <div className="relative">
               <input
-                className="flex-grow border-none focus:ring-0 text-base py-2 bg-transparent placeholder:text-soft-gray/40"
+                className="w-full bg-white dark:bg-zinc-900 border border-stone-100 dark:border-zinc-800 rounded-2xl py-4 pl-5 pr-24 text-[#4A2B2B] dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-600 focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all shadow-sm outline-none"
                 placeholder="hello@example.com"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              <button
-                className="text-xs font-bold text-accent hover:text-accent/80 px-2 py-1 transition-colors disabled:opacity-50 whitespace-nowrap"
-                onClick={handleSendCode}
-                disabled={isSendingCode || !email.trim() || countdown > 0}
-              >
-                {isSendingCode ? 'Sending...' : countdown > 0 ? `${countdown}s` : codeSent ? 'Resend' : 'Get Code'}
-              </button>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                <button
+                  className={`
+                    px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all
+                    ${isSendingCode || countdown > 0 
+                      ? 'bg-stone-100 text-stone-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed' 
+                      : 'bg-primary/10 text-primary hover:bg-primary/20 active:scale-95'}
+                  `}
+                  onClick={handleSendCode}
+                  disabled={isSendingCode || !email.trim() || countdown > 0}
+                >
+                  {isSendingCode ? '...' : countdown > 0 ? `${countdown}s` : codeSent ? 'Resend' : 'Send Code'}
+                </button>
+              </div>
             </div>
           </div>
-          <div className="group">
-            <label className="text-soft-gray text-[11px] font-bold uppercase tracking-wider px-0">Verification Code</label>
-            <input
-              className="w-full border-b border-primary/50 focus:border-accent bg-transparent focus:ring-0 text-base py-2 transition-all placeholder:text-soft-gray/40"
-              placeholder="6-digit code"
-              type="text"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-            />
+
+          <div className="group space-y-2">
+            <label className="text-[#8c5a5a] dark:text-zinc-500 text-[11px] font-bold uppercase tracking-wider pl-1">Verification Code</label>
+            <div className="relative">
+              <input
+                className="w-full bg-white dark:bg-zinc-900 border border-stone-100 dark:border-zinc-800 rounded-2xl py-4 px-5 text-[#4A2B2B] dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-600 focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all shadow-sm outline-none tracking-widest"
+                placeholder="0 0 0 0 0 0"
+                type="text"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              />
+              <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-stone-300 dark:text-zinc-600">
+                <span className="material-symbols-outlined text-xl">lock</span>
+              </div>
+            </div>
             {codeSent && (
-              <p className="text-xs text-soft-gray mt-2">
-                Check your inbox for the verification code
+              <p className="text-[11px] text-[#8c5a5a] dark:text-zinc-500 pl-1 flex items-center gap-1.5 animate-in fade-in">
+                <span className="material-symbols-outlined text-sm">mark_email_read</span>
+                Code sent to your email
               </p>
             )}
           </div>
 
-          <Button
-            onClick={handleLogin}
-            fullWidth
-            className="mt-4 shadow-glow"
-            disabled={isLoading || !email.trim() || !code.trim()}
-          >
-            {isLoading ? 'Signing In...' : 'Sign In'}
-          </Button>
+          <div className="pt-4">
+            <Button
+              onClick={handleLogin}
+              fullWidth
+              className="py-4 text-base shadow-lg shadow-primary/20 rounded-2xl font-bold tracking-wide"
+              disabled={isLoading || !email.trim() || !code.trim()}
+            >
+              {isLoading ? 'Signing In...' : 'Start Your Journey'}
+            </Button>
+          </div>
+
           {!termsAccepted && email.trim() && code.trim() && (
-            <p className="text-amber-600 text-xs text-center mt-2">
-              Please accept the Terms of Service and Privacy Policy to continue
+            <p className="text-amber-600/80 text-[11px] text-center font-medium animate-pulse">
+              Please accept the Terms & Privacy below
             </p>
           )}
         </div>
       </div>
 
-      <div className="w-full flex flex-col items-center gap-6 mt-8">
-        <div className="flex items-start gap-3 max-w-[300px]">
+      <div className="w-full flex flex-col items-center gap-5 mt-auto pt-8 pb-4 relative z-10">
+        <div className="flex items-start gap-3 max-w-[280px] bg-white/50 dark:bg-zinc-900/50 p-3 rounded-xl backdrop-blur-sm border border-white/50 dark:border-zinc-800/50">
           <input
-            className="w-4 h-4 rounded border-primary text-primary focus:ring-primary mt-0.5"
+            className="w-4 h-4 rounded border-primary/30 text-primary focus:ring-primary/30 mt-0.5 bg-white dark:bg-zinc-800"
             id="terms"
             type="checkbox"
             checked={termsAccepted}
             onChange={(e) => setTermsAccepted(e.target.checked)}
           />
-          <label className="text-[12px] text-soft-gray leading-snug" htmlFor="terms">
-            I have read and agree to the <Link className="text-accent underline underline-offset-2" to="/terms">Terms of Service</Link> and <Link className="text-accent underline underline-offset-2" to="/privacy">Privacy Policy</Link>.
+          <label className="text-[11px] text-stone-500 dark:text-zinc-400 leading-relaxed" htmlFor="terms">
+            I agree to the <Link className="text-primary font-bold hover:underline" to="/terms">Terms</Link> and <Link className="text-primary font-bold hover:underline" to="/privacy">Privacy Policy</Link>.
           </label>
         </div>
-        <div className="flex items-center gap-2 text-soft-gray text-[10px] uppercase tracking-widest opacity-60">
-          <span className="material-symbols-outlined text-[14px]">verified_user</span>
-          <span>Private & Encrypted</span>
+        <div className="flex items-center gap-2 text-stone-400 dark:text-zinc-600 text-[10px] uppercase tracking-widest opacity-60">
+          <span className="material-symbols-outlined text-[14px]">shield_lock</span>
+          <span>End-to-End Encrypted</span>
         </div>
       </div>
     </div>

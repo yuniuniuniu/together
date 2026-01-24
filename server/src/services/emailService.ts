@@ -26,9 +26,9 @@ export async function verifyEmailConfig(): Promise<boolean> {
 // 发送验证码邮件
 export async function sendVerificationEmail(to: string, code: string): Promise<void> {
   const mailOptions = {
-    from: `"Sanctuary" <${process.env.EMAIL_USER}>`,
+    from: `"Together" <${process.env.EMAIL_USER}>`,
     to,
-    subject: '【Sanctuary】登录验证码',
+    subject: '【Together】登录验证码',
     html: `
       <!DOCTYPE html>
       <html>
@@ -41,7 +41,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
           <tr>
             <td style="text-align: center; padding-bottom: 30px;">
               <span style="font-size: 32px;">💕</span>
-              <h1 style="margin: 10px 0 0 0; font-size: 24px; color: #4a2b2b; font-weight: 600;">Sanctuary</h1>
+              <h1 style="margin: 10px 0 0 0; font-size: 24px; color: #4a2b2b; font-weight: 600;">Together</h1>
               <p style="margin: 5px 0 0 0; font-size: 14px; color: #8c5a5a;">A space just for the two of you</p>
             </td>
           </tr>
@@ -61,7 +61,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
           <tr>
             <td style="text-align: center; padding-top: 30px;">
               <p style="margin: 0; font-size: 12px; color: #aaa;">
-                © ${new Date().getFullYear()} Sanctuary · Made with ❤️
+                © ${new Date().getFullYear()} Together · Made with ❤️
               </p>
             </td>
           </tr>
@@ -69,7 +69,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
       </body>
       </html>
     `,
-    text: `Your Sanctuary verification code is: ${code}\n\nThis code expires in 5 minutes.\n\nIf you didn't request this, please ignore this email.`,
+    text: `Your Together verification code is: ${code}\n\nThis code expires in 5 minutes.\n\nIf you didn't request this, please ignore this email.`,
   };
 
   await transporter.sendMail(mailOptions);
