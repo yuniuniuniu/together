@@ -48,7 +48,7 @@ const CreateSpace: React.FC = () => {
 
   useEffect(() => {
     if (space?.partners && space.partners.length >= 2) {
-      navigate('/dashboard');
+      navigate('/celebration');
     }
   }, [space, navigate]);
 
@@ -60,7 +60,7 @@ const CreateSpace: React.FC = () => {
       refreshSpace();
       if (space.partners && space.partners.length >= 2) {
         clearInterval(checkPartner);
-        navigate('/dashboard');
+        navigate('/celebration');
       }
     }, 3000);
 
