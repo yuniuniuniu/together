@@ -307,7 +307,7 @@ const MemoryMap: React.FC = () => {
                 Mark your first location in a story!
               </p>
               <button
-                onClick={() => navigate('/record-type')}
+                onClick={() => navigate('/memory/new')}
                 className="w-full py-4 bg-map-primary hover:bg-[#8a2d4d] active:scale-[0.98] text-white rounded-2xl font-bold shadow-lg shadow-map-primary/20 transition-all flex items-center justify-center gap-2.5 group"
               >
                 <span className="material-symbols-outlined text-[22px] group-hover:scale-110 transition-transform">

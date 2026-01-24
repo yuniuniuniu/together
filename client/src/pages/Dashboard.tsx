@@ -4,11 +4,23 @@ import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
 import { useNotifications } from '../shared/context/NotificationContext';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
+import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
 
 interface Memory {
   id: string;
   content: string;
   mood?: string;
+  photos: string[];
+  createdAt: string;
+  createdBy: string;
+}
+
+interface Milestone {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  type: string;
   photos: string[];
   createdAt: string;
   createdBy: string;
@@ -33,7 +45,9 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { unreadCount } = useNotifications();
   const { data: memories = [], isLoading: isLoadingMemory } = useMemoriesQuery();
+  const { data: milestones = [], isLoading: isLoadingMilestone } = useMilestonesQuery();
   const recentMemory = (memories as Memory[])[0] || null;
+  const recentMilestone = (milestones as Milestone[])[0] || null;
   const [quote] = useState(() => loveQuotes[Math.floor(Math.random() * loveQuotes.length)]);
 
   const formatAnniversaryDate = () => {
@@ -192,6 +206,60 @@ const Dashboard: React.FC = () => {
                   Record your first memory together to see it here
                 </p>
               </div>
+            </div>
+          )}
+        </section>
+
+        {/* Recent Milestone or Empty State Card */}
+        <section className="w-full px-1">
+          {isLoadingMilestone ? (
+            <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-milestone-pink"></div>
+            </div>
+          ) : recentMilestone ? (
+            <div
+              className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-6 shadow-soft border border-white/50 dark:border-zinc-700 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => navigate(`/milestone/${recentMilestone.id}`)}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="size-10 rounded-full bg-milestone-pink/15 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-milestone-pink text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold text-milestone-pink uppercase tracking-widest">Latest Milestone</p>
+                  <p className="text-xs text-soft-gray">
+                    {new Date(recentMilestone.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {recentMilestone.type && ` · ${recentMilestone.type}`}
+                  </p>
+                </div>
+                <span className="material-symbols-outlined text-soft-gray/50">chevron_right</span>
+              </div>
+              <p className="text-[#4a2b2b] dark:text-gray-200 text-base leading-relaxed font-serif italic line-clamp-2">
+                {recentMilestone.title}
+              </p>
+              {recentMilestone.description && (
+                <p className="text-xs text-soft-gray mt-3 line-clamp-2">
+                  {recentMilestone.description}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft border border-dashed border-milestone-pink/30 flex flex-col items-center justify-center gap-4">
+              <div className="size-16 rounded-full bg-milestone-pink/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-3xl text-milestone-pink">flag</span>
+              </div>
+              <div className="space-y-2 max-w-[260px]">
+                <h3 className="text-xl font-serif text-[#4a2b2b] dark:text-gray-100 leading-tight">Mark a milestone</h3>
+                <p className="text-[#8c5a5a] dark:text-gray-400 text-sm leading-relaxed">
+                  Capture the moments that define your journey
+                </p>
+              </div>
+              <button
+                className="px-5 py-2 rounded-full bg-milestone-pink text-white text-xs font-bold uppercase tracking-widest"
+                onClick={() => navigate('/milestone/new')}
+              >
+                Add Milestone
+              </button>
             </div>
           )}
         </section>

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { milestonesApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
+import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
 
 interface Milestone {
   id: string;
@@ -21,23 +21,8 @@ const MilestoneTimeline: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { anniversaryDate } = useSpace();
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const fetchMilestones = async () => {
-      try {
-        const response = await milestonesApi.list();
-        setMilestones(response.data || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load milestones');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchMilestones();
-  }, []);
+  const { data: milestones = [], isLoading, error } = useMilestonesQuery();
+  const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -104,7 +89,7 @@ const MilestoneTimeline: React.FC = () => {
       ) : error ? (
         <main className="flex-1 flex items-center justify-center px-6">
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">
-            {error}
+            {errorMessage || 'Failed to load milestones'}
           </div>
         </main>
       ) : milestones.length > 0 ? (

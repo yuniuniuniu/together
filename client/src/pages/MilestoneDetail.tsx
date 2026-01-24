@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { milestonesApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
+import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
 
 interface Milestone {
   id: string;
@@ -21,6 +23,7 @@ interface Milestone {
 const MilestoneDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { partner, anniversaryDate } = useSpace();
 
@@ -65,6 +68,7 @@ const MilestoneDetail: React.FC = () => {
     setIsDeleting(true);
     try {
       await milestonesApi.delete(id);
+      await queryClient.invalidateQueries({ queryKey: MILESTONES_QUERY_KEY });
       navigate('/milestones');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete milestone');

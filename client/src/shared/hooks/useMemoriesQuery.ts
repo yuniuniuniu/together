@@ -5,7 +5,17 @@ const QUERY_KEY = ['memories'];
 
 const fetchMemories = async () => {
   const response = await memoriesApi.list(1, 200);
-  return response.data?.data ?? [];
+  const payload = response.data as unknown;
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (payload && typeof payload === 'object') {
+    const objectPayload = payload as { data?: unknown };
+    if (Array.isArray(objectPayload.data)) {
+      return objectPayload.data;
+    }
+  }
+  return [];
 };
 
 export function useMemoriesQuery() {

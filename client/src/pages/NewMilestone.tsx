@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { milestonesApi, uploadApi } from '../shared/api/client';
+import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -22,6 +24,7 @@ interface POIResult {
 
 const NewMilestone: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCustomCategoryModal, setShowCustomCategoryModal] = useState(false);
@@ -332,6 +335,7 @@ const NewMilestone: React.FC = () => {
         photos: photos.length > 0 ? photos : undefined,
         location: location || undefined,
       });
+      await queryClient.invalidateQueries({ queryKey: MILESTONES_QUERY_KEY });
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save milestone');

@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { milestonesApi, uploadApi } from '../shared/api/client';
+import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
 
 interface Milestone {
   id: string;
@@ -18,6 +20,7 @@ interface Milestone {
 const EditMilestone: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
 
   const [milestone, setMilestone] = useState<Milestone | null>(null);
   const [title, setTitle] = useState('');
@@ -108,6 +111,7 @@ const EditMilestone: React.FC = () => {
         type,
         photos: photos.length > 0 ? photos : undefined,
       });
+      await queryClient.invalidateQueries({ queryKey: MILESTONES_QUERY_KEY });
       navigate(`/milestone/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save milestone');

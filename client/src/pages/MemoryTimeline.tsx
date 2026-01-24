@@ -343,7 +343,7 @@ const MemoryTimeline: React.FC = () => {
             </p>
           </div>
           <button 
-            onClick={() => navigate('/record-type')}
+            onClick={() => navigate('/memory/new')}
             className="bg-wine hover:bg-wine/90 text-white pl-6 pr-8 py-4 rounded-full shadow-lg shadow-wine/25 flex items-center gap-3 font-bold tracking-wide transition-all transform hover:scale-105 active:scale-95 group"
           >
             <span className="material-symbols-outlined text-2xl group-hover:rotate-90 transition-transform duration-300">add_circle</span>
@@ -356,7 +356,7 @@ const MemoryTimeline: React.FC = () => {
       {memories.length > 0 && (
         <div className="fixed bottom-28 right-6 z-40">
           <button 
-            onClick={() => navigate('/record-type')}
+            onClick={() => navigate('/memory/new')}
             className="bg-wine text-white size-14 rounded-full shadow-lg shadow-wine/30 flex items-center justify-center hover:scale-105 transition-transform active:scale-95"
           >
             <span className="material-symbols-outlined text-2xl">edit</span>
