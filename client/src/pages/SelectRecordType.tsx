@@ -9,7 +9,7 @@ const SelectRecordType: React.FC = () => {
         <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
             <div 
               className="absolute inset-0 bg-cover bg-center opacity-20 dark:opacity-10 scale-110 blur-xl" 
-              style={{backgroundImage: 'url("https://images.unsplash.com/photo-1616046229478-9901c5536a45?q=80&w=600&auto=format&fit=crop")'}}
+              style={{backgroundImage: 'url("/images/record-type-bg.avif")'}}
             ></div>
             <div className="absolute inset-0 bg-milestone-light/80 dark:bg-milestone-dark/80 backdrop-blur-sm"></div>
         </div>

@@ -622,7 +622,7 @@ const NewMilestone: React.FC = () => {
                 <div 
                   className="w-full h-full bg-[#e3dedb]" 
                   style={{
-                    backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBcClvWw0VlMxWmW9FqkjIax4Izg-uvp9_a1flxQQKXOzBJ9259uDtH_lDeaIhL8PhnY4Wd8h7fJ5Z_fCnDjlRD9GZUmqaTKjEZd9aJ78rL-eiv2mANZKlPFwiI2iXyPuUShGVWUJ3Mv3Np5eWdW3zLi9Q3cB6hWoJbv3ul-O4eWwU-_a_L6CMXBr3R-u_OvCLrqXa6k7snRr3_1FKe61Rj-VP3iUiQgZW4UvSd9i9_N1-tax1sIq6l0NqIDZ-e_1WPQVq8YtiapGhD')",
+                    backgroundImage: 'url("/images/milestone-location-bg.png")',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}

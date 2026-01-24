@@ -22,7 +22,7 @@ const Sanctuary: React.FC = () => {
           <div className="absolute inset-0 bg-primary/20 rounded-full blur-3xl"></div>
           <div 
             className="relative w-full h-full bg-cover bg-center rounded-xl shadow-lg" 
-            style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuCVikP23_Sd9YpmX9W2Pfxq3vMjfeyjaX06LadyYYWucrFukpBTd29UJSOihAYpANaqsp3uEgoB0BYRVxS6hIwU5dPkqvh9WpgyxkOnqopipxEMzeYQ7zEoZzi3ShmRmrGR8mvUIb6B-73xitGqujzr_bCvEaE0x9zk7bNf7aB9nrH_8r4sZJ12i_enCMD5TnrPwZ5-MGGZmU3-e1JKS-qiHFND-eUOzafBdB_MJtsI-HHcrSTMKRTv0UnboXIC5J_ZMi92-xTmdFIN")'}}
+            style={{backgroundImage: 'url("/images/sanctuary-hero.png")'}}
           ></div>
         </div>
 

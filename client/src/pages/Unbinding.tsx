@@ -98,7 +98,7 @@ const Unbinding: React.FC = () => {
         <div className="w-full aspect-[4/3] bg-gray-100 rounded-[2.5rem] overflow-hidden shadow-sm relative group">
           <div 
             className="absolute inset-0 bg-cover bg-center opacity-90 transition-transform duration-700 group-hover:scale-105" 
-            style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuCtfy0d7_Aa-h3nYGIWCqB0hDqo67ElxLqUGcBSWQ_4Kh2-cCHeaA6u71HzO-krBzZ4T2uEOHyaHiFTH5Y9LX4SVEndpLL0a5Fs81_fpOrP3KdtfZdXpADlPUdHKJ-wGDt3_sm7HGFpx6wE2zdVrOm0Vzd0adOwNw4QmIx95XJI_CUaZ9VoHB_I2NH-aSjCEmYTooZ3Ygqf5564idhV5veCXM0cz-TXaXuHaiGlb0ZuCR-9KALNqzcJ6UXBxK_BIhyY50-0Fig2BBmo")'}}
+            style={{backgroundImage: 'url("/images/unbinding-hero.png")'}}
           ></div>
           <div className="absolute inset-0 bg-gradient-to-t from-background-light/40 to-transparent"></div>
         </div>
