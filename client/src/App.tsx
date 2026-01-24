@@ -1,5 +1,6 @@
 import React from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './shared/context/AuthContext';
 import { SpaceProvider } from './shared/context/SpaceContext';
 import { NotificationProvider } from './shared/context/NotificationContext';
@@ -33,54 +34,66 @@ import Notifications from './pages/Notifications';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      staleTime: 5000,
+    },
+  },
+});
+
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <SpaceProvider>
-        <NotificationProvider>
-        <ToastProvider>
-        <HashRouter>
-          <MobileWrapper>
-            <Routes>
-              {/* Public routes - redirect to dashboard if logged in */}
-              <Route path="/" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <SpaceProvider>
+          <NotificationProvider>
+          <ToastProvider>
+          <HashRouter>
+            <MobileWrapper>
+              <Routes>
+                {/* Public routes - redirect to dashboard if logged in */}
+                <Route path="/" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
 
-              {/* Auth flow - protected but no space required */}
-              <Route path="/sanctuary" element={<ProtectedRoute><Sanctuary /></ProtectedRoute>} />
-              <Route path="/join" element={<ProtectedRoute><JoinSpace /></ProtectedRoute>} />
-              <Route path="/confirm" element={<ProtectedRoute><ConfirmPartner /></ProtectedRoute>} />
-              <Route path="/celebration" element={<ProtectedRoute><Celebration /></ProtectedRoute>} />
-              <Route path="/setup/profile" element={<ProtectedRoute><ProfileSetup /></ProtectedRoute>} />
-              <Route path="/setup/date" element={<ProtectedRoute><DateSelection /></ProtectedRoute>} />
-              <Route path="/setup/create" element={<ProtectedRoute><CreateSpace /></ProtectedRoute>} />
+                {/* Auth flow - protected but no space required */}
+                <Route path="/sanctuary" element={<ProtectedRoute><Sanctuary /></ProtectedRoute>} />
+                <Route path="/join" element={<ProtectedRoute><JoinSpace /></ProtectedRoute>} />
+                <Route path="/confirm" element={<ProtectedRoute><ConfirmPartner /></ProtectedRoute>} />
+                <Route path="/celebration" element={<ProtectedRoute><Celebration /></ProtectedRoute>} />
+                <Route path="/setup/profile" element={<ProtectedRoute><ProfileSetup /></ProtectedRoute>} />
+                <Route path="/setup/date" element={<ProtectedRoute><DateSelection /></ProtectedRoute>} />
+                <Route path="/setup/create" element={<ProtectedRoute><CreateSpace /></ProtectedRoute>} />
 
-              {/* Main app routes - protected */}
-              <Route path="/dashboard" element={<ProtectedRoute requireSpace><Dashboard /></ProtectedRoute>} />
-              <Route path="/record-type" element={<ProtectedRoute requireSpace><SelectRecordType /></ProtectedRoute>} />
-              <Route path="/milestone/new" element={<ProtectedRoute requireSpace><NewMilestone /></ProtectedRoute>} />
-              <Route path="/milestone/:id" element={<ProtectedRoute requireSpace><MilestoneDetail /></ProtectedRoute>} />
-              <Route path="/milestone/:id/edit" element={<ProtectedRoute requireSpace><EditMilestone /></ProtectedRoute>} />
-              <Route path="/milestones" element={<ProtectedRoute requireSpace><MilestoneTimeline /></ProtectedRoute>} />
-              <Route path="/memory/map" element={<ProtectedRoute requireSpace><MemoryMap /></ProtectedRoute>} />
-              <Route path="/memory/timeline" element={<ProtectedRoute requireSpace><MemoryTimeline /></ProtectedRoute>} />
-              <Route path="/memories" element={<ProtectedRoute requireSpace><MemoryTimeline /></ProtectedRoute>} />
-              <Route path="/memory/new" element={<ProtectedRoute requireSpace><NewMemory /></ProtectedRoute>} />
-              <Route path="/memory/:id" element={<ProtectedRoute requireSpace><MemoryDetail /></ProtectedRoute>} />
-              <Route path="/memory/:id/edit" element={<ProtectedRoute requireSpace><EditMemory /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute requireSpace><Settings /></ProtectedRoute>} />
-              <Route path="/settings/unbind" element={<ProtectedRoute requireSpace><Unbinding /></ProtectedRoute>} />
-              <Route path="/notifications" element={<ProtectedRoute requireSpace><Notifications /></ProtectedRoute>} />
+                {/* Main app routes - protected */}
+                <Route path="/dashboard" element={<ProtectedRoute requireSpace><Dashboard /></ProtectedRoute>} />
+                <Route path="/record-type" element={<ProtectedRoute requireSpace><SelectRecordType /></ProtectedRoute>} />
+                <Route path="/milestone/new" element={<ProtectedRoute requireSpace><NewMilestone /></ProtectedRoute>} />
+                <Route path="/milestone/:id" element={<ProtectedRoute requireSpace><MilestoneDetail /></ProtectedRoute>} />
+                <Route path="/milestone/:id/edit" element={<ProtectedRoute requireSpace><EditMilestone /></ProtectedRoute>} />
+                <Route path="/milestones" element={<ProtectedRoute requireSpace><MilestoneTimeline /></ProtectedRoute>} />
+                <Route path="/memory/map" element={<ProtectedRoute requireSpace><MemoryMap /></ProtectedRoute>} />
+                <Route path="/memory/timeline" element={<ProtectedRoute requireSpace><MemoryTimeline /></ProtectedRoute>} />
+                <Route path="/memories" element={<ProtectedRoute requireSpace><MemoryTimeline /></ProtectedRoute>} />
+                <Route path="/memory/new" element={<ProtectedRoute requireSpace><NewMemory /></ProtectedRoute>} />
+                <Route path="/memory/:id" element={<ProtectedRoute requireSpace><MemoryDetail /></ProtectedRoute>} />
+                <Route path="/memory/:id/edit" element={<ProtectedRoute requireSpace><EditMemory /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute requireSpace><Settings /></ProtectedRoute>} />
+                <Route path="/settings/unbind" element={<ProtectedRoute requireSpace><Unbinding /></ProtectedRoute>} />
+                <Route path="/notifications" element={<ProtectedRoute requireSpace><Notifications /></ProtectedRoute>} />
 
-              {/* Legal pages - public */}
-              <Route path="/terms" element={<Terms />} />
-              <Route path="/privacy" element={<Privacy />} />
-            </Routes>
-          </MobileWrapper>
-        </HashRouter>
-        </ToastProvider>
-        </NotificationProvider>
-      </SpaceProvider>
-    </AuthProvider>
+                {/* Legal pages - public */}
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/privacy" element={<Privacy />} />
+              </Routes>
+            </MobileWrapper>
+          </HashRouter>
+          </ToastProvider>
+          </NotificationProvider>
+        </SpaceProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 };
 

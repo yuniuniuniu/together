@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { memoriesApi, uploadApi } from '../shared/api/client';
+import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -36,6 +38,7 @@ const MAX_VIDEO_DURATION = 30; // Maximum video duration in seconds
 
 const NewMemory: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
@@ -222,6 +225,7 @@ const NewMemory: React.FC = () => {
         voiceNote: voiceNote || undefined,
         stickers: stickers.length > 0 ? stickers : undefined,
       });
+      await queryClient.invalidateQueries({ queryKey: MEMORIES_QUERY_KEY });
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save memory');

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { memoriesApi, reactionsApi } from '../shared/api/client';
+import { reactionsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useToast } from '../shared/components/feedback/Toast';
+import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 
 interface Memory {
   id: string;
@@ -26,45 +27,39 @@ const MemoryTimeline: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: memories = [], isLoading, error } = useMemoriesQuery();
+  const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
   const [reactions, setReactions] = useState<ReactionState>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
-    const fetchMemories = async () => {
-      try {
-        const response = await memoriesApi.list();
-        const memoriesList = response.data.data || [];
-        setMemories(memoriesList);
-
-        // Fetch reactions for each memory
-        const reactionStates: ReactionState = {};
-        for (const memory of memoriesList) {
-          try {
-            const [reactionsRes, myReactionRes] = await Promise.all([
-              reactionsApi.list(memory.id),
-              reactionsApi.getMine(memory.id),
-            ]);
-            reactionStates[memory.id] = {
-              liked: myReactionRes.data !== null,
-              count: reactionsRes.data.length,
-            };
-          } catch {
-            reactionStates[memory.id] = { liked: false, count: 0 };
-          }
-        }
-        setReactions(reactionStates);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load memories');
-      } finally {
-        setIsLoading(false);
+    const fetchReactions = async () => {
+      if (!memories || memories.length === 0) {
+        setReactions({});
+        return;
       }
+
+      const reactionStates: ReactionState = {};
+      for (const memory of memories as Memory[]) {
+        try {
+          const [reactionsRes, myReactionRes] = await Promise.all([
+            reactionsApi.list(memory.id),
+            reactionsApi.getMine(memory.id),
+          ]);
+          reactionStates[memory.id] = {
+            liked: myReactionRes.data !== null,
+            count: reactionsRes.data.length,
+          };
+        } catch {
+          reactionStates[memory.id] = { liked: false, count: 0 };
+        }
+      }
+      setReactions(reactionStates);
     };
-    fetchMemories();
-  }, []);
+
+    fetchReactions();
+  }, [memories]);
 
   const handleToggleLike = async (memoryId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -79,7 +74,7 @@ const MemoryTimeline: React.FC = () => {
             : Math.max((prev[memoryId]?.count || 1) - 1, 0),
         },
       }));
-    } catch {
+      } catch {
       showToast('Failed to update reaction', 'error');
     }
   };
@@ -184,7 +179,7 @@ const MemoryTimeline: React.FC = () => {
       ) : error ? (
         <main className="max-w-md mx-auto flex-1 flex items-center justify-center px-6">
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">
-            {error}
+            {errorMessage || 'Failed to load memories'}
           </div>
         </main>
       ) : memories.length > 0 ? (

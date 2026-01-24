@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
-import { memoriesApi } from '../shared/api/client';
 import { useNotifications } from '../shared/context/NotificationContext';
+import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 
 interface Memory {
   id: string;
@@ -32,25 +32,9 @@ const Dashboard: React.FC = () => {
   const { daysCount, anniversaryDate, partner, space, isLoading } = useSpace();
   const { user } = useAuth();
   const { unreadCount } = useNotifications();
-  const [recentMemory, setRecentMemory] = useState<Memory | null>(null);
-  const [isLoadingMemory, setIsLoadingMemory] = useState(true);
+  const { data: memories = [], isLoading: isLoadingMemory } = useMemoriesQuery();
+  const recentMemory = (memories as Memory[])[0] || null;
   const [quote] = useState(() => loveQuotes[Math.floor(Math.random() * loveQuotes.length)]);
-
-  useEffect(() => {
-    const fetchRecentMemory = async () => {
-      try {
-        const response = await memoriesApi.list(1, 1);
-        if (response.data.data && response.data.data.length > 0) {
-          setRecentMemory(response.data.data[0]);
-        }
-      } catch {
-        // Silently fail
-      } finally {
-        setIsLoadingMemory(false);
-      }
-    };
-    fetchRecentMemory();
-  }, []);
 
   const formatAnniversaryDate = () => {
     if (!anniversaryDate) return '';

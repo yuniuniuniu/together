@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
+    "@tanstack/react-query": "^5.90.20",
     "@types/leaflet": "^1.9.21",
     "firebase": "^12.8.0",
     "leaflet": "^1.9.4",

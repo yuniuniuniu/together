@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AMapLoader from '@amap/amap-jsapi-loader';
-import { memoriesApi } from '../shared/api/client';
+import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 
 interface Location {
   id: string;
@@ -26,9 +26,10 @@ const MemoryMap: React.FC = () => {
   const AMapRef = useRef<any>(null);
 
   const [locations, setLocations] = useState<Location[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const { data: memories = [], isLoading: isLoadingMemories } = useMemoriesQuery();
+  const isLoading = isLoadingMemories || !mapReady;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -60,7 +61,8 @@ const MemoryMap: React.FC = () => {
       })
       .catch((e) => {
         console.error('地图加载失败:', e);
-        setIsLoading(false);
+        // Map failed to load; keep UX responsive
+        console.error('地图加载失败:', e);
       });
 
     return () => {
@@ -71,34 +73,34 @@ const MemoryMap: React.FC = () => {
     };
   }, []);
 
-  // 获取回忆数据
+  // 获取回忆数据（随轮询更新）
   useEffect(() => {
-    const fetchMemoriesWithLocations = async () => {
-      try {
-        const response = await memoriesApi.list(1, 100);
-        const memoriesWithLocations = (response.data.data || [])
-          .filter((m) => m.location && m.location.name && m.location.latitude && m.location.longitude)
-          .map((m) => ({
-            id: m.id,
-            name: m.location!.name,
-            latitude: m.location!.latitude!,
-            longitude: m.location!.longitude!,
-            memoryId: m.id,
-            memoryContent: m.content,
-            createdAt: m.createdAt,
-          }));
-        setLocations(memoriesWithLocations);
-        if (memoriesWithLocations.length > 0) {
-          setSelectedLocation(memoriesWithLocations[0]);
-        }
-      } catch {
-        // Silently fail
-      } finally {
-        setIsLoading(false);
+    const memoriesWithLocations = (memories as any[])
+      .filter((m) => m.location && m.location.name && m.location.latitude && m.location.longitude)
+      .map((m) => ({
+        id: m.id,
+        name: m.location!.name,
+        latitude: m.location!.latitude!,
+        longitude: m.location!.longitude!,
+        memoryId: m.id,
+        memoryContent: m.content,
+        createdAt: m.createdAt,
+      }));
+
+    setLocations(memoriesWithLocations);
+    if (memoriesWithLocations.length === 0) {
+      setSelectedLocation(null);
+      return;
+    }
+
+    setSelectedLocation((prev) => {
+      if (prev) {
+        const exists = memoriesWithLocations.find((loc) => loc.id === prev.id);
+        if (exists) return prev;
       }
-    };
-    fetchMemoriesWithLocations();
-  }, []);
+      return memoriesWithLocations[0];
+    });
+  }, [memories]);
 
   // 添加标记点
   useEffect(() => {
@@ -225,7 +227,7 @@ const MemoryMap: React.FC = () => {
 
       {/* Map Container */}
       <main className="flex-1 relative w-full overflow-hidden">
-        {isLoading && !mapReady ? (
+        {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-map-bg">
             <div className="flex flex-col items-center gap-4">
               <div className="w-12 h-12 border-4 border-map-rose border-t-map-primary rounded-full animate-spin"></div>
@@ -282,7 +284,7 @@ const MemoryMap: React.FC = () => {
           </>
         )}
 
-        {mapReady && locations.length === 0 && !isLoading && (
+        {mapReady && locations.length === 0 && !isLoadingMemories && (
           /* Empty State */
           <div className="absolute inset-0 flex items-center justify-center p-6 z-[500]">
             <div className="bg-white/90 backdrop-blur-md p-8 rounded-[2.5rem] shadow-float flex flex-col items-center text-center w-full max-w-[320px] border border-white/60 animate-float-gentle">
