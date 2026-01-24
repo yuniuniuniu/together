@@ -1,6 +1,8 @@
 import type { ApiResponse } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3005/api';
+
+const DEFAULT_API_BASE = `${window.location.protocol}//${window.location.hostname}:3005/api`;
+const API_BASE = import.meta.env.VITE_API_URL || DEFAULT_API_BASE;
 
 export async function apiClient<T>(
   endpoint: string,
@@ -412,7 +414,8 @@ export const reactionsApi = {
 };
 
 // Upload API
-const UPLOAD_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3005';
+const UPLOAD_BASE =
+  import.meta.env.VITE_API_URL?.replace('/api', '') || `${window.location.protocol}//${window.location.hostname}:3005`;
 
 export const uploadApi = {
   uploadFile: async (file: File): Promise<{ url: string; filename: string }> => {
