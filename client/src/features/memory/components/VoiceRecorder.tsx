@@ -41,6 +41,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | 'checking'>('checking');
+  const [audioLevels, setAudioLevels] = useState<number[]>([0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -49,6 +50,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const mimeTypeRef = useRef<string>('');
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Check and request permission when opening
   useEffect(() => {
@@ -136,6 +140,15 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
@@ -144,6 +157,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       previewAudioRef.current.pause();
       previewAudioRef.current = null;
     }
+    setAudioLevels([0, 0, 0, 0, 0, 0, 0, 0, 0]);
   }, []);
 
   const startRecording = async () => {
@@ -214,9 +228,47 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         streamRef.current = null;
       };
 
+      // Set up audio analyser for real-time waveform
+      const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      audioContextRef.current = audioContext;
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+      
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      
+      // Start visualizing audio levels
+      const updateLevels = () => {
+        if (!analyserRef.current || !isRecording) return;
+        
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // Sample 9 frequency bands for visualization
+        const bandSize = Math.floor(dataArray.length / 9);
+        const levels = [];
+        for (let i = 0; i < 9; i++) {
+          const start = i * bandSize;
+          const end = start + bandSize;
+          let sum = 0;
+          for (let j = start; j < end; j++) {
+            sum += dataArray[j];
+          }
+          // Normalize to 0-1 range
+          levels.push(sum / (bandSize * 255));
+        }
+        setAudioLevels(levels);
+        
+        animationFrameRef.current = requestAnimationFrame(updateLevels);
+      };
+      
       mediaRecorder.start(1000); // Collect data every second for better compatibility
       setIsRecording(true);
       setRecordingTime(0);
+      
+      // Start the visualization loop
+      updateLevels();
 
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => {
@@ -260,6 +312,17 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      // Stop audio visualization
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      analyserRef.current = null;
+      setAudioLevels([0, 0, 0, 0, 0, 0, 0, 0, 0]);
     }
   }, [isRecording]);
 
@@ -388,17 +451,25 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         {/* Waveform */}
         <div className="flex items-center justify-center gap-[3px] h-16 mb-6 px-8">
           {isRecording ? (
-            <>
-              <div className="w-1.5 bg-accent/30 rounded-full h-4 animate-[pulse_1s_ease-in-out_infinite]" />
-              <div className="w-1.5 bg-accent/40 rounded-full h-8 animate-[pulse_1.2s_ease-in-out_infinite] delay-75" />
-              <div className="w-1.5 bg-accent/50 rounded-full h-12 animate-[pulse_0.8s_ease-in-out_infinite] delay-100" />
-              <div className="w-1.5 bg-accent rounded-full h-16 animate-[pulse_1.5s_ease-in-out_infinite]" />
-              <div className="w-1.5 bg-accent/80 rounded-full h-10 animate-[pulse_1.1s_ease-in-out_infinite] delay-150" />
-              <div className="w-1.5 bg-accent/60 rounded-full h-14 animate-[pulse_0.9s_ease-in-out_infinite] delay-75" />
-              <div className="w-1.5 bg-accent/40 rounded-full h-6 animate-[pulse_1.3s_ease-in-out_infinite]" />
-              <div className="w-1.5 bg-accent/50 rounded-full h-12 animate-[pulse_1s_ease-in-out_infinite] delay-200" />
-              <div className="w-1.5 bg-accent/30 rounded-full h-5 animate-[pulse_1.4s_ease-in-out_infinite] delay-100" />
-            </>
+            // Real-time audio visualization
+            audioLevels.map((level, index) => {
+              // Min height 8px, max height 64px, responsive to audio level
+              const minHeight = 8;
+              const maxHeight = 64;
+              const height = minHeight + level * (maxHeight - minHeight);
+              // Opacity based on level (more active = more opaque)
+              const opacity = 0.3 + level * 0.7;
+              return (
+                <div
+                  key={index}
+                  className="w-2 bg-accent rounded-full transition-all duration-75"
+                  style={{
+                    height: `${height}px`,
+                    opacity: opacity,
+                  }}
+                />
+              );
+            })
           ) : voiceNote ? (
             <>
               <div className="w-1.5 bg-green-400/30 rounded-full h-4" />
