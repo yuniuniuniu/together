@@ -245,7 +245,7 @@ const MemoryMap: React.FC = () => {
         ) : null}
 
         {/* 高德地图容器 */}
-        <div ref={mapContainerRef} className="w-full h-full" style={{ display: mapReady ? 'block' : 'none' }} />
+        <div ref={mapContainerRef} className="w-full h-full" style={{ display: mapReady ? 'block' : 'none', touchAction: 'none' }} />
 
         {mapReady && locations.length > 0 && selectedLocation && (
           <>
