@@ -40,21 +40,26 @@ interface UnbindRequest {
 }
 
 export function SpaceProvider({ children }: SpaceProviderProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading: isAuthLoading } = useAuth();
   const [state, setState] = useState<SpaceState>({
     space: null,
     partner: null,
-    isLoading: false,
+    isLoading: true, // Start with loading true until we know auth status
   });
 
   // Fetch user's space when authenticated
   useEffect(() => {
+    // Wait for auth to finish loading before making decisions
+    if (isAuthLoading) {
+      return;
+    }
+    
     if (isAuthenticated) {
       refreshSpace();
     } else {
       setState({ space: null, partner: null, isLoading: false });
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAuthLoading]);
 
   const refreshSpace = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true }));
