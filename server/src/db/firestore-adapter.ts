@@ -207,8 +207,6 @@ export class FirestoreAdapter implements DatabaseAdapter {
       return {
         space_id: data.space_id,
         user_id: data.user_id,
-        pet_name: data.pet_name,
-        partner_pet_name: data.partner_pet_name,
         joined_at: timestampToString(data.joined_at),
         is_deleted: data.is_deleted || 0,
       };
@@ -224,8 +222,6 @@ export class FirestoreAdapter implements DatabaseAdapter {
     return {
       space_id: data.space_id,
       user_id: data.user_id,
-      pet_name: data.pet_name,
-      partner_pet_name: data.partner_pet_name,
       joined_at: timestampToString(data.joined_at),
       is_deleted: data.is_deleted || 0,
     };
@@ -250,8 +246,7 @@ export class FirestoreAdapter implements DatabaseAdapter {
     const docId = `${spaceId}_${userId}`;
     const updateData: Record<string, unknown> = {};
 
-    if (updates.pet_name !== undefined) updateData.pet_name = updates.pet_name;
-    if (updates.partner_pet_name !== undefined) updateData.partner_pet_name = updates.partner_pet_name;
+    if (updates.joined_at !== undefined) updateData.joined_at = updates.joined_at;
 
     if (Object.keys(updateData).length > 0) {
       await db.collection(COLLECTIONS.SPACE_MEMBERS).doc(docId).update(updateData);
@@ -264,8 +259,6 @@ export class FirestoreAdapter implements DatabaseAdapter {
     return {
       space_id: data.space_id,
       user_id: data.user_id,
-      pet_name: data.pet_name,
-      partner_pet_name: data.partner_pet_name,
       joined_at: timestampToString(data.joined_at),
       is_deleted: data.is_deleted || 0,
     };

@@ -129,9 +129,9 @@ export class SQLiteAdapter implements DatabaseAdapter {
   // Space Members
   async addSpaceMember(member: SpaceMemberData): Promise<void> {
     dbPrepare(`
-      INSERT INTO space_members (space_id, user_id, pet_name, partner_pet_name, joined_at, is_deleted)
-      VALUES (?, ?, ?, ?, ?, 0)
-    `).run(member.space_id, member.user_id, member.pet_name, member.partner_pet_name, member.joined_at || new Date().toISOString());
+      INSERT INTO space_members (space_id, user_id, joined_at, is_deleted)
+      VALUES (?, ?, ?, 0)
+    `).run(member.space_id, member.user_id, member.joined_at || new Date().toISOString());
     saveDatabase();
   }
 
@@ -159,13 +159,9 @@ export class SQLiteAdapter implements DatabaseAdapter {
     const fields: string[] = [];
     const values: (string | null | undefined)[] = [];
 
-    if (updates.pet_name !== undefined) {
-      fields.push('pet_name = ?');
-      values.push(updates.pet_name);
-    }
-    if (updates.partner_pet_name !== undefined) {
-      fields.push('partner_pet_name = ?');
-      values.push(updates.partner_pet_name);
+    if (updates.joined_at !== undefined) {
+      fields.push('joined_at = ?');
+      values.push(updates.joined_at);
     }
 
     if (fields.length > 0) {

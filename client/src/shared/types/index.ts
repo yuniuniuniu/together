@@ -19,8 +19,6 @@ export interface User {
 
 export interface Partner {
   user: User;
-  petName: string; // What I call my partner
-  partnerPetName: string; // What my partner calls me
 }
 
 export interface Space {

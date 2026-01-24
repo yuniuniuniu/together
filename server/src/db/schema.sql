@@ -41,8 +41,6 @@ CREATE TABLE IF NOT EXISTS spaces (
 CREATE TABLE IF NOT EXISTS space_members (
   space_id TEXT NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id),
-  pet_name TEXT,
-  partner_pet_name TEXT,
   joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   is_deleted INTEGER DEFAULT 0,
   PRIMARY KEY (space_id, user_id)

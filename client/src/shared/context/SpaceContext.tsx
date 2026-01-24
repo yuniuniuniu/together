@@ -73,7 +73,7 @@ export function SpaceProvider({ children }: SpaceProviderProps) {
         const partnerUser = spaceData.partners.find(p => p.id !== user?.id);
         setState({
           space,
-          partner: partnerUser ? { user: partnerUser, petName: '', partnerPetName: '' } : null,
+          partner: partnerUser ? { user: partnerUser } : null,
           isLoading: false,
         });
       } else {
@@ -150,7 +150,7 @@ export function SpaceProvider({ children }: SpaceProviderProps) {
       const partnerUser = spaceData.partners.find(p => p.id !== user?.id);
       setState({
         space,
-        partner: partnerUser ? { user: partnerUser, petName: '', partnerPetName: '' } : null,
+        partner: partnerUser ? { user: partnerUser } : null,
         isLoading: false,
       });
     } catch (error) {

@@ -151,21 +151,6 @@ export const spacesApi = {
       expiresAt: string;
       status: 'pending' | 'cancelled' | 'completed';
     } | null>(`/spaces/${id}/unbind`),
-
-  getPetNames: () =>
-    apiClient<{
-      myPetName: string | null;
-      partnerPetName: string | null;
-    }>('/spaces/pet-names'),
-
-  updatePetNames: (data: { myPetName?: string | null; partnerPetName?: string | null }) =>
-    apiClient<{
-      myPetName: string | null;
-      partnerPetName: string | null;
-    }>('/spaces/pet-names', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
 };
 
 // Memories API

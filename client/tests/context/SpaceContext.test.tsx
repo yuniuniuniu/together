@@ -432,8 +432,6 @@ describe('SpaceContext', () => {
 
       const mockPartner = {
         user: { id: 'p1', phone: '+111', nickname: 'Manual Partner' },
-        petName: 'Honey',
-        partnerPetName: 'Sweetheart',
       };
 
       act(() => {

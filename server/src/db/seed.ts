@@ -24,14 +24,14 @@ export function seedDatabase(): void {
 
   // Add both users to the space
   dbPrepare(`
-    INSERT INTO space_members (space_id, user_id, pet_name, partner_pet_name)
-    VALUES (?, ?, ?, ?)
-  `).run(spaceId, user1Id, 'Honey', 'Sweetie');
+    INSERT INTO space_members (space_id, user_id)
+    VALUES (?, ?)
+  `).run(spaceId, user1Id);
 
   dbPrepare(`
-    INSERT INTO space_members (space_id, user_id, pet_name, partner_pet_name)
-    VALUES (?, ?, ?, ?)
-  `).run(spaceId, user2Id, 'Sweetie', 'Honey');
+    INSERT INTO space_members (space_id, user_id)
+    VALUES (?, ?)
+  `).run(spaceId, user2Id);
 
   // Create sample memories
   const memoryId = uuid();

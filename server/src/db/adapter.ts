@@ -114,8 +114,6 @@ export interface SpaceData {
 export interface SpaceMemberData {
   space_id: string;
   user_id: string;
-  pet_name: string | null;
-  partner_pet_name: string | null;
   joined_at: string;
   is_deleted?: number;
 }
