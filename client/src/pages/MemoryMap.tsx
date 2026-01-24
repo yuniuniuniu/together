@@ -206,29 +206,29 @@ const MemoryMap: React.FC = () => {
   };
 
   return (
-    <div className="bg-background-light dark:bg-background-dark text-[#4a4244] font-sans h-screen flex flex-col overflow-hidden selection:bg-primary/20">
+    <div className="bg-background-light dark:bg-background-dark text-[#4A2B2B] dark:text-gray-100 font-sans h-screen flex flex-col overflow-hidden selection:bg-dusty-rose/30">
       {/* Header */}
-      <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full max-w-md mx-auto">
-        <div className="flex items-center justify-between px-6 pt-3 pb-2">
-          <div className="flex size-10 items-center justify-center rounded-full bg-white shadow-sm border border-stone-100 dark:bg-zinc-800 dark:border-zinc-700">
-            <span className="material-symbols-outlined text-wine text-xl">favorite</span>
+      <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full">
+        <div className="max-w-3xl mx-auto w-full">
+          {/* Header Title Area */}
+          <div className="pt-6 pb-2 text-center">
+            <h1 className="text-3xl font-serif font-medium tracking-tight text-[#4A2B2B] dark:text-zinc-100 italic">Our Footprints</h1>
+            <p className="text-[10px] font-bold tracking-[0.2em] text-[#8c5a5a] dark:text-zinc-500 uppercase mt-2">
+              EXPLORING THE WORLD TOGETHER
+            </p>
           </div>
-          <div className="flex flex-col items-center flex-1">
-            <h2 className="text-charcoal dark:text-zinc-100 text-lg font-bold tracking-tight">Memories</h2>
-          </div>
-          <div className="flex size-10 items-center justify-center"></div>
-        </div>
-        <div className="px-6 pb-4 max-w-md mx-auto w-full mt-1">
-          <div className="bg-stone-100 dark:bg-zinc-800 p-1.5 rounded-xl flex items-center shadow-inner">
-            <button 
-              className="flex-1 py-1.5 rounded-lg text-stone-400 dark:text-zinc-500 font-medium text-xs tracking-wider uppercase hover:text-stone-600 dark:hover:text-zinc-300 transition-all"
-              onClick={() => navigate('/memory/timeline')}
-            >
-              Timeline
-            </button>
-            <button className="flex-1 py-1.5 rounded-lg bg-dusty-rose text-wine dark:text-charcoal shadow-sm font-bold text-xs tracking-wider uppercase transition-all transform active:scale-95">
-              Map
-            </button>
+          
+          {/* Controls */}
+          <div className="px-4 pb-4 mt-4 flex items-center justify-center">
+             <div className="w-full bg-stone-100 dark:bg-zinc-900 p-1 rounded-full flex items-center relative">
+               <button 
+                 onClick={() => navigate('/memory/timeline')}
+                 className="flex-1 py-1.5 rounded-full text-stone-400 dark:text-zinc-500 hover:text-stone-600 dark:hover:text-zinc-300 text-[10px] font-bold tracking-widest uppercase transition-all"
+               >
+                 Timeline
+               </button>
+               <button className="flex-1 py-1.5 rounded-full bg-white dark:bg-zinc-800 text-charcoal dark:text-zinc-200 shadow-sm text-[10px] font-bold tracking-widest uppercase transition-all">Map</button>
+             </div>
           </div>
         </div>
       </nav>
@@ -330,7 +330,7 @@ const MemoryMap: React.FC = () => {
 
       {/* Fixed Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-8 pt-4 z-50 flex justify-center">
-        <div className="flex items-center justify-around max-w-md w-full px-6">
+        <div className="flex items-center justify-around max-w-3xl w-full px-4">
           <button
             className="flex flex-col items-center gap-1 group w-16"
             onClick={() => navigate('/dashboard')}

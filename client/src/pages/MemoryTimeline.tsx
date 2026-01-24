@@ -107,15 +107,15 @@ const MemoryTimeline: React.FC = () => {
   });
 
   return (
-    <div className="bg-background-light dark:bg-background-dark font-sans text-charcoal selection:bg-dusty-rose/30 min-h-screen pb-32 flex flex-col">
+    <div className="bg-background-light dark:bg-background-dark font-sans text-[#4A2B2B] dark:text-gray-100 selection:bg-dusty-rose/30 min-h-screen pb-32 flex flex-col">
       {/* Navbar */}
-      <nav className="sticky top-0 z-50 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full">
-        <div className="max-w-xl mx-auto w-full">
+      <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full">
+        <div className="max-w-3xl mx-auto w-full">
           {/* Header Title Area */}
           <div className="pt-6 pb-2 text-center">
-            <h1 className="text-3xl font-serif font-medium tracking-tight text-charcoal dark:text-zinc-100 italic">Our Story</h1>
+            <h1 className="text-3xl font-serif font-medium tracking-tight text-[#4A2B2B] dark:text-zinc-100 italic">Our Story</h1>
             {space?.anniversaryDate && (
-              <p className="text-[10px] font-bold tracking-[0.2em] text-stone-400 dark:text-zinc-500 uppercase mt-2">
+              <p className="text-[10px] font-bold tracking-[0.2em] text-[#8c5a5a] dark:text-zinc-500 uppercase mt-2">
                 COLLECTING MOMENTS SINCE {getAnniversaryMonth()}
               </p>
             )}
@@ -181,11 +181,11 @@ const MemoryTimeline: React.FC = () => {
           </div>
         </main>
       ) : memories.length > 0 ? (
-        <main className="max-w-xl mx-auto flex-1 w-full px-4 pt-4 pb-32">
+        <main className="max-w-3xl mx-auto flex-1 w-full px-4 pt-4 pb-32">
           {filteredMemories.length === 0 && searchQuery ? (
             <div className="py-12 text-center">
-              <span className="material-symbols-outlined text-4xl text-stone-200 mb-4">search_off</span>
-              <p className="text-stone-400 text-sm">No memories found</p>
+              <span className="material-symbols-outlined text-4xl text-[#8c5a5a]/20 mb-4">search_off</span>
+              <p className="text-[#8c5a5a] text-sm">No memories found</p>
             </div>
           ) : (
             <div className="space-y-8">
@@ -194,16 +194,16 @@ const MemoryTimeline: React.FC = () => {
                 return (
                   <section key={memory.id} className="relative z-10">
                     <div className="flex items-center justify-between mb-3 px-1">
-                      <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-wine">
+                      <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#8c5a5a]">
                         {dateInfo.label}
                       </span>
-                      <span className="text-[10px] font-medium text-stone-300 dark:text-zinc-600 tracking-wide">
+                      <span className="text-[10px] font-medium text-[#8c5a5a]/60 dark:text-zinc-600 tracking-wide">
                         {dateInfo.date}
                       </span>
                     </div>
                     
                     <div
-                      className="bg-white dark:bg-zinc-900 rounded-[2rem] shadow-sm p-6 cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                      className="bg-white dark:bg-zinc-900 rounded-[2rem] shadow-soft p-6 cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99] border border-white/50 dark:border-zinc-800"
                       onClick={() => navigate(`/memory/${memory.id}`)}
                     >
                       {/* Header */}
@@ -236,21 +236,21 @@ const MemoryTimeline: React.FC = () => {
                             );
                           })()}
                           <div>
-                            <p className="text-sm font-bold text-charcoal dark:text-zinc-200 leading-tight">
+                            <p className="text-sm font-bold text-[#4A2B2B] dark:text-zinc-200 leading-tight">
                               {memory.createdBy === user?.id ? (user?.nickname || 'You') : (partner?.user?.nickname || 'Partner')}
                             </p>
-                            <p className="text-[9px] text-stone-400 uppercase font-bold tracking-widest mt-0.5">
+                            <p className="text-[9px] text-[#8c5a5a] uppercase font-bold tracking-widest mt-0.5">
                               {formatTime(memory.createdAt)} • {memory.mood || 'NOTE'}
                             </p>
                           </div>
                         </div>
-                        <button className="text-stone-300 hover:text-stone-500 dark:text-zinc-600 transition-colors -mr-2 -mt-2 p-2">
+                        <button className="text-[#8c5a5a]/40 hover:text-[#8c5a5a] dark:text-zinc-600 transition-colors -mr-2 -mt-2 p-2">
                           <span className="material-symbols-outlined text-lg">more_horiz</span>
                         </button>
                       </div>
                       
                       {/* Content */}
-                      <p className="text-stone-600 dark:text-zinc-300 text-[15px] leading-relaxed mb-5 font-serif">
+                      <p className="text-[#4a2b2b]/80 dark:text-zinc-300 text-[15px] leading-relaxed mb-5 font-serif">
                         {memory.content}
                       </p>
 
