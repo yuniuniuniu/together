@@ -81,7 +81,7 @@ const Dashboard: React.FC = () => {
         </div>
       </nav>
 
-      <main className="max-w-md mx-auto w-full px-6 pt-2 space-y-12 flex-1">
+      <main className="max-w-md mx-auto w-full px-6 pt-2 space-y-10 flex-1">
         <section className="flex flex-col items-center gap-10 mt-4">
           <div className="flex items-center gap-6 relative">
             <div className="absolute top-1/2 left-10 right-10 h-0.5 bg-gradient-to-r from-transparent via-primary/40 to-transparent -z-10"></div>
@@ -146,102 +146,51 @@ const Dashboard: React.FC = () => {
           </button>
         </section>
 
-        {/* Recent Memory or Empty State Card */}
+        {/* Recent Milestone */}
         <section className="w-full px-1">
-          {isLoadingMemory ? (
-            <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dusty-rose"></div>
-            </div>
-          ) : recentMemory ? (
-            <div
-              className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-6 shadow-soft border border-white/50 dark:border-zinc-700 cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => navigate(`/memory/${recentMemory.id}`)}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>auto_stories</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-[10px] font-bold text-dusty-rose uppercase tracking-widest">Latest Memory</p>
-                  <p className="text-xs text-soft-gray">
-                    {new Date(recentMemory.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    {recentMemory.mood && ` · ${recentMemory.mood}`}
-                  </p>
-                </div>
-                <span className="material-symbols-outlined text-soft-gray/50">chevron_right</span>
-              </div>
-              <p className="text-[#4a2b2b] dark:text-gray-200 text-base leading-relaxed font-serif italic line-clamp-3">
-                "{recentMemory.content}"
-              </p>
-              {recentMemory.photos && recentMemory.photos.length > 0 && (
-                <div className="mt-4 flex gap-2 overflow-hidden">
-                  {recentMemory.photos.slice(0, 3).map((photo, idx) => (
-                    <div key={idx} className="size-16 rounded-lg overflow-hidden bg-gray-100">
-                      <img src={photo} alt="" className="w-full h-full object-cover" />
-                    </div>
-                  ))}
-                  {recentMemory.photos.length > 3 && (
-                    <div className="size-16 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <span className="text-sm font-bold text-primary">+{recentMemory.photos.length - 3}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft border border-dashed border-dusty-rose/30 flex flex-col items-center justify-center gap-6 relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-soft-sand/20 to-transparent pointer-events-none"></div>
-              <div className="relative transform group-hover:scale-105 transition-transform duration-500">
-                <div className="absolute inset-0 bg-dusty-rose/10 rounded-full blur-xl transform scale-150"></div>
-                <div className="relative size-24 bg-soft-sand/50 dark:bg-white/5 rounded-full flex items-center justify-center ring-4 ring-white dark:ring-zinc-700 shadow-sm">
-                  <span className="material-symbols-outlined text-4xl text-dusty-rose/80" style={{fontVariationSettings: "'FILL' 0, 'wght' 300"}}>import_contacts</span>
-                </div>
-                <div className="absolute -bottom-2 -right-2 bg-white dark:bg-zinc-800 p-1.5 rounded-full shadow-md border border-primary/20">
-                  <span className="material-symbols-outlined text-xl text-accent" style={{fontVariationSettings: "'FILL' 1"}}>favorite</span>
-                </div>
-              </div>
-              <div className="space-y-3 z-10 max-w-[260px]">
-                <h3 className="text-2xl font-serif text-[#4a2b2b] dark:text-gray-100 leading-tight">Your journey awaits</h3>
-                <p className="text-[#8c5a5a] dark:text-gray-400 text-sm leading-relaxed">
-                  Record your first memory together to see it here
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Recent Milestone or Empty State Card */}
-        <section className="w-full px-1">
+          <div className="flex items-center justify-between px-2 mb-3">
+             <h3 className="text-xs font-bold uppercase tracking-widest text-[#8c5a5a] dark:text-gray-400">Recent Milestone</h3>
+             <button onClick={() => navigate('/milestones')} className="text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary-dark">View All</button>
+          </div>
           {isLoadingMilestone ? (
             <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-milestone-pink"></div>
             </div>
           ) : recentMilestone ? (
             <div
-              className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-6 shadow-soft border border-white/50 dark:border-zinc-700 cursor-pointer hover:shadow-lg transition-shadow"
+              className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] overflow-hidden shadow-soft border border-white/50 dark:border-zinc-700 cursor-pointer hover:shadow-lg transition-shadow group"
               onClick={() => navigate(`/milestone/${recentMilestone.id}`)}
             >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="size-10 rounded-full bg-milestone-pink/15 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-milestone-pink text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-[10px] font-bold text-milestone-pink uppercase tracking-widest">Latest Milestone</p>
-                  <p className="text-xs text-soft-gray">
-                    {new Date(recentMilestone.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    {recentMilestone.type && ` · ${recentMilestone.type}`}
-                  </p>
-                </div>
-                <span className="material-symbols-outlined text-soft-gray/50">chevron_right</span>
+              <div className="h-40 w-full bg-cover bg-center relative bg-soft-sand/20"
+                   style={{ backgroundImage: recentMilestone.photos?.[0] ? `url("${recentMilestone.photos[0]}")` : undefined }}>
+                 {!recentMilestone.photos?.[0] && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                       <span className="material-symbols-outlined text-4xl text-milestone-pink/30">flag</span>
+                    </div>
+                 )}
+                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-60"></div>
+                 <div className="absolute top-4 left-4 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full border border-white/20">
+                    <span className="text-[10px] font-bold text-white uppercase tracking-wide">Milestone</span>
+                 </div>
               </div>
-              <p className="text-[#4a2b2b] dark:text-gray-200 text-base leading-relaxed font-serif italic line-clamp-2">
-                {recentMilestone.title}
-              </p>
-              {recentMilestone.description && (
-                <p className="text-xs text-soft-gray mt-3 line-clamp-2">
-                  {recentMilestone.description}
-                </p>
-              )}
+              <div className="p-5 flex items-start justify-between gap-4">
+                 <div>
+                    <h3 className="font-serif text-xl text-[#4a2b2b] dark:text-white leading-tight mb-2">
+                       {recentMilestone.title}
+                    </h3>
+                    <div className="flex items-center gap-1.5 text-soft-gray">
+                       <span className="material-symbols-outlined text-[16px]">calendar_today</span>
+                       <span className="text-xs font-medium">
+                          {new Date(recentMilestone.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                       </span>
+                    </div>
+                 </div>
+                 <div className="size-10 rounded-full bg-soft-sand/50 dark:bg-white/10 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-accent text-xl filled" style={{fontVariationSettings: "'FILL' 1"}}>
+                       verified
+                    </span>
+                 </div>
+              </div>
             </div>
           ) : (
             <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft border border-dashed border-milestone-pink/30 flex flex-col items-center justify-center gap-4">
@@ -260,6 +209,73 @@ const Dashboard: React.FC = () => {
               >
                 Add Milestone
               </button>
+            </div>
+          )}
+        </section>
+
+        {/* Daily Memory */}
+        <section className="w-full px-1">
+          <div className="flex items-center justify-between px-2 mb-3">
+             <h3 className="text-xs font-bold uppercase tracking-widest text-[#8c5a5a] dark:text-gray-400">Daily Memory</h3>
+             <button onClick={() => navigate('/memories')} className="text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary-dark">View All</button>
+          </div>
+          {isLoadingMemory ? (
+            <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dusty-rose"></div>
+            </div>
+          ) : recentMemory ? (
+             <div
+               className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-5 shadow-soft border border-white/50 dark:border-zinc-700 cursor-pointer hover:shadow-lg transition-shadow flex items-start gap-4"
+               onClick={() => navigate(`/memory/${recentMemory.id}`)}
+             >
+                {(() => {
+                   const isOwn = recentMemory.createdBy === user?.id;
+                   const avatarUrl = isOwn ? user?.avatar : partner?.user?.avatar;
+                   return (
+                     <div
+                        className="size-14 rounded-full bg-cover bg-center shrink-0 border-2 border-white dark:border-zinc-700 shadow-sm bg-soft-sand/20"
+                        style={{ backgroundImage: avatarUrl ? `url("${avatarUrl}")` : undefined }}
+                     >
+                        {!avatarUrl && (
+                           <div className="w-full h-full flex items-center justify-center">
+                              <span className="material-symbols-outlined text-2xl text-primary/40">person</span>
+                           </div>
+                        )}
+                     </div>
+                   );
+                })()}
+                <div className="flex-1 min-w-0 py-0.5">
+                   <div className="flex items-center justify-between mb-1.5">
+                      <h4 className="font-bold text-[#4a2b2b] dark:text-white text-sm truncate pr-2">
+                         {recentMemory.mood ? recentMemory.mood.charAt(0).toUpperCase() + recentMemory.mood.slice(1) : 'Memory'}
+                      </h4>
+                      <span className="text-[10px] font-bold text-accent/80 bg-accent/10 dark:bg-accent/20 px-2 py-0.5 rounded-full shrink-0">
+                         {new Date(recentMemory.createdAt).toDateString() === new Date().toDateString() ? 'Today' : new Date(recentMemory.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                   </div>
+                   <p className="font-serif italic text-[#4a2b2b]/80 dark:text-gray-300 text-sm leading-relaxed line-clamp-2">
+                      "{recentMemory.content}"
+                   </p>
+                </div>
+             </div>
+          ) : (
+            <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft border border-dashed border-dusty-rose/30 flex flex-col items-center justify-center gap-6 relative overflow-hidden group">
+              <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-soft-sand/20 to-transparent pointer-events-none"></div>
+              <div className="relative transform group-hover:scale-105 transition-transform duration-500">
+                <div className="absolute inset-0 bg-dusty-rose/10 rounded-full blur-xl transform scale-150"></div>
+                <div className="relative size-24 bg-soft-sand/50 dark:bg-white/5 rounded-full flex items-center justify-center ring-4 ring-white dark:ring-zinc-700 shadow-sm">
+                  <span className="material-symbols-outlined text-4xl text-dusty-rose/80" style={{fontVariationSettings: "'FILL' 0, 'wght' 300"}}>import_contacts</span>
+                </div>
+                <div className="absolute -bottom-2 -right-2 bg-white dark:bg-zinc-800 p-1.5 rounded-full shadow-md border border-primary/20">
+                  <span className="material-symbols-outlined text-xl text-accent" style={{fontVariationSettings: "'FILL' 1"}}>favorite</span>
+                </div>
+              </div>
+              <div className="space-y-3 z-10 max-w-[260px]">
+                <h3 className="text-2xl font-serif text-[#4a2b2b] dark:text-gray-100 leading-tight">Your journey awaits</h3>
+                <p className="text-[#8c5a5a] dark:text-gray-400 text-sm leading-relaxed">
+                  Record your first memory together to see it here
+                </p>
+              </div>
             </div>
           )}
         </section>

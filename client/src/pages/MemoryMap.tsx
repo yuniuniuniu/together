@@ -206,27 +206,35 @@ const MemoryMap: React.FC = () => {
   };
 
   return (
-    <div className="bg-cream text-[#4a4244] font-sans h-screen flex flex-col overflow-hidden selection:bg-map-primary/20">
+    <div className="bg-background-light dark:bg-background-dark text-[#4a4244] font-sans h-screen flex flex-col overflow-hidden selection:bg-primary/20">
       {/* Header */}
-      <header className="relative z-[1000] pt-14 pb-4 flex flex-col items-center bg-cream w-full shrink-0 border-b border-stone-100/50">
-        <div className="flex flex-col items-center gap-4 w-full px-6">
-          <h1 className="font-serif text-3xl font-bold text-[#2c2426] tracking-tight">Memories</h1>
-          <div className="flex items-center p-1 bg-white rounded-full border border-stone-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] w-[240px] relative">
-            <button
+      <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full max-w-md mx-auto">
+        <div className="flex items-center justify-between px-6 pt-3 pb-2">
+          <div className="flex size-10 items-center justify-center rounded-full bg-white shadow-sm border border-stone-100 dark:bg-zinc-800 dark:border-zinc-700">
+            <span className="material-symbols-outlined text-wine text-xl">favorite</span>
+          </div>
+          <div className="flex flex-col items-center flex-1">
+            <h2 className="text-charcoal dark:text-zinc-100 text-lg font-bold tracking-tight">Memories</h2>
+          </div>
+          <div className="flex size-10 items-center justify-center"></div>
+        </div>
+        <div className="px-6 pb-4 max-w-md mx-auto w-full mt-1">
+          <div className="bg-stone-100 dark:bg-zinc-800 p-1.5 rounded-xl flex items-center shadow-inner">
+            <button 
+              className="flex-1 py-1.5 rounded-lg text-stone-400 dark:text-zinc-500 font-medium text-xs tracking-wider uppercase hover:text-stone-600 dark:hover:text-zinc-300 transition-all"
               onClick={() => navigate('/memory/timeline')}
-              className="flex-1 py-2 rounded-full text-[15px] font-medium text-[#9e8c93] hover:text-map-primary transition-colors font-serif"
             >
               Timeline
             </button>
-            <button className="flex-1 py-2 rounded-full text-[15px] font-bold text-map-primary bg-map-rose shadow-[0_2px_8px_rgba(172,57,96,0.15)] font-serif">
+            <button className="flex-1 py-1.5 rounded-lg bg-dusty-rose text-wine dark:text-charcoal shadow-sm font-bold text-xs tracking-wider uppercase transition-all transform active:scale-95">
               Map
             </button>
           </div>
         </div>
-      </header>
+      </nav>
 
       {/* Map Container */}
-      <main className="flex-1 relative w-full overflow-hidden">
+      <main className="flex-1 relative w-full overflow-hidden pb-32">
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-map-bg">
             <div className="flex flex-col items-center gap-4">
@@ -244,39 +252,39 @@ const MemoryMap: React.FC = () => {
             {/* Selected Location Card */}
             <div className="absolute top-4 left-4 right-4 z-[1000]">
               <div
-                className="bg-white/95 backdrop-blur-md p-3.5 rounded-2xl shadow-map-float flex items-center gap-3.5 border border-white/60 transform hover:scale-[1.02] transition-transform duration-300 cursor-pointer"
+                className="bg-white/95 backdrop-blur-md p-3.5 rounded-2xl shadow-soft flex items-center gap-3.5 border border-white/60 transform hover:scale-[1.02] transition-transform duration-300 cursor-pointer"
                 onClick={() => navigate(`/memory/${selectedLocation.memoryId}`)}
               >
-                <div className="w-14 h-14 rounded-xl bg-map-rose/30 flex items-center justify-center shrink-0 shadow-inner ring-1 ring-black/5">
-                  <span className="material-symbols-outlined text-2xl text-map-primary">location_on</span>
+                <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center shrink-0 shadow-inner ring-1 ring-black/5">
+                  <span className="material-symbols-outlined text-2xl text-primary">location_on</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-serif text-[16px] font-bold text-[#2c2426] leading-tight truncate">
+                  <h3 className="font-serif text-[16px] font-bold text-charcoal dark:text-zinc-100 leading-tight truncate">
                     {selectedLocation.name}
                   </h3>
-                  <p className="text-[13px] text-[#9e8c93] mt-0.5 line-clamp-1">{selectedLocation.memoryContent}</p>
+                  <p className="text-[13px] text-stone-500 dark:text-zinc-400 mt-0.5 line-clamp-1">{selectedLocation.memoryContent}</p>
                   <div className="flex items-center gap-1 mt-1">
-                    <span className="material-symbols-outlined text-[12px] text-map-rose">calendar_today</span>
-                    <p className="text-[11px] font-semibold text-map-primary uppercase tracking-wide">
+                    <span className="material-symbols-outlined text-[12px] text-primary">calendar_today</span>
+                    <p className="text-[11px] font-semibold text-primary uppercase tracking-wide">
                       {formatDate(selectedLocation.createdAt)}
                     </p>
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-[20px] text-[#9e8c93]">chevron_right</span>
+                <span className="material-symbols-outlined text-[20px] text-stone-400">chevron_right</span>
               </div>
             </div>
 
             {/* Controls */}
-            <div className="absolute bottom-28 right-4 z-[1000] flex flex-col gap-3">
+            <div className="absolute bottom-6 right-4 z-[1000] flex flex-col gap-3">
               <button
                 onClick={handleLocateMe}
-                className="w-12 h-12 bg-white rounded-2xl shadow-map-soft flex items-center justify-center text-[#5c4048] hover:text-map-primary transition-colors border border-white/50 active:scale-95"
+                className="w-12 h-12 bg-white rounded-2xl shadow-soft flex items-center justify-center text-stone-600 hover:text-primary transition-colors border border-white/50 active:scale-95"
               >
                 <span className="material-symbols-outlined text-[24px]">my_location</span>
               </button>
               <button
                 onClick={() => navigate('/memory/new')}
-                className="w-12 h-12 bg-map-primary rounded-2xl shadow-map-soft flex items-center justify-center text-white hover:bg-[#8a2d4d] transition-colors border border-white/20 active:scale-95"
+                className="w-12 h-12 bg-wine rounded-2xl shadow-soft flex items-center justify-center text-white hover:bg-wine/90 transition-colors border border-white/20 active:scale-95"
               >
                 <span className="material-symbols-outlined text-[26px]">add</span>
               </button>
@@ -287,28 +295,28 @@ const MemoryMap: React.FC = () => {
         {mapReady && locations.length === 0 && !isLoadingMemories && (
           /* Empty State */
           <div className="absolute inset-0 flex items-center justify-center p-6 z-[500]">
-            <div className="bg-white/90 backdrop-blur-md p-8 rounded-[2.5rem] shadow-float flex flex-col items-center text-center w-full max-w-[320px] border border-white/60 animate-float-gentle">
+            <div className="bg-white/90 dark:bg-zinc-800/90 backdrop-blur-md p-8 rounded-[2.5rem] shadow-soft flex flex-col items-center text-center w-full max-w-[320px] border border-white/60 dark:border-zinc-700 animate-float-gentle">
               <div className="relative w-24 h-24 mb-6">
-                <div className="absolute inset-0 bg-map-rose/20 rounded-full animate-pulse"></div>
-                <div className="absolute inset-2 bg-gradient-to-tr from-map-rose/30 to-[#fff0f0] rounded-full flex items-center justify-center ring-1 ring-white">
-                  <span className="material-symbols-outlined text-[42px] text-map-primary drop-shadow-sm">luggage</span>
+                <div className="absolute inset-0 bg-primary/20 rounded-full animate-pulse"></div>
+                <div className="absolute inset-2 bg-gradient-to-tr from-primary/30 to-background-light dark:to-zinc-800 rounded-full flex items-center justify-center ring-1 ring-white dark:ring-zinc-700">
+                  <span className="material-symbols-outlined text-[42px] text-primary drop-shadow-sm">luggage</span>
                 </div>
-                <div className="absolute right-0 -top-1 bg-white rounded-full p-1.5 shadow-md border border-map-rose/40 transform rotate-12">
+                <div className="absolute right-0 -top-1 bg-white dark:bg-zinc-800 rounded-full p-1.5 shadow-md border border-primary/40 transform rotate-12">
                   <span
-                    className="material-symbols-outlined text-[18px] text-map-primary filled"
+                    className="material-symbols-outlined text-[18px] text-primary filled"
                     style={{ fontVariationSettings: "'FILL' 1" }}
                   >
                     favorite
                   </span>
                 </div>
               </div>
-              <h2 className="font-serif text-2xl font-bold text-[#2c2426] mb-3">No footprints yet</h2>
-              <p className="text-[#9e8c93] font-medium text-[15px] leading-relaxed px-4 mb-8">
+              <h2 className="font-serif text-2xl font-bold text-charcoal dark:text-zinc-100 mb-3">No footprints yet</h2>
+              <p className="text-stone-500 dark:text-zinc-400 font-medium text-[15px] leading-relaxed px-4 mb-8">
                 Mark your first location in a story!
               </p>
               <button
                 onClick={() => navigate('/memory/new')}
-                className="w-full py-4 bg-map-primary hover:bg-[#8a2d4d] active:scale-[0.98] text-white rounded-2xl font-bold shadow-lg shadow-map-primary/20 transition-all flex items-center justify-center gap-2.5 group"
+                className="w-full py-4 bg-wine hover:bg-wine/90 active:scale-[0.98] text-white rounded-2xl font-bold shadow-lg shadow-wine/20 transition-all flex items-center justify-center gap-2.5 group"
               >
                 <span className="material-symbols-outlined text-[22px] group-hover:scale-110 transition-transform">
                   add_location_alt
@@ -320,32 +328,38 @@ const MemoryMap: React.FC = () => {
         )}
       </main>
 
-      {/* Navigation */}
-      <nav className="glass-panel fixed bottom-0 w-full pb-8 pt-4 px-8 flex justify-between items-center z-[1001] rounded-t-[32px] shadow-map-nav">
-        <button className="group flex flex-col items-center gap-1.5 w-16" onClick={() => navigate('/dashboard')}>
-          <span className="material-symbols-outlined text-[#9e8c93] group-hover:text-map-primary transition-colors text-[26px]">
-            home
-          </span>
-          <span className="text-[11px] font-medium text-[#9e8c93] group-hover:text-map-primary">Home</span>
-        </button>
-        <button className="group flex flex-col items-center gap-1.5 w-16 relative top-[-4px]">
-          <div className="absolute -top-1 w-12 h-12 bg-map-primary/5 rounded-full scale-110 blur-sm"></div>
-          <span
-            className="material-symbols-outlined text-map-primary text-[28px] filled drop-shadow-sm"
-            style={{ fontVariationSettings: "'FILL' 1" }}
+      {/* Fixed Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-8 pt-4 z-50 flex justify-center">
+        <div className="flex items-center justify-around max-w-md w-full px-6">
+          <button
+            className="flex flex-col items-center gap-1 group w-16"
+            onClick={() => navigate('/dashboard')}
           >
-            favorite
-          </span>
-          <span className="text-[11px] font-bold text-map-primary">Memories</span>
-        </button>
-        <button className="group flex flex-col items-center gap-1.5 w-16" onClick={() => navigate('/settings')}>
-          <span className="material-symbols-outlined text-[#9e8c93] group-hover:text-map-primary transition-colors text-[26px]">
-            settings
-          </span>
-          <span className="text-[11px] font-medium text-[#9e8c93] group-hover:text-map-primary">Settings</span>
-        </button>
-      </nav>
-      <div className="fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-map-cream/30 to-transparent pointer-events-none z-[1000]"></div>
+            <span className="material-symbols-outlined text-zinc-400 group-hover:text-zinc-800 dark:text-zinc-500 dark:group-hover:text-zinc-300 transition-colors text-[26px]">home</span>
+            <span className="text-[10px] font-medium text-zinc-400 group-hover:text-zinc-800 dark:text-zinc-500 dark:group-hover:text-zinc-300">Home</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 group w-16">
+            <div className="bg-primary/10 rounded-2xl px-4 py-1 flex flex-col items-center">
+              <span className="material-symbols-outlined text-primary text-[26px]" style={{fontVariationSettings: "'FILL' 1"}}>favorite</span>
+            </div>
+            <span className="text-[10px] font-bold text-primary">Memories</span>
+          </button>
+          <button
+            className="flex flex-col items-center gap-1 group w-16"
+            onClick={() => navigate('/milestones')}
+          >
+            <span className="material-symbols-outlined text-zinc-400 group-hover:text-zinc-800 dark:text-zinc-500 dark:group-hover:text-zinc-300 transition-colors text-[26px]">flag</span>
+            <span className="text-[10px] font-medium text-zinc-400 group-hover:text-zinc-800 dark:text-zinc-500 dark:group-hover:text-zinc-300">Milestones</span>
+          </button>
+          <button
+            className="flex flex-col items-center gap-1 group w-16"
+            onClick={() => navigate('/settings')}
+          >
+            <span className="material-symbols-outlined text-zinc-400 group-hover:text-zinc-800 dark:text-zinc-500 dark:group-hover:text-zinc-300 transition-colors text-[26px]">settings</span>
+            <span className="text-[10px] font-medium text-zinc-400 group-hover:text-zinc-800 dark:text-zinc-500 dark:group-hover:text-zinc-300">Settings</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
