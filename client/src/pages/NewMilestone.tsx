@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
+import { useFormDraft } from '../shared/hooks';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -22,6 +23,34 @@ interface POIResult {
   distance?: number;
 }
 
+interface LocationData {
+  name: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+// Draft state interface for persistence
+interface MilestoneDraft {
+  title: string;
+  description: string;
+  type: string;
+  date: string;
+  location: LocationData | null;
+  photos: string[];
+  customCategories: string[];
+}
+
+const initialDraft: MilestoneDraft = {
+  title: '',
+  description: '',
+  type: 'Milestone',
+  date: new Date().toISOString().split('T')[0],
+  location: null,
+  photos: [],
+  customCategories: [],
+};
+
 const NewMilestone: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -30,17 +59,40 @@ const NewMilestone: React.FC = () => {
   const [showCustomCategoryModal, setShowCustomCategoryModal] = useState(false);
   const [customCategory, setCustomCategory] = useState('');
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [type, setType] = useState('Milestone');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  // Use draft hook for form persistence
+  const { state: draft, updateField, clearDraft } = useFormDraft<MilestoneDraft>(
+    'new-milestone-draft',
+    initialDraft
+  );
+
+  // Destructure draft state for easier access
+  const { title, description, type, date, location, photos, customCategories } = draft;
+
+  // Helper setters that update draft
+  const setTitle = (value: string) => updateField('title', value);
+  const setDescription = (value: string) => updateField('description', value);
+  const setType = (value: string) => updateField('type', value);
+  const setDate = (value: string) => updateField('date', value);
+  const setLocation = (value: LocationData | null) => updateField('location', value);
+  const setPhotos = (value: string[] | ((prev: string[]) => string[])) => {
+    if (typeof value === 'function') {
+      updateField('photos', value(photos));
+    } else {
+      updateField('photos', value);
+    }
+  };
+  const setCustomCategories = (value: string[] | ((prev: string[]) => string[])) => {
+    if (typeof value === 'function') {
+      updateField('customCategories', value(customCategories));
+    } else {
+      updateField('customCategories', value);
+    }
+  };
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [location, setLocation] = useState<{ name: string; address?: string; latitude?: number; longitude?: number } | null>(null);
   const [locationSearch, setLocationSearch] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 高德地图 POI 搜索相关
@@ -335,6 +387,8 @@ const NewMilestone: React.FC = () => {
         photos: photos.length > 0 ? photos : undefined,
         location: location || undefined,
       });
+      // Clear draft after successful save
+      clearDraft();
       await queryClient.invalidateQueries({ queryKey: MILESTONES_QUERY_KEY });
       navigate('/dashboard');
     } catch (err) {

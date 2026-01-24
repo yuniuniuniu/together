@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { memoriesApi, uploadApi } from '../shared/api/client';
 import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
+import { useFormDraft } from '../shared/hooks';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -36,6 +37,25 @@ interface MediaItem {
 
 const MAX_VIDEO_DURATION = 30; // Maximum video duration in seconds
 
+// Draft state interface for persistence
+interface MemoryDraft {
+  content: string;
+  mood: string;
+  location: LocationData | null;
+  stickers: string[];
+  media: MediaItem[];
+  voiceNote: string | null;
+}
+
+const initialDraft: MemoryDraft = {
+  content: '',
+  mood: 'Happy',
+  location: null,
+  stickers: [],
+  media: [],
+  voiceNote: null,
+};
+
 const NewMemory: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -43,17 +63,38 @@ const NewMemory: React.FC = () => {
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
 
-  const [content, setContent] = useState('');
-  const [mood, setMood] = useState('Happy');
+  // Use draft hook for form persistence
+  const { state: draft, updateField, clearDraft } = useFormDraft<MemoryDraft>(
+    'new-memory-draft',
+    initialDraft
+  );
+
+  // Destructure draft state for easier access
+  const { content, mood, location, stickers, media, voiceNote } = draft;
+
+  // Helper setters that update draft
+  const setContent = (value: string) => updateField('content', value);
+  const setMood = (value: string) => updateField('mood', value);
+  const setLocation = (value: LocationData | null) => updateField('location', value);
+  const setStickers = (value: string[] | ((prev: string[]) => string[])) => {
+    if (typeof value === 'function') {
+      updateField('stickers', value(stickers));
+    } else {
+      updateField('stickers', value);
+    }
+  };
+  const setMedia = (value: MediaItem[] | ((prev: MediaItem[]) => MediaItem[])) => {
+    if (typeof value === 'function') {
+      updateField('media', value(media));
+    } else {
+      updateField('media', value);
+    }
+  };
+  const setVoiceNote = (value: string | null) => updateField('voiceNote', value);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [location, setLocation] = useState<LocationData | null>(null);
   const [locationSearch, setLocationSearch] = useState('');
-  const [stickers, setStickers] = useState<string[]>([]);
-
-  // Media upload states (photos, GIFs, videos)
-  const [media, setMedia] = useState<MediaItem[]>([]);
-  const [photos, setPhotos] = useState<string[]>([]); // Legacy compatibility
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,7 +103,6 @@ const NewMemory: React.FC = () => {
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
@@ -212,11 +252,8 @@ const NewMemory: React.FC = () => {
     setError('');
     setIsLoading(true);
     try {
-      // Combine media URLs while avoiding duplicates (videos live in media, legacy photos in photos)
-      const allMediaUrls = Array.from(new Set([
-        ...media.map(m => m.url),
-        ...photos,
-      ]));
+      // Use media URLs directly
+      const allMediaUrls = media.map(m => m.url);
       await memoriesApi.create({
         content: content.trim(),
         mood,
@@ -225,6 +262,8 @@ const NewMemory: React.FC = () => {
         voiceNote: voiceNote || undefined,
         stickers: stickers.length > 0 ? stickers : undefined,
       });
+      // Clear draft after successful save
+      clearDraft();
       await queryClient.invalidateQueries({ queryKey: MEMORIES_QUERY_KEY });
       navigate('/dashboard');
     } catch (err) {
@@ -283,14 +322,6 @@ const NewMemory: React.FC = () => {
       }
 
       setMedia(prev => [...prev, ...uploadResults]);
-      // Also update legacy photos array for backwards compatibility (skip videos to avoid duplicates)
-      setPhotos(prev => {
-        const photoUrls = uploadResults
-          .filter(r => r.type !== 'video')
-          .map(r => r.url);
-        if (photoUrls.length === 0) return prev;
-        return Array.from(new Set([...prev, ...photoUrls]));
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload media');
     } finally {
@@ -305,37 +336,8 @@ const NewMemory: React.FC = () => {
     }
   };
 
-  // Photo upload handler (legacy, still used for images only)
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploading(true);
-    setError('');
-
-    try {
-      const uploadPromises = Array.from(files).map(file => uploadApi.uploadFile(file));
-      const results = await Promise.all(uploadPromises);
-      setPhotos(prev => [...prev, ...results.map(r => r.url)]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload photos');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
   const handleRemoveMedia = (index: number) => {
-    const item = media[index];
     setMedia(prev => prev.filter((_, i) => i !== index));
-    // Also remove from legacy photos array
-    setPhotos(prev => prev.filter(url => url !== item?.url));
-  };
-
-  const handleRemovePhoto = (index: number) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   // 选择 POI 位置
