@@ -8,6 +8,26 @@ interface VoiceRecorderProps {
   maxDuration?: number;
 }
 
+// Get the best supported audio MIME type for the browser
+function getSupportedMimeType(): string {
+  const types = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+    'audio/ogg',
+    'audio/wav',
+    '',  // Empty string means browser default
+  ];
+  
+  for (const type of types) {
+    if (type === '' || MediaRecorder.isTypeSupported(type)) {
+      return type;
+    }
+  }
+  return '';
+}
+
 export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   isOpen,
   onClose,
@@ -19,6 +39,8 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [recordingTime, setRecordingTime] = useState(0);
   const [voiceNote, setVoiceNote] = useState<string | null>(initialVoiceNote);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | 'checking'>('checking');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -26,6 +48,71 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const shouldSaveRef = useRef<boolean>(true);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const mimeTypeRef = useRef<string>('');
+
+  // Check and request permission when opening
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const checkAndRequestPermission = async () => {
+      setError(null);
+      setPermissionStatus('checking');
+
+      // Check basic requirements
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError('Your browser does not support audio recording.');
+        setPermissionStatus('denied');
+        return;
+      }
+
+      if (!window.isSecureContext) {
+        setError('Audio recording requires HTTPS. Please access via https:// or localhost.');
+        setPermissionStatus('denied');
+        return;
+      }
+
+      // Check permission status if available
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
+
+          if (result.state === 'denied') {
+            setError('Microphone permission was denied. Please enable it in your browser settings:\n\niOS: Settings → Safari → Microphone\nAndroid: Tap the lock icon in the address bar → Permissions');
+            return;
+          }
+
+          // Listen for permission changes
+          result.onchange = () => {
+            setPermissionStatus(result.state as 'granted' | 'denied' | 'prompt');
+            if (result.state === 'granted') {
+              setError(null);
+            }
+          };
+
+          // If permission can be requested, trigger the browser's permission dialog
+          if (result.state === 'prompt') {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              stream.getTracks().forEach(track => track.stop()); // Release immediately
+              setPermissionStatus('granted');
+            } catch {
+              setPermissionStatus('denied');
+              setError('Microphone permission was denied. Please allow access to record voice notes.');
+            }
+          }
+        } catch {
+          // permissions.query not supported for microphone, try getUserMedia directly
+          setPermissionStatus('prompt');
+        }
+      } else {
+        // Fallback: try to get permission directly
+        setPermissionStatus('prompt');
+      }
+    };
+
+    checkAndRequestPermission();
+  }, [isOpen]);
 
   // Reset state when opening
   useEffect(() => {
@@ -60,10 +147,48 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   }, []);
 
   const startRecording = async () => {
+    setError(null);
+    
+    // Check if browser supports required APIs
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError('Your browser does not support audio recording. Please use a modern browser.');
+      return;
+    }
+
+    // Check if MediaRecorder is supported
+    if (typeof MediaRecorder === 'undefined') {
+      setError('Audio recording is not supported on this device.');
+      return;
+    }
+
+    // Check if running in secure context (HTTPS)
+    if (!window.isSecureContext) {
+      setError('Audio recording requires a secure connection (HTTPS).');
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        } 
+      });
+      
       streamRef.current = stream;
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Get the best supported MIME type
+      const mimeType = getSupportedMimeType();
+      mimeTypeRef.current = mimeType;
+      
+      // Create MediaRecorder with supported MIME type
+      const options: MediaRecorderOptions = {};
+      if (mimeType) {
+        options.mimeType = mimeType;
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       shouldSaveRef.current = true;
@@ -76,7 +201,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
       mediaRecorder.onstop = () => {
         if (shouldSaveRef.current && audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          // Use the actual MIME type from the recorder
+          const actualMimeType = mimeTypeRef.current || mediaRecorder.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
           const reader = new FileReader();
           reader.onloadend = () => {
             setVoiceNote(reader.result as string);
@@ -87,7 +214,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         streamRef.current = null;
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000); // Collect data every second for better compatibility
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -100,8 +227,27 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           return newTime;
         });
       }, 1000);
-    } catch {
-      console.error('Unable to access microphone');
+    } catch (err) {
+      console.error('Unable to access microphone:', err);
+      
+      // Provide user-friendly error messages
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setError('Microphone access denied. Please allow microphone permission in your browser settings and try again.');
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          setError('No microphone found. Please connect a microphone and try again.');
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          setError('Microphone is in use by another application. Please close other apps using the microphone.');
+        } else if (err.name === 'OverconstrainedError') {
+          setError('Microphone does not meet requirements. Please try a different microphone.');
+        } else if (err.name === 'SecurityError') {
+          setError('Microphone access blocked due to security settings. Please use HTTPS.');
+        } else {
+          setError(`Unable to access microphone: ${err.message}`);
+        }
+      } else {
+        setError('Unable to access microphone. Please check your browser settings.');
+      }
     }
   };
 
@@ -197,9 +343,47 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         <div className="w-12 h-1.5 bg-ink/10 rounded-full mx-auto mb-8" />
 
         {/* Title */}
-        <h3 className="text-center text-ink font-bold text-lg mb-6">
+        <h3 className="text-center text-ink font-bold text-lg mb-4">
           {voiceNote && !isRecording ? 'Preview Recording' : isRecording ? 'Recording...' : 'Voice Note'}
         </h3>
+
+        {/* Permission/Error message */}
+        {permissionStatus === 'checking' && (
+          <div className="mx-4 mb-4 p-4 bg-ink/5 border border-ink/10 rounded-xl flex items-center justify-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent"></div>
+            <p className="text-ink/60 text-sm">Checking microphone permission...</p>
+          </div>
+        )}
+        
+        {error && (
+          <div className="mx-4 mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-red-500 text-xl shrink-0">mic_off</span>
+              <div className="flex-1">
+                <p className="text-red-600 text-sm whitespace-pre-line">{error}</p>
+                {permissionStatus === 'denied' && (
+                  <button
+                    onClick={async () => {
+                      setError(null);
+                      setPermissionStatus('checking');
+                      try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        stream.getTracks().forEach(track => track.stop());
+                        setPermissionStatus('granted');
+                      } catch {
+                        setPermissionStatus('denied');
+                        setError('Microphone permission still denied. Please check your browser/system settings.');
+                      }
+                    }}
+                    className="mt-3 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+                  >
+                    Request Permission Again
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Waveform */}
         <div className="flex items-center justify-center gap-[3px] h-16 mb-6 px-8">
@@ -300,8 +484,18 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           </button>
 
           <div
-            className="relative group cursor-pointer"
-            onClick={isRecording ? stopRecording : !voiceNote ? startRecording : undefined}
+            className={`relative group ${permissionStatus === 'granted' || isRecording ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+            onClick={() => {
+              if (permissionStatus !== 'granted' && !isRecording) {
+                setError('Please grant microphone permission first.');
+                return;
+              }
+              if (isRecording) {
+                stopRecording();
+              } else if (!voiceNote) {
+                startRecording();
+              }
+            }}
           >
             {isRecording && (
               <>
@@ -311,7 +505,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             )}
             <button
               className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg transform transition-transform active:scale-95 border-4 border-white/40 ${
-                voiceNote && !isRecording ? 'bg-green-500' : 'bg-dusty-rose'
+                voiceNote && !isRecording ? 'bg-green-500' : permissionStatus !== 'granted' && !isRecording ? 'bg-ink/30' : 'bg-dusty-rose'
               }`}
               disabled={voiceNote !== null && !isRecording}
             >
