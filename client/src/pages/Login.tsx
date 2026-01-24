@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../shared/components/form/Button';
 import { useAuth } from '../shared/context/AuthContext';
@@ -7,13 +7,39 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { sendCode, login, isLoading } = useAuth();
 
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const safeGet = (key: string) => (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) || '' : '');
+
+  const [email, setEmail] = useState(() => safeGet('loginEmail'));
+  const [code, setCode] = useState(() => safeGet('loginCode'));
+  const [termsAccepted, setTermsAccepted] = useState(() => safeGet('loginTermsAccepted') === 'true');
   const [codeSent, setCodeSent] = useState(false);
   const [error, setError] = useState('');
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  // Persist login form state so navigating to Privacy/Terms doesn't clear input
+  useEffect(() => {
+    if (typeof sessionStorage === 'undefined') return;
+    if (email) {
+      sessionStorage.setItem('loginEmail', email);
+    } else {
+      sessionStorage.removeItem('loginEmail');
+    }
+  }, [email]);
+
+  useEffect(() => {
+    if (typeof sessionStorage === 'undefined') return;
+    if (code) {
+      sessionStorage.setItem('loginCode', code);
+    } else {
+      sessionStorage.removeItem('loginCode');
+    }
+  }, [code]);
+
+  useEffect(() => {
+    if (typeof sessionStorage === 'undefined') return;
+    sessionStorage.setItem('loginTermsAccepted', termsAccepted ? 'true' : 'false');
+  }, [termsAccepted]);
 
   const startCountdown = () => {
     setCountdown(60);
@@ -63,6 +89,11 @@ const Login: React.FC = () => {
     setError('');
     try {
       await login(email, code);
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('loginEmail');
+        sessionStorage.removeItem('loginCode');
+        sessionStorage.removeItem('loginTermsAccepted');
+      }
       // Always go to profile setup after login, ProtectedRoute will handle subsequent routing
       navigate('/setup/profile', { replace: true });
     } catch (err) {
