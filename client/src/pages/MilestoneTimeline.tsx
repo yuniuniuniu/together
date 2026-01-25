@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
+import { LoadingScreen } from '../shared/components/feedback';
 
 interface Milestone {
   id: string;
@@ -56,6 +57,10 @@ const MilestoneTimeline: React.FC = () => {
     }
   };
 
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="bg-milestone-cream dark:bg-milestone-zinc-dark font-manrope antialiased text-zinc-900 dark:text-zinc-100 min-h-screen pb-32 flex flex-col">
       {/* Navbar */}
@@ -79,14 +84,7 @@ const MilestoneTimeline: React.FC = () => {
         </div>
       </nav>
 
-      {isLoading ? (
-        <main className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-milestone-pink"></div>
-            <p className="text-zinc-500 text-sm">Loading milestones...</p>
-          </div>
-        </main>
-      ) : error ? (
+      {error ? (
         <main className="flex-1 flex items-center justify-center px-6">
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">
             {errorMessage || 'Failed to load milestones'}

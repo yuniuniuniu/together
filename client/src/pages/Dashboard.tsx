@@ -5,6 +5,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useNotifications } from '../shared/context/NotificationContext';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
+import { LoadingScreen } from '../shared/components/feedback';
 
 interface Memory {
   id: string;
@@ -58,6 +59,10 @@ const Dashboard: React.FC = () => {
       year: 'numeric'
     });
   };
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#2c1818] dark:text-gray-100 min-h-screen pb-32 selection:bg-primary/30 flex flex-col font-sans">

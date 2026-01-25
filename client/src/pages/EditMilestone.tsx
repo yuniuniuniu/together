@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
+import { LoadingScreen } from '../shared/components/feedback';
 
 interface Milestone {
   id: string;
@@ -121,12 +122,7 @@ const EditMilestone: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex flex-col bg-milestone-cream dark:bg-milestone-zinc-dark min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-milestone-pink"></div>
-        <p className="text-zinc-500 text-sm mt-4">Loading milestone...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!milestone) {

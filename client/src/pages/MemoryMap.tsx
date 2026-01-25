@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
+import { LoadingScreen } from '../shared/components/feedback';
 
 interface Location {
   id: string;
@@ -206,7 +207,12 @@ const MemoryMap: React.FC = () => {
   };
 
   return (
-    <div className="bg-background-light dark:bg-background-dark text-[#4A2B2B] dark:text-gray-100 font-sans h-screen flex flex-col overflow-hidden selection:bg-dusty-rose/30">
+    <div className="bg-background-light dark:bg-background-dark text-[#4A2B2B] dark:text-gray-100 font-sans h-screen flex flex-col overflow-hidden selection:bg-dusty-rose/30 relative">
+      {isLoading && (
+        <div className="absolute inset-0 z-[2000]">
+          <LoadingScreen />
+        </div>
+      )}
       {/* Header */}
       <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full pt-safe">
         <div className="max-w-3xl mx-auto w-full">
@@ -235,15 +241,6 @@ const MemoryMap: React.FC = () => {
 
       {/* Map Container */}
       <main className="flex-1 relative w-full overflow-hidden pb-32">
-        {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-map-bg">
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-map-rose border-t-map-primary rounded-full animate-spin"></div>
-              <p className="text-[#9e8c93] font-medium">Loading map...</p>
-            </div>
-          </div>
-        ) : null}
-
         {/* 高德地图容器 */}
         <div ref={mapContainerRef} className="w-full h-full" style={{ display: mapReady ? 'block' : 'none', touchAction: 'none' }} />
 

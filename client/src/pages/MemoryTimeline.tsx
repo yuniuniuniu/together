@@ -5,6 +5,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
 import { useMemoriesQuery, type Memory } from '../shared/hooks/useMemoriesQuery';
+import { LoadingScreen } from '../shared/components/feedback';
 
 interface ReactionState {
   [memoryId: string]: { liked: boolean; count: number };
@@ -106,6 +107,10 @@ const MemoryTimeline: React.FC = () => {
     );
   });
 
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="bg-background-light dark:bg-background-dark font-sans text-[#4A2B2B] dark:text-gray-100 selection:bg-dusty-rose/30 min-h-screen pb-32 flex flex-col">
       {/* Navbar */}
@@ -167,14 +172,7 @@ const MemoryTimeline: React.FC = () => {
         </div>
       </nav>
 
-      {isLoading ? (
-        <main className="max-w-xl mx-auto flex-1 flex items-center justify-center w-full">
-          <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-wine"></div>
-            <p className="text-stone-400 text-xs tracking-widest uppercase">Loading</p>
-          </div>
-        </main>
-      ) : error ? (
+      {error ? (
         <main className="max-w-xl mx-auto flex-1 flex items-center justify-center px-4 w-full">
           <div className="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-2xl text-center w-full">
             {errorMessage || 'Failed to load memories'}
