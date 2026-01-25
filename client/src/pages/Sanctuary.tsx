@@ -7,7 +7,7 @@ const Sanctuary: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-background-light">
-      <div className="flex items-center p-6 justify-between">
+      <div className="flex items-center px-6 pb-6 pt-safe-offset-6 justify-between">
         <div className="size-10 flex items-center justify-center rounded-full bg-white shadow-sm cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => navigate('/')}>
           <span className="material-symbols-outlined text-ink text-xl">close</span>
         </div>

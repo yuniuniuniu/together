@@ -84,6 +84,20 @@
   /* Animations */
   --animate-fade-in-down: fadeInDown 0.8s ease-out forwards;
   --animate-float-gentle: floatGentle 6s ease-in-out infinite;
+
+  /* Loading Screen Animations */
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-merge-left: merge-left 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-merge-right: merge-right 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-pulse-glow: pulse-glow 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+
+  /* Loading Screen Colors */
+  --color-loading-primary: #f3c6c6;
+  --color-loading-primary-deep: #eeb0b0;
+  --color-loading-bg-light: #FAFAFA;
+  --color-loading-bg-dark: #201212;
+  --color-loading-text: #4A4A4A;
+  --color-loading-text-dark: #EAEAEA;
 }
 
 @keyframes fadeInDown {
@@ -94,6 +108,37 @@
 @keyframes floatGentle {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); opacity: 0.9; }
+    50% { transform: translateY(-8px); opacity: 1; }
+}
+
+@keyframes merge-left {
+    0% { transform: translateX(-25px) rotate(0deg) scale(1); border-radius: 50%; }
+    30% { transform: translateX(0px) rotate(0deg) scale(1.1); border-radius: 50%; }
+    50% { transform: translateX(10px) translateY(5px) rotate(45deg) scale(1.2); border-radius: 40% 60% 40% 60% / 50% 50% 50% 50%; }
+    70% { transform: translateX(0px) rotate(0deg) scale(1.1); border-radius: 50%; }
+    100% { transform: translateX(-25px) rotate(0deg) scale(1); border-radius: 50%; }
+}
+
+@keyframes merge-right {
+    0% { transform: translateX(25px) rotate(0deg) scale(1); border-radius: 50%; }
+    30% { transform: translateX(0px) rotate(0deg) scale(1.1); border-radius: 50%; }
+    50% { transform: translateX(-10px) translateY(5px) rotate(-45deg) scale(1.2); border-radius: 60% 40% 60% 40% / 50% 50% 50% 50%; }
+    70% { transform: translateX(0px) rotate(0deg) scale(1.1); border-radius: 50%; }
+    100% { transform: translateX(25px) rotate(0deg) scale(1); border-radius: 50%; }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 0.2; transform: scale(0.95); }
+    50% { opacity: 0.6; transform: scale(1.15); }
+}
+
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 0.6; transform: translateY(0); }
 }
 
 @keyframes slideDown {
@@ -121,6 +166,22 @@ body {
 /* iOS Safe Area utilities */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 1.5rem);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.pt-safe-offset-4 {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+}
+
+.pt-safe-offset-6 {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1.5rem);
+}
+
+.pt-safe-offset-10 {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 2.5rem);
 }
 
 .mb-safe {

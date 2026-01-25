@@ -4,6 +4,7 @@ import { memoriesApi, reactionsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
+import { LoadingScreen } from '../shared/components/feedback';
 import { ImageViewer } from '../shared/components/display/ImageViewer';
 
 interface Memory {
@@ -155,12 +156,7 @@ const MemoryDetail: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex flex-col bg-background-light min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <p className="text-soft-gray text-sm mt-4">Loading memory...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error || !memory) {
@@ -189,7 +185,7 @@ const MemoryDetail: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col bg-background-light min-h-screen relative">
        {/* Header */}
-       <div className="sticky top-0 z-20 px-4 py-3 flex justify-between items-center bg-background-light/95 backdrop-blur-md border-b border-black/[0.03]">
+       <div className="sticky top-0 z-20 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] flex justify-between items-center bg-background-light/95 backdrop-blur-md border-b border-black/[0.03]">
           <button onClick={() => navigate(-1)} className="p-2 -ml-2 hover:bg-black/5 rounded-full transition-colors">
              <span className="material-symbols-outlined text-ink">arrow_back</span>
           </button>

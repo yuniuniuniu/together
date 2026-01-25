@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { spacesApi } from '../shared/api/client';
+import { LoadingScreen } from '../shared/components/feedback';
 
 const JoinSpace: React.FC = () => {
   const navigate = useNavigate();
@@ -77,9 +78,13 @@ const JoinSpace: React.FC = () => {
 
   const isComplete = code.every(digit => digit !== '');
 
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-background-light">
-      <div className="flex items-center p-4 pb-2 justify-between">
+      <div className="flex items-center px-4 pb-2 pt-safe-offset-4 justify-between">
         <div
           className="text-ink flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-gray-100 rounded-full transition-colors"
           onClick={() => navigate(-1)}

@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSpace } from '../../context/SpaceContext';
+import { LoadingScreen } from '../feedback';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -20,14 +21,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const isSpaceComplete = space && space.partners && space.partners.length >= 2;
 
   if (isLoading || (requireSpace && isSpaceLoading)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background-light">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="text-soft-gray text-sm">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!isAuthenticated) {
@@ -64,14 +58,7 @@ export const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ child
   const isSpaceComplete = space && space.partners && space.partners.length >= 2;
 
   if (isLoading || isSpaceLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background-light">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="text-soft-gray text-sm">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (isAuthenticated) {

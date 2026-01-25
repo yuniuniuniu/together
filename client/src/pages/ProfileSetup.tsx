@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../shared/context/AuthContext';
 import { uploadApi } from '../shared/api/client';
+import { LoadingScreen } from '../shared/components/feedback';
 
 const ProfileSetup: React.FC = () => {
   const navigate = useNavigate();
@@ -50,8 +51,12 @@ const ProfileSetup: React.FC = () => {
     }
   };
 
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
-    <div className="flex-1 flex flex-col bg-background-light relative">
+    <div className="flex-1 flex flex-col bg-background-light relative pt-safe">
       <div className="flex-1 flex flex-col items-center justify-center px-8 pb-32">
         <div className="w-full max-w-[320px]">
           <div className="text-center mb-10">

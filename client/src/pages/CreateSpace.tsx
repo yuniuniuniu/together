@@ -89,7 +89,7 @@ const CreateSpace: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-background-light relative overflow-hidden">
-      <header className="flex items-center p-4 pb-2 justify-between">
+      <header className="flex items-center px-4 pb-2 pt-safe-offset-4 justify-between">
         <button
           className="text-ink flex size-12 shrink-0 items-center justify-center rounded-full hover:bg-black/5 transition-colors"
           onClick={() => navigate(-1)}

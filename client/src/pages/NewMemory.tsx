@@ -611,7 +611,7 @@ const NewMemory: React.FC = () => {
 
   return (
     <div className={`flex-1 flex flex-col bg-paper min-h-screen relative font-sans ${showStickerPicker ? 'overflow-hidden' : ''}`}>
-      <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-4 bg-paper/80 backdrop-blur-md">
+      <header className="sticky top-0 z-40 flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/80 backdrop-blur-md">
         <button
           onClick={() => navigate(-1)}
           className="text-ink/60 text-sm font-medium hover:text-ink transition-colors"

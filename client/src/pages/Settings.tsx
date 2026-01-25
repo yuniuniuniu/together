@@ -4,6 +4,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { uploadApi, spacesApi } from '../shared/api/client';
 import { useToast } from '../shared/components/feedback/Toast';
+import { LoadingScreen } from '../shared/components/feedback';
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -90,7 +91,7 @@ const Settings: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-background-light pb-32">
-      <header className="sticky top-0 z-50 bg-background-light/90 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-black/[0.03]">
+      <header className="sticky top-0 z-50 bg-background-light/90 backdrop-blur-md px-6 pb-4 pt-safe-offset-4 flex items-center justify-between border-b border-black/[0.03]">
         <button 
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors -ml-2"
           onClick={() => navigate('/dashboard')}
@@ -148,8 +149,8 @@ const Settings: React.FC = () => {
 
       <main className="flex-1 px-6">
         {isLoading ? (
-          <div className="flex-1 flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <div className="absolute inset-0 z-50 bg-background-light">
+            <LoadingScreen />
           </div>
         ) : (
           <>

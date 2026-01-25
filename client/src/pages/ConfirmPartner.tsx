@@ -4,6 +4,7 @@ import { Button } from '../components/Button';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
 import { spacesApi } from '../shared/api/client';
+import { LoadingScreen } from '../shared/components/feedback';
 
 interface SpaceData {
   id: string;
@@ -67,16 +68,12 @@ const ConfirmPartner: React.FC = () => {
   };
 
   if (!spaceData || !partner) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
     <div className="flex-1 flex flex-col bg-background-light">
-      <div className="flex items-center p-4 pb-2 justify-between">
+      <div className="flex items-center px-4 pb-2 pt-safe-offset-4 justify-between">
         <div
           className="text-ink flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-gray-100 rounded-full transition-colors"
           onClick={() => navigate(-1)}

@@ -61,7 +61,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#2c1818] dark:text-gray-100 min-h-screen pb-32 selection:bg-primary/30 flex flex-col font-sans">
-      <nav className="flex items-center justify-between px-6 py-5 sticky top-0 z-40 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm">
+      <nav className="flex items-center justify-between px-6 pb-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] sticky top-0 z-40 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm">
         <div className="size-10 flex items-center justify-start">
           <span className="material-symbols-outlined text-dusty-rose text-2xl">favorite</span>
         </div>

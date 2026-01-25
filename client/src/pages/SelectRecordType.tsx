@@ -14,7 +14,7 @@ const SelectRecordType: React.FC = () => {
             <div className="absolute inset-0 bg-milestone-light/80 dark:bg-milestone-dark/80 backdrop-blur-sm"></div>
         </div>
 
-        <main className="relative z-10 flex-grow flex flex-col items-center justify-center p-6 w-full max-w-md mx-auto h-screen">
+        <main className="relative z-10 flex-grow flex flex-col items-center justify-center p-6 pt-safe w-full max-w-md mx-auto h-screen">
             <header className="w-full text-center mb-10 animate-fade-in-down">
                 <h1 className="text-[#131616] dark:text-white text-[32px] font-bold leading-tight tracking-tight">
                     Create Story

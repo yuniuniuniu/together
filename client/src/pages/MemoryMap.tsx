@@ -208,7 +208,7 @@ const MemoryMap: React.FC = () => {
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#4A2B2B] dark:text-gray-100 font-sans h-screen flex flex-col overflow-hidden selection:bg-dusty-rose/30">
       {/* Header */}
-      <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full">
+      <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full pt-safe">
         <div className="max-w-3xl mx-auto w-full">
           {/* Header Title Area */}
           <div className="pt-6 pb-2 text-center">

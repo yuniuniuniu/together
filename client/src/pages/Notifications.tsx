@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../shared/context/NotificationContext';
 import { useToast } from '../shared/components/feedback/Toast';
+import { LoadingScreen } from '../shared/components/feedback';
 
 interface Notification {
   id: string;
@@ -106,7 +107,7 @@ const Notifications: React.FC = () => {
       <div className="max-w-[430px] mx-auto min-h-screen flex flex-col relative pb-8">
         
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md flex items-center px-6 py-5 justify-between">
+        <div className="sticky top-0 z-10 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md flex items-center px-6 pb-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] justify-between">
           <div className="text-[#1b100e] dark:text-white flex size-10 shrink-0 items-center justify-start -ml-2">
             <span 
               onClick={() => navigate(-1)}
@@ -133,8 +134,7 @@ const Notifications: React.FC = () => {
 
         {isLoading ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 pb-24">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-dusty-rose"></div>
-            <p className="text-stone-500 text-sm mt-4">Loading notifications...</p>
+            <LoadingScreen />
           </div>
         ) : error ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 pb-24">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpace } from '../shared/context/SpaceContext';
+import { LoadingScreen } from '../shared/components/feedback';
 
 const Unbinding: React.FC = () => {
   const navigate = useNavigate();
@@ -79,10 +80,14 @@ const Unbinding: React.FC = () => {
 
   const isPending = status?.status === 'pending';
 
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-background-light relative h-full min-h-screen">
       {/* Header */}
-      <div className="flex items-center p-6 justify-between relative z-10">
+      <div className="flex items-center px-6 pb-6 pt-safe-offset-6 justify-between relative z-10">
         <button 
           onClick={() => navigate(-1)}
           className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/50 backdrop-blur-sm hover:bg-white/80 transition-colors"

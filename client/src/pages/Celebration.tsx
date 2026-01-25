@@ -27,7 +27,7 @@ const Celebration: React.FC = () => {
         <span className="material-symbols-outlined text-primary/40 absolute bottom-1/3 left-1/4 text-xl">favorite</span>
       </div>
 
-      <div className="flex items-center p-6 justify-between z-20">
+      <div className="flex items-center px-6 pb-6 pt-safe-offset-6 justify-between z-20">
         <div
           className="text-[#181010] flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm cursor-pointer"
           onClick={() => navigate('/dashboard')}

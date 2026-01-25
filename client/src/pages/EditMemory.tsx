@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { memoriesApi, uploadApi } from '../shared/api/client';
 import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
+import { LoadingScreen } from '../shared/components/feedback';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -476,17 +477,12 @@ const EditMemory: React.FC = () => {
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
 
   if (isFetching) {
-    return (
-      <div className="flex-1 flex flex-col bg-paper min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <p className="text-soft-gray text-sm mt-4">Loading memory...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
     <div className={`flex-1 flex flex-col bg-paper min-h-screen relative font-sans ${showStickerPicker ? 'overflow-hidden' : ''}`}>
-      <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-4 bg-paper/80 backdrop-blur-md">
+      <header className="sticky top-0 z-40 flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/80 backdrop-blur-md">
         <button
           onClick={() => navigate(-1)}
           className="text-ink/60 text-sm font-medium hover:text-ink transition-colors"

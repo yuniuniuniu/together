@@ -403,7 +403,7 @@ const NewMilestone: React.FC = () => {
       <div className="relative flex h-full min-h-screen w-full max-w-md mx-auto flex-col overflow-x-hidden sm:shadow-2xl bg-milestone-cream dark:bg-milestone-zinc-dark">
         
         {/* Top Navigation Bar */}
-        <header className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md transition-all">
+        <header className="sticky top-0 z-50 flex items-center justify-between px-5 pb-4 pt-safe-offset-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md transition-all">
           <button 
             onClick={() => navigate(-1)}
             className="text-zinc-500 dark:text-zinc-400 text-base font-medium hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"

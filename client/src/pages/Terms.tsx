@@ -6,7 +6,7 @@ const Terms: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-paper min-h-screen font-sans">
-      <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-4 bg-paper/80 backdrop-blur-md">
+      <header className="sticky top-0 z-40 flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/80 backdrop-blur-md">
         <button
           onClick={() => navigate(-1)}
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors -ml-2"

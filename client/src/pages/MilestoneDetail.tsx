@@ -5,6 +5,7 @@ import { milestonesApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
+import { LoadingScreen } from '../shared/components/feedback';
 
 interface Milestone {
   id: string;
@@ -109,12 +110,7 @@ const MilestoneDetail: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex flex-col bg-milestone-cream dark:bg-milestone-zinc-dark min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-milestone-pink"></div>
-        <p className="text-zinc-500 text-sm mt-4">Loading milestone...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error || !milestone) {
@@ -172,7 +168,7 @@ const MilestoneDetail: React.FC = () => {
         )}
 
         {/* Top Navigation */}
-        <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-4">
+        <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pb-4 pt-safe-offset-4">
           <button
             onClick={() => navigate(-1)}
             className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors"

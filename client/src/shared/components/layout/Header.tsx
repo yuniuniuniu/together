@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const baseStyles = 'sticky top-0 z-50 px-6 py-4 flex items-center justify-between';
+  const baseStyles = 'sticky top-0 z-50 px-6 pb-4 pt-safe-offset-4 flex items-center justify-between';
   const variantStyles = {
     default: 'bg-background-light/90 backdrop-blur-md border-b border-black/[0.03]',
     transparent: 'bg-transparent',
