@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
-import { LoadingScreen } from '../shared/components/feedback';
 
 interface Milestone {
   id: string;
@@ -30,7 +29,6 @@ const EditMilestone: React.FC = () => {
   const [date, setDate] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
 
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
@@ -51,8 +49,6 @@ const EditMilestone: React.FC = () => {
         setPhotos(data.photos || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load milestone');
-      } finally {
-        setIsLoading(false);
       }
     };
     fetchMilestone();
@@ -121,11 +117,10 @@ const EditMilestone: React.FC = () => {
     }
   };
 
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
   if (!milestone) {
+    if (!error) {
+      return null;
+    }
     return (
       <div className="flex-1 flex flex-col bg-milestone-cream dark:bg-milestone-zinc-dark min-h-screen items-center justify-center px-6">
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">

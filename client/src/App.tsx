@@ -28,6 +28,7 @@ import NewMilestone from './pages/NewMilestone';
 import EditMemory from './pages/EditMemory';
 import MemoryMap from './pages/MemoryMap';
 import MemoryTimeline from './pages/MemoryTimeline';
+import MemoryHome from './pages/MemoryHome';
 import MilestoneTimeline from './pages/MilestoneTimeline';
 import MilestoneDetail from './pages/MilestoneDetail';
 import EditMilestone from './pages/EditMilestone';
@@ -77,7 +78,7 @@ const App: React.FC = () => {
                 <Route path="/milestones" element={<ProtectedRoute requireSpace><MilestoneTimeline /></ProtectedRoute>} />
                 <Route path="/memory/map" element={<ProtectedRoute requireSpace><MemoryMap /></ProtectedRoute>} />
                 <Route path="/memory/timeline" element={<ProtectedRoute requireSpace><MemoryTimeline /></ProtectedRoute>} />
-                <Route path="/memories" element={<ProtectedRoute requireSpace><MemoryTimeline /></ProtectedRoute>} />
+                <Route path="/memories" element={<ProtectedRoute requireSpace><MemoryHome /></ProtectedRoute>} />
                 <Route path="/memory/new" element={<ProtectedRoute requireSpace><NewMemory /></ProtectedRoute>} />
                 <Route path="/memory/:id" element={<ProtectedRoute requireSpace><MemoryDetail /></ProtectedRoute>} />
                 <Route path="/memory/:id/edit" element={<ProtectedRoute requireSpace><EditMemory /></ProtectedRoute>} />

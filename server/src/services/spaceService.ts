@@ -135,7 +135,13 @@ export async function joinSpaceByInviteCode(userId: string, inviteCode: string):
   const existingMembership = await db.getSpaceMemberByUserId(userId);
 
   if (existingMembership) {
-    throw new AppError(400, 'ALREADY_IN_SPACE', 'User is already in a space');
+    const existingMemberCount = await db.countSpaceMembers(existingMembership.space_id);
+    if (existingMemberCount === 1) {
+      // Allow users to abandon a solo space before joining a new one.
+      await deleteSpace(existingMembership.space_id, userId);
+    } else {
+      throw new AppError(400, 'ALREADY_IN_SPACE', 'User is already in a space');
+    }
   }
 
   // Find space by invite code

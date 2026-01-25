@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpace } from '../shared/context/SpaceContext';
-import { LoadingScreen } from '../shared/components/feedback';
 
 const Unbinding: React.FC = () => {
   const navigate = useNavigate();
-  const { space, requestUnbind, cancelUnbind, getUnbindStatus, isLoading } = useSpace();
+  const { space, requestUnbind, cancelUnbind, getUnbindStatus } = useSpace();
   const [isUnbinding, setIsUnbinding] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [error, setError] = useState('');
@@ -79,10 +78,6 @@ const Unbinding: React.FC = () => {
   };
 
   const isPending = status?.status === 'pending';
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
 
   return (
     <div className="flex-1 flex flex-col bg-background-light relative h-full min-h-screen">

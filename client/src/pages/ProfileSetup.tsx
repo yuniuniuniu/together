@@ -1,18 +1,26 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../shared/context/AuthContext';
 import { uploadApi } from '../shared/api/client';
-import { LoadingScreen } from '../shared/components/feedback';
 
 const ProfileSetup: React.FC = () => {
   const navigate = useNavigate();
-  const { updateProfile, isLoading, user } = useAuth();
+  const { updateProfile, user } = useAuth();
 
   const [nickname, setNickname] = useState(user?.nickname || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
+  const [hasInitialized, setHasInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!hasInitialized && user) {
+      setNickname(user.nickname || '');
+      setAvatar(user.avatar || '');
+      setHasInitialized(true);
+    }
+  }, [hasInitialized, user]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -50,10 +58,6 @@ const ProfileSetup: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to save profile');
     }
   };
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
 
   return (
     <div className="flex-1 flex flex-col bg-background-light relative pt-safe">

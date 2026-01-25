@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../shared/context/NotificationContext';
 import { useToast } from '../shared/components/feedback/Toast';
-import { LoadingScreen } from '../shared/components/feedback';
 
 interface Notification {
   id: string;
@@ -18,7 +17,7 @@ interface Notification {
 const Notifications: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { notifications, unreadCount, isLoading, error, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, error, markAsRead, markAllAsRead } = useNotifications();
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
 
   const handleMarkAsRead = async (id: string) => {
@@ -132,11 +131,7 @@ const Notifications: React.FC = () => {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-8 pb-24">
-            <LoadingScreen />
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 pb-24">
             <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">
               {error}

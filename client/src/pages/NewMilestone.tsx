@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
+import { useFormDraft } from '../shared/hooks';
 import UnifiedDatePicker from '../components/UnifiedDatePicker';
 
 // 高德地图安全配置
@@ -332,7 +333,7 @@ const NewMilestone: React.FC = () => {
 
     setIsUploading(true);
     try {
-      const uploadPromises = Array.from(files).map(file => uploadApi.uploadFile(file));
+      const uploadPromises = Array.from<File>(files).map((file) => uploadApi.uploadFile(file));
       const results = await Promise.all(uploadPromises);
       setPhotos(prev => [...prev, ...results.map(r => r.url)]);
     } catch (err) {

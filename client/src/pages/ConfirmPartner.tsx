@@ -4,7 +4,6 @@ import { Button } from '../components/Button';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
 import { spacesApi } from '../shared/api/client';
-import { LoadingScreen } from '../shared/components/feedback';
 
 interface SpaceData {
   id: string;
@@ -68,7 +67,7 @@ const ConfirmPartner: React.FC = () => {
   };
 
   if (!spaceData || !partner) {
-    return <LoadingScreen />;
+    return null;
   }
 
   return (

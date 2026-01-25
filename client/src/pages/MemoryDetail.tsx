@@ -4,7 +4,6 @@ import { memoriesApi, reactionsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
-import { LoadingScreen } from '../shared/components/feedback';
 import { ImageViewer } from '../shared/components/display/ImageViewer';
 
 interface Memory {
@@ -29,7 +28,6 @@ const MemoryDetail: React.FC = () => {
   const { showToast } = useToast();
 
   const [memory, setMemory] = useState<Memory | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -57,8 +55,6 @@ const MemoryDetail: React.FC = () => {
         setIsLiked(myReactionRes.data !== null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load memory');
-      } finally {
-        setIsLoading(false);
       }
     };
     fetchMemory();
@@ -155,8 +151,8 @@ const MemoryDetail: React.FC = () => {
     setImageViewerOpen(true);
   };
 
-  if (isLoading) {
-    return <LoadingScreen />;
+  if (!memory && !error) {
+    return null;
   }
 
   if (error || !memory) {

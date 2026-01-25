@@ -5,7 +5,6 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useNotifications } from '../shared/context/NotificationContext';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
-import { LoadingScreen } from '../shared/components/feedback';
 
 interface Memory {
   id: string;
@@ -42,11 +41,11 @@ const loveQuotes = [
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { daysCount, anniversaryDate, partner, space, isLoading } = useSpace();
+  const { daysCount, anniversaryDate, partner } = useSpace();
   const { user } = useAuth();
   const { unreadCount } = useNotifications();
-  const { data: memories = [], isLoading: isLoadingMemory } = useMemoriesQuery();
-  const { data: milestones = [], isLoading: isLoadingMilestone } = useMilestonesQuery();
+  const { data: memories = [] } = useMemoriesQuery();
+  const { data: milestones = [] } = useMilestonesQuery();
   const recentMemory = (memories as Memory[])[0] || null;
   const recentMilestone = (milestones as Milestone[])[0] || null;
   const [quote] = useState(() => loveQuotes[Math.floor(Math.random() * loveQuotes.length)]);
@@ -59,10 +58,6 @@ const Dashboard: React.FC = () => {
       year: 'numeric'
     });
   };
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#2c1818] dark:text-gray-100 min-h-screen pb-32 selection:bg-primary/30 flex flex-col font-sans">
@@ -157,11 +152,7 @@ const Dashboard: React.FC = () => {
              <h3 className="text-xs font-bold uppercase tracking-widest text-[#8c5a5a] dark:text-gray-400">Recent Milestone</h3>
              <button onClick={() => navigate('/milestones')} className="text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary-dark">View All</button>
           </div>
-          {isLoadingMilestone ? (
-            <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-milestone-pink"></div>
-            </div>
-          ) : recentMilestone ? (
+          {recentMilestone ? (
             <div
               className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] overflow-hidden shadow-soft border border-white/50 dark:border-zinc-700 cursor-pointer hover:shadow-lg transition-shadow group"
               onClick={() => navigate(`/milestone/${recentMilestone.id}`)}
@@ -224,11 +215,7 @@ const Dashboard: React.FC = () => {
              <h3 className="text-xs font-bold uppercase tracking-widest text-[#8c5a5a] dark:text-gray-400">Daily Memory</h3>
              <button onClick={() => navigate('/memories')} className="text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary-dark">View All</button>
           </div>
-          {isLoadingMemory ? (
-            <div className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-8 text-center shadow-soft flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dusty-rose"></div>
-            </div>
-          ) : recentMemory ? (
+          {recentMemory ? (
              <div
                className="w-full bg-white dark:bg-zinc-800 rounded-[2rem] p-5 shadow-soft border border-white/50 dark:border-zinc-700 cursor-pointer hover:shadow-lg transition-shadow flex items-start gap-4"
                onClick={() => navigate(`/memory/${recentMemory.id}`)}

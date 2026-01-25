@@ -5,7 +5,6 @@ import { milestonesApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
-import { LoadingScreen } from '../shared/components/feedback';
 
 interface Milestone {
   id: string;
@@ -29,7 +28,6 @@ const MilestoneDetail: React.FC = () => {
   const { partner, anniversaryDate } = useSpace();
 
   const [milestone, setMilestone] = useState<Milestone | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -44,8 +42,6 @@ const MilestoneDetail: React.FC = () => {
         setMilestone(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load milestone');
-      } finally {
-        setIsLoading(false);
       }
     };
     fetchMilestone();
@@ -109,8 +105,8 @@ const MilestoneDetail: React.FC = () => {
     }
   };
 
-  if (isLoading) {
-    return <LoadingScreen />;
+  if (!milestone && !error) {
+    return null;
   }
 
   if (error || !milestone) {

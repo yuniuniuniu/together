@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
-import { LoadingScreen } from '../shared/components/feedback';
+import { setLastMemoryPath } from '../shared/utils';
 
 interface Location {
   id: string;
@@ -29,13 +29,16 @@ const MemoryMap: React.FC = () => {
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const { data: memories = [], isLoading: isLoadingMemories } = useMemoriesQuery();
-  const isLoading = isLoadingMemories || !mapReady;
+  const { data: memories = [] } = useMemoriesQuery();
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
+
+  useEffect(() => {
+    setLastMemoryPath('/memory/map');
+  }, []);
 
   // 初始化高德地图
   useEffect(() => {
@@ -208,11 +211,6 @@ const MemoryMap: React.FC = () => {
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#4A2B2B] dark:text-gray-100 font-sans h-screen flex flex-col overflow-hidden selection:bg-dusty-rose/30 relative">
-      {isLoading && (
-        <div className="absolute inset-0 z-[2000]">
-          <LoadingScreen />
-        </div>
-      )}
       {/* Header */}
       <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full pt-safe">
         <div className="max-w-3xl mx-auto w-full">
@@ -289,7 +287,7 @@ const MemoryMap: React.FC = () => {
           </>
         )}
 
-        {mapReady && locations.length === 0 && !isLoadingMemories && (
+        {mapReady && locations.length === 0 && (
           /* Empty State */
           <div className="absolute inset-0 flex items-center justify-center p-6 z-[500]">
             <div className="bg-white/90 dark:bg-zinc-800/90 backdrop-blur-md p-8 rounded-[2.5rem] shadow-soft flex flex-col items-center text-center w-full max-w-[320px] border border-white/60 dark:border-zinc-700 animate-float-gentle">
@@ -326,7 +324,7 @@ const MemoryMap: React.FC = () => {
       </main>
 
       {/* Fixed Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-8 pt-4 z-50 flex justify-center">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-8 pt-4 z-[2001] flex justify-center pointer-events-auto">
         <div className="flex items-center justify-around max-w-3xl w-full px-4">
           <button
             className="flex flex-col items-center gap-1 group w-16"

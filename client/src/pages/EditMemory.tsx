@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { memoriesApi, uploadApi } from '../shared/api/client';
 import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
-import { LoadingScreen } from '../shared/components/feedback';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -476,8 +475,8 @@ const EditMemory: React.FC = () => {
   // 要显示的 POI 列表
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
 
-  if (isFetching) {
-    return <LoadingScreen />;
+  if (isFetching && !error) {
+    return null;
   }
 
   return (

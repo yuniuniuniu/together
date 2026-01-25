@@ -1,15 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { uploadApi, spacesApi } from '../shared/api/client';
 import { useToast } from '../shared/components/feedback/Toast';
-import { LoadingScreen } from '../shared/components/feedback';
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
-  const { user, updateProfile, logout, isLoading: authLoading } = useAuth();
-  const { space, partner, daysCount, anniversaryDate, isLoading: spaceLoading, refreshSpace } = useSpace();
+  const { user, updateProfile, logout } = useAuth();
+  const { space, partner, daysCount, anniversaryDate, refreshSpace } = useSpace();
   const { showToast } = useToast();
 
   const [isEditingNickname, setIsEditingNickname] = useState(false);
@@ -80,14 +79,18 @@ const Settings: React.FC = () => {
     }
   };
 
-  const isLoading = authLoading || spaceLoading;
-
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to log out?')) {
       logout();
       navigate('/login');
     }
   };
+
+  useEffect(() => {
+    if (!isEditingNickname) {
+      setNewNickname(user?.nickname || '');
+    }
+  }, [isEditingNickname, user?.nickname]);
 
   return (
     <div className="flex-1 flex flex-col bg-background-light pb-32">
@@ -148,12 +151,7 @@ const Settings: React.FC = () => {
       </header>
 
       <main className="flex-1 px-6">
-        {isLoading ? (
-          <div className="absolute inset-0 z-50 bg-background-light">
-            <LoadingScreen />
-          </div>
-        ) : (
-          <>
+        <>
             <section className="py-10 flex flex-col items-center">
               {/* Hidden file input for avatar upload */}
               <input
@@ -334,7 +332,6 @@ const Settings: React.FC = () => {
             </section>
 
           </>
-        )}
 
         <section className="mt-10 mb-8 space-y-4">
           <p className="text-center text-xs text-gray-400 mb-6 px-8 leading-relaxed font-medium">

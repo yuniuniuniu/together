@@ -5,7 +5,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
 import { useMemoriesQuery, type Memory } from '../shared/hooks/useMemoriesQuery';
-import { LoadingScreen } from '../shared/components/feedback';
+import { setLastMemoryPath } from '../shared/utils';
 
 interface ReactionState {
   [memoryId: string]: { liked: boolean; count: number };
@@ -16,13 +16,15 @@ const MemoryTimeline: React.FC = () => {
   const { user } = useAuth();
   const { partner, space } = useSpace();
   const { showToast } = useToast();
-  const { data: memories = [], isLoading, error } = useMemoriesQuery();
+  const { data: memories = [], error } = useMemoriesQuery();
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
   const [reactions, setReactions] = useState<ReactionState>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
+    setLastMemoryPath('/memory/timeline');
+
     const fetchReactions = async () => {
       if (!memories || memories.length === 0) {
         setReactions({});
@@ -57,8 +59,8 @@ const MemoryTimeline: React.FC = () => {
       setReactions((prev) => ({
         ...prev,
         [memoryId]: {
-          liked: result.data.action === 'added',
-          count: result.data.action === 'added'
+          liked: result.action === 'added',
+          count: result.action === 'added'
             ? (prev[memoryId]?.count || 0) + 1
             : Math.max((prev[memoryId]?.count || 1) - 1, 0),
         },
@@ -106,10 +108,6 @@ const MemoryTimeline: React.FC = () => {
       (memory.location?.name && memory.location.name.toLowerCase().includes(query))
     );
   });
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
 
   return (
     <div className="bg-background-light dark:bg-background-dark font-sans text-[#4A2B2B] dark:text-gray-100 selection:bg-dusty-rose/30 min-h-screen pb-32 flex flex-col">
