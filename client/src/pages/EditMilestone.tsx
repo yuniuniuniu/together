@@ -144,7 +144,7 @@ const EditMilestone: React.FC = () => {
 
   return (
     <div className="bg-milestone-cream dark:bg-milestone-zinc-dark font-manrope antialiased text-zinc-900 dark:text-zinc-100 min-h-screen flex flex-col">
-      <div className="relative flex h-full min-h-screen w-full max-w-md mx-auto flex-col overflow-x-hidden shadow-2xl bg-milestone-cream dark:bg-milestone-zinc-dark">
+      <div className="relative flex h-full min-h-screen w-full max-w-md mx-auto flex-col overflow-x-hidden sm:shadow-2xl bg-milestone-cream dark:bg-milestone-zinc-dark">
 
         {/* Top Navigation Bar */}
         <header className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md transition-all">
