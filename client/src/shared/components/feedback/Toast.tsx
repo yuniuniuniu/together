@@ -50,7 +50,7 @@ interface ToastContainerProps {
 
 const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) => {
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 max-w-sm w-full px-4">
+    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 max-w-sm w-full px-4 pointer-events-none">
       {toasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
       ))}
@@ -114,7 +114,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
 
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg backdrop-blur-sm animate-slide-down ${getStyles()}`}
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg backdrop-blur-sm animate-slide-down pointer-events-auto ${getStyles()}`}
       role="alert"
     >
       <span className={`material-symbols-outlined text-xl ${getIconColor()}`} style={{fontVariationSettings: "'FILL' 1"}}>

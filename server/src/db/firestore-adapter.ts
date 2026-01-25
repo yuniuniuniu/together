@@ -615,25 +615,27 @@ export class FirestoreAdapter implements DatabaseAdapter {
     }
   }
 
-  // Reactions
+  // Reactions - use hard delete, so no is_deleted field needed
   async createReaction(reaction: ReactionData): Promise<ReactionData> {
     const db = getDb();
     const reactionData = {
-      ...reaction,
+      id: reaction.id,
+      memory_id: reaction.memory_id,
+      user_id: reaction.user_id,
+      type: reaction.type,
       created_at: reaction.created_at || new Date().toISOString(),
-      is_deleted: 0,
     };
     await db.collection(COLLECTIONS.REACTIONS).doc(reaction.id).set(reactionData);
-    return reactionData;
+    return { ...reactionData, is_deleted: 0 };
   }
 
   async getReactionByMemoryAndUser(memoryId: string, userId: string): Promise<ReactionData | null> {
     const db = getDb();
+    // No is_deleted filter needed since we use hard delete for reactions
     const snapshot = await db
       .collection(COLLECTIONS.REACTIONS)
       .where('memory_id', '==', memoryId)
       .where('user_id', '==', userId)
-      .where('is_deleted', '==', 0)
       .limit(1)
       .get();
 
@@ -646,16 +648,16 @@ export class FirestoreAdapter implements DatabaseAdapter {
       user_id: data.user_id,
       type: data.type,
       created_at: timestampToString(data.created_at),
-      is_deleted: data.is_deleted || 0,
+      is_deleted: 0,
     };
   }
 
   async listReactionsByMemoryId(memoryId: string): Promise<ReactionData[]> {
     const db = getDb();
+    // No is_deleted filter needed since we use hard delete for reactions
     const snapshot = await db
       .collection(COLLECTIONS.REACTIONS)
       .where('memory_id', '==', memoryId)
-      .where('is_deleted', '==', 0)
       .orderBy('created_at', 'desc')
       .get();
 
@@ -667,21 +669,23 @@ export class FirestoreAdapter implements DatabaseAdapter {
         user_id: data.user_id,
         type: data.type,
         created_at: timestampToString(data.created_at),
-        is_deleted: data.is_deleted || 0,
+        is_deleted: 0,
       };
     });
   }
 
   async deleteReaction(id: string): Promise<void> {
     const db = getDb();
-    await db.collection(COLLECTIONS.REACTIONS).doc(id).update({ is_deleted: 1 });
+    // Use hard delete for reactions to avoid issues on re-toggle
+    await db.collection(COLLECTIONS.REACTIONS).doc(id).delete();
   }
 
   async deleteReactionsByMemoryId(memoryId: string): Promise<void> {
     const db = getDb();
-    const snapshot = await db.collection(COLLECTIONS.REACTIONS).where('memory_id', '==', memoryId).where('is_deleted', '==', 0).get();
+    // Use hard delete for reactions
+    const snapshot = await db.collection(COLLECTIONS.REACTIONS).where('memory_id', '==', memoryId).get();
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.update(doc.ref, { is_deleted: 1 }));
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
   }
 

@@ -241,7 +241,7 @@ const MilestoneTimeline: React.FC = () => {
 
       {/* FAB */}
       {milestones.length > 0 && (
-        <div className="fixed bottom-28 right-6 z-40">
+        <div className="fixed bottom-32 right-6 z-50">
           <button
             onClick={() => navigate('/milestone/new')}
             className="bg-milestone-pink text-white w-14 h-14 rounded-full shadow-lg shadow-milestone-pink/30 flex items-center justify-center hover:scale-105 transition-transform active:scale-95"

@@ -47,7 +47,7 @@ const PageLayoutFloatingBar: React.FC<PageLayoutFloatingBarProps> = ({
   className = '',
 }) => {
   return (
-    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 ${className}`}>
+    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ${className}`}>
       {children}
     </div>
   );

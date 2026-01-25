@@ -469,12 +469,14 @@ export class SQLiteAdapter implements DatabaseAdapter {
   }
 
   async deleteReaction(id: string): Promise<void> {
-    dbPrepare('UPDATE reactions SET is_deleted = 1 WHERE id = ? AND is_deleted = 0').run(id);
+    // Use hard delete for reactions to avoid UNIQUE constraint conflicts on re-toggle
+    dbPrepare('DELETE FROM reactions WHERE id = ?').run(id);
     saveDatabase();
   }
 
   async deleteReactionsByMemoryId(memoryId: string): Promise<void> {
-    dbPrepare('UPDATE reactions SET is_deleted = 1 WHERE memory_id = ? AND is_deleted = 0').run(memoryId);
+    // Use hard delete for reactions to avoid UNIQUE constraint conflicts
+    dbPrepare('DELETE FROM reactions WHERE memory_id = ?').run(memoryId);
     saveDatabase();
   }
 

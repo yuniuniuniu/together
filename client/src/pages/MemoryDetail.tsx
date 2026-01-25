@@ -223,7 +223,7 @@ const MemoryDetail: React.FC = () => {
           </div>
        </div>
 
-       <main className="flex-1 overflow-y-auto no-scrollbar pb-24">
+       <main className="flex-1 overflow-y-auto no-scrollbar pb-[calc(6rem+env(safe-area-inset-bottom))]">
           <div className="px-6 py-6">
              {/* Header Info */}
              <div className="flex justify-between items-start mb-6">
@@ -396,7 +396,7 @@ const MemoryDetail: React.FC = () => {
 
        {/* Floating Action / Edit - Only show for own memories */}
        {isOwnMemory && (
-         <div className="absolute bottom-6 right-6 z-30">
+         <div className="fixed bottom-6 right-6 z-30 pb-[env(safe-area-inset-bottom)]">
             <button
               onClick={handleEdit}
               className="w-14 h-14 bg-primary text-ink rounded-full shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all"

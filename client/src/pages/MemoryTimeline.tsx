@@ -385,7 +385,7 @@ const MemoryTimeline: React.FC = () => {
 
       {/* FAB (Only show when not empty for now, or keep it consistent) */}
       {memories.length > 0 && (
-        <div className="fixed bottom-28 right-6 z-40">
+        <div className="fixed bottom-32 right-6 z-50">
           <button 
             onClick={() => navigate('/memory/new')}
             className="bg-wine text-white size-14 rounded-full shadow-lg shadow-wine/30 flex items-center justify-center hover:scale-105 transition-transform active:scale-95"
