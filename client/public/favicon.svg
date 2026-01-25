@@ -8,6 +8,4 @@
   <!-- Bird 2 -->
   <path d="M55 68C55 60 60 55 65 55C70 55 75 60 75 68" stroke="#f3c4c4" stroke-linecap="round" stroke-width="3" fill="none"></path>
   <circle cx="65" cy="48" r="8" stroke="#f3c4c4" stroke-width="3" fill="none"></circle>
-  <!-- Minimal Heart/Connection -->
-  <path d="M57 35C57 35 57.5 32 60 32C62.5 32 63 35 63 35C63 35 63 38 60 40C57 38 57 35 57 35Z" fill="#f3c4c4"></path>
 </svg>
