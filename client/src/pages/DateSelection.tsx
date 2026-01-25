@@ -11,8 +11,8 @@ const DateSelection: React.FC = () => {
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
   const [selectedMonth, setSelectedMonth] = useState(9); // October (0-indexed)
-  const [selectedDay, setSelectedDay] = useState(14);
-  const [selectedYear, setSelectedYear] = useState(currentYear - 1);
+  const [selectedDay, setSelectedDay] = useState(24);
+  const [selectedYear, setSelectedYear] = useState(2025);
   const touchStartY = useRef<{ month: number | null; day: number | null; year: number | null }>({
     month: null,
     day: null,

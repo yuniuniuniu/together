@@ -36,6 +36,7 @@ interface CreateMemoryInput {
   };
   voiceNote?: string;
   stickers?: string[];
+  date?: string;
 }
 
 function formatMemory(row: MemoryData): Memory {
@@ -75,7 +76,7 @@ export async function createMemory(userId: string, input: CreateMemoryInput): Pr
     location: input.location ? JSON.stringify(input.location) : null,
     voice_note: input.voiceNote || null,
     stickers: input.stickers ? JSON.stringify(input.stickers) : null,
-    created_at: new Date().toISOString(),
+    created_at: input.date || new Date().toISOString(),
     created_by: userId,
     word_count: wordCount,
   });

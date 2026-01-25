@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { memoriesApi, uploadApi } from '../shared/api/client';
 import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
+import UnifiedDatePicker from '../components/UnifiedDatePicker';
 import { useFormDraft } from '../shared/hooks';
 
 // 高德地图安全配置
@@ -62,6 +63,8 @@ const NewMemory: React.FC = () => {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [date, setDate] = useState(new Date().toISOString());
 
   // Use draft hook for form persistence
   const { state: draft, updateField, clearDraft } = useFormDraft<MemoryDraft>(
@@ -261,6 +264,7 @@ const NewMemory: React.FC = () => {
         location: location || undefined,
         voiceNote: voiceNote || undefined,
         stickers: stickers.length > 0 ? stickers : undefined,
+        date,
       });
       // Clear draft after successful save
       clearDraft();
@@ -635,9 +639,21 @@ const NewMemory: React.FC = () => {
           </div>
         )}
         <div className="mt-8 mb-4">
-          <div className="flex items-center gap-2 text-accent/60 text-[10px] font-bold uppercase tracking-widest">
-            <span>{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+          <div className="flex items-center gap-2 text-accent/60 text-[10px] font-bold uppercase tracking-widest cursor-pointer" onClick={() => setShowDatePicker(true)}>
+            <span>{new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
           </div>
+          {showDatePicker && (
+            <UnifiedDatePicker
+                initialDate={new Date(date)}
+                onConfirm={(newDate) => {
+                  setDate(newDate.toISOString());
+                  setShowDatePicker(false);
+                }}
+                onCancel={() => setShowDatePicker(false)}
+                title="New Memory"
+                subtitle="Select Moment"
+            />
+          )}
         </div>
 
         <div className="flex-1">

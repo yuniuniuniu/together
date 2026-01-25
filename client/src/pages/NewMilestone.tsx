@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
-import { useFormDraft } from '../shared/hooks';
+import UnifiedDatePicker from '../components/UnifiedDatePicker';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -45,7 +45,7 @@ const initialDraft: MilestoneDraft = {
   title: '',
   description: '',
   type: 'Milestone',
-  date: new Date().toISOString().split('T')[0],
+  date: new Date().toISOString(),
   location: null,
   photos: [],
   customCategories: [],
@@ -226,8 +226,9 @@ const NewMilestone: React.FC = () => {
     const d = new Date(dateStr);
     const today = new Date();
     const isToday = d.toDateString() === today.toDateString();
-    const formatted = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-    return isToday ? `Today, ${formatted}` : formatted;
+    const formattedDate = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    const formattedTime = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return isToday ? `Today, ${formattedDate} ${formattedTime}` : `${formattedDate} ${formattedTime}`;
   };
 
   const handleSelectLocation = (name: string, address?: string, latitude?: number, longitude?: number) => {
@@ -558,17 +559,22 @@ const NewMilestone: React.FC = () => {
                 <span className="material-symbols-outlined text-zinc-300 dark:text-zinc-600 text-[16px]">edit</span>
               </button>
               {showDatePicker && (
-                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-zinc-100 dark:border-zinc-700 p-4 z-50">
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => {
-                      setDate(e.target.value);
-                      setShowDatePicker(false);
-                    }}
-                    className="bg-transparent border border-zinc-200 dark:border-zinc-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-milestone-pink/30"
-                  />
-                </div>
+                <UnifiedDatePicker
+                  initialDate={new Date(date)}
+                  onConfirm={(newDate) => {
+                    // For milestone, we keep storing YYYY-MM-DD for now unless we want time too
+                    // User asked for "24-Hour Unified Date & Time Picker" so maybe they want time.
+                    // But legacy milestone might only be date. Let's try storing full ISO string first.
+                    // Actually, let's just store the date part to be safe with existing logic, 
+                    // or check if we should include time. 
+                    // Given the user specifically asked for "Date & Time Picker", let's save the full ISO.
+                    setDate(newDate.toISOString());
+                    setShowDatePicker(false);
+                  }}
+                  onCancel={() => setShowDatePicker(false)}
+                  title="New Milestone"
+                  subtitle="Select Date"
+                />
               )}
             </div>
           </div>

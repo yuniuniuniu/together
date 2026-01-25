@@ -19,8 +19,8 @@ const CreateSpace: React.FC = () => {
     if (storedDate) {
       setAnniversaryDate(storedDate);
     } else {
-      // Default to today if no date selected
-      setAnniversaryDate(new Date().toISOString().split('T')[0]);
+      // Default to 2025-10-24 if no date selected
+      setAnniversaryDate('2025-10-24');
     }
   }, []);
 

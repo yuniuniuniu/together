@@ -40,7 +40,7 @@ router.post(
   }),
   async (req: AuthRequest, res, next) => {
     try {
-      const { content, mood, photos, location, voiceNote, stickers } = req.body;
+      const { content, mood, photos, location, voiceNote, stickers, date } = req.body;
       const memory = await createMemory(req.user!.id, {
         content,
         mood,
@@ -48,6 +48,7 @@ router.post(
         location,
         voiceNote,
         stickers,
+        date,
       });
 
       res.status(201).json({

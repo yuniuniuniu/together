@@ -207,6 +207,7 @@ export const memoriesApi = {
     location?: { name: string; address?: string; latitude?: number; longitude?: number };
     voiceNote?: string;
     stickers?: string[];
+    date?: string;
   }) =>
     apiClient<{
       id: string;
