@@ -4,34 +4,50 @@ import type { ApiResponse } from '../types';
 const DEFAULT_API_BASE = `${window.location.protocol}//${window.location.hostname}:3005/api`;
 const API_BASE = import.meta.env.VITE_API_URL || DEFAULT_API_BASE;
 
+// Debug: Log API configuration on load
+console.log('[API Debug] VITE_API_URL:', import.meta.env.VITE_API_URL);
+console.log('[API Debug] DEFAULT_API_BASE:', DEFAULT_API_BASE);
+console.log('[API Debug] Using API_BASE:', API_BASE);
+
 export async function apiClient<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   const token = localStorage.getItem('auth_token');
+  const url = `${API_BASE}${endpoint}`;
+  
+  console.log('[API Debug] Fetching:', url);
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
-  });
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options.headers,
+      },
+    });
+    
+    console.log('[API Debug] Response status:', response.status);
 
-  // Handle sliding expiration: check for new token in response header
-  const newToken = response.headers.get('X-New-Token');
-  if (newToken) {
-    localStorage.setItem('auth_token', newToken);
+    // Handle sliding expiration: check for new token in response header
+    const newToken = response.headers.get('X-New-Token');
+    if (newToken) {
+      localStorage.setItem('auth_token', newToken);
+    }
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json.message || 'Request failed');
+    }
+
+    return json;
+  } catch (error) {
+    console.error('[API Debug] Fetch error:', error);
+    console.error('[API Debug] Error message:', error instanceof Error ? error.message : String(error));
+    throw error;
   }
-
-  const json = await response.json();
-
-  if (!response.ok) {
-    throw new Error(json.message || 'Request failed');
-  }
-
-  return json;
 }
 
 // Auth API

@@ -7,6 +7,7 @@ import { NotificationProvider } from './shared/context/NotificationContext';
 import { ToastProvider } from './shared/components/feedback/Toast';
 import { MobileWrapper } from './shared/components/layout/MobileWrapper';
 import { ProtectedRoute, PublicOnlyRoute } from './shared/components/auth/ProtectedRoute';
+import { AndroidBackHandler } from './shared/components/native/AndroidBackHandler';
 
 // Pages
 import Login from './pages/Login';
@@ -52,6 +53,7 @@ const App: React.FC = () => {
           <NotificationProvider>
           <ToastProvider>
           <HashRouter>
+            <AndroidBackHandler />
             <MobileWrapper>
               <Routes>
                 {/* Public routes - redirect to dashboard if logged in */}

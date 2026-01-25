@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpace } from '../shared/context/SpaceContext';
+import { useClipboard } from '../shared/hooks/useClipboard';
 
 const CreateSpace: React.FC = () => {
   const navigate = useNavigate();
   const { createSpace, space, isLoading, refreshSpace } = useSpace();
+  const { copyToClipboard } = useClipboard();
 
   const [inviteCode, setInviteCode] = useState('');
   const [anniversaryDate, setAnniversaryDate] = useState('');
@@ -69,18 +71,8 @@ const CreateSpace: React.FC = () => {
 
   const handleCopyCode = async () => {
     if (!inviteCode) return;
-    try {
-      await navigator.clipboard.writeText(inviteCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = inviteCode;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
+    const success = await copyToClipboard(inviteCode);
+    if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

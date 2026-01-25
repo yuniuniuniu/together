@@ -19,8 +19,8 @@ async function main() {
     await initializeDatabase();
   }
 
-  app.listen(PORT, () => {
-    console.log(`[Server] Running on http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Server] Running on http://0.0.0.0:${PORT}`);
     console.log(`[Server] Database: ${isProduction() ? 'Firebase Firestore' : 'SQLite'}`);
 
     // Start reminder checker for anniversary and milestone notifications

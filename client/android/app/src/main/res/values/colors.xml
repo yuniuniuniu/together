@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Together App Brand Colors -->
+    <color name="colorPrimary">#EB6347</color>
+    <color name="colorPrimaryDark">#B85C5C</color>
+    <color name="colorAccent">#B85C5C</color>
+
+    <!-- Background colors -->
+    <color name="splash_background">#F6E7D8</color>
+    <color name="paper">#F6E7D8</color>
+    <color name="background_light">#FAFAFA</color>
+
+    <!-- Status bar -->
+    <color name="status_bar">#F6E7D8</color>
+</resources>
