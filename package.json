@@ -12,6 +12,7 @@
     "dev:all": "npm run dev -w client & npm run dev -w server",
     "build": "npm run build -w client",
     "build:server": "npm run build -w server",
+    "start:server:prod": "npm run build -w server && npm run start -w server",
     "test": "npm run test -w client && npm run test -w server",
     "test:client": "npm run test -w client",
     "test:server": "npm run test -w server"
