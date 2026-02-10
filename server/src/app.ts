@@ -12,17 +12,35 @@ import uploadRoutes from './routes/upload.js';
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    'https://www.together1024.top',
-    'https://together1024.top',
-    'capacitor://localhost',  // Android Capacitor WebView
-    'http://localhost',       // Android WebView fallback
-    'http://localhost:5173',  // Local development
-  ],
-  credentials: true,
-  exposedHeaders: ['X-New-Token'], // Allow frontend to read token refresh header
-}));
+const ALLOWED_ORIGINS = new Set([
+  'https://www.together1024.top',
+  'https://together1024.top',
+  'capacitor://localhost',
+  'http://localhost',
+]);
+
+const LOCAL_DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow non-browser clients (e.g. curl, native app contexts without Origin header)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (ALLOWED_ORIGINS.has(origin) || LOCAL_DEV_ORIGIN.test(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+    exposedHeaders: ['X-New-Token'], // Allow frontend to read token refresh header
+  })
+);
 app.use(express.json());
 
 // Serve uploaded files statically
