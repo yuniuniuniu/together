@@ -3,7 +3,8 @@ import app from './app.js';
 import { initializeDatabase } from './db/index.js';
 import { startReminderChecker } from './services/reminderService.js';
 
-const PORT = process.env.PORT || 3005;
+const parsedPort = Number.parseInt(process.env.PORT ?? '', 10);
+const PORT = Number.isNaN(parsedPort) ? 3005 : parsedPort;
 
 async function main() {
   console.log(`[Server] Starting in ${process.env.NODE_ENV || 'development'} mode`);
