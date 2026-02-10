@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { BrowserRouter } from 'react-router-dom';
 import Unbinding from '@/pages/Unbinding';
 
 const mockNavigate = vi.fn();
@@ -17,6 +18,12 @@ vi.mock('react-router-dom', async () => {
 vi.mock('@/shared/context/SpaceContext', () => ({
   useSpace: () => mockUseSpace(),
 }));
+
+const renderUnbinding = () => render(
+  <BrowserRouter>
+    <Unbinding />
+  </BrowserRouter>
+);
 
 describe('Unbinding Page', () => {
   beforeEach(() => {
@@ -37,7 +44,7 @@ describe('Unbinding Page', () => {
       isLoading: false,
     });
 
-    render(<Unbinding />);
+    renderUnbinding();
 
     await waitFor(() => {
       expect(screen.getByText('Start Unbinding')).toBeInTheDocument();
@@ -68,7 +75,7 @@ describe('Unbinding Page', () => {
       isLoading: false,
     });
 
-    render(<Unbinding />);
+    renderUnbinding();
 
     await waitFor(() => {
       expect(screen.getByText('Unbind request active')).toBeInTheDocument();
@@ -96,7 +103,7 @@ describe('Unbinding Page', () => {
       isLoading: false,
     });
 
-    render(<Unbinding />);
+    renderUnbinding();
 
     await waitFor(() => {
       expect(screen.getByText('Cancel Unbind Request')).toBeInTheDocument();

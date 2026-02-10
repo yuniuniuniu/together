@@ -191,6 +191,9 @@ export async function updateMemory(
   if (updates.stickers !== undefined) {
     updateData.stickers = JSON.stringify(updates.stickers);
   }
+  if (updates.date !== undefined) {
+    updateData.created_at = updates.date;
+  }
 
   // Delete removed files
   if (filesToDelete.length > 0) {

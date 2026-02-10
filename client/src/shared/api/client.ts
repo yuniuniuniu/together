@@ -250,6 +250,7 @@ export const memoriesApi = {
       location?: { name: string; address?: string; latitude?: number; longitude?: number };
       voiceNote?: string;
       stickers?: string[];
+      date?: string;
     }
   ) =>
     apiClient<{
@@ -569,5 +570,99 @@ export const uploadApi = {
       filename: json.data.filename,
       type: json.data.type,
     };
+  },
+
+  // Get presigned URL for direct upload to COS (for large files)
+  getPresignedUrl: async (
+    filename: string,
+    folder: string = 'uploads'
+  ): Promise<{ uploadUrl: string; key: string; publicUrl: string }> => {
+    const token = localStorage.getItem('auth_token');
+
+    const response = await fetch(`${UPLOAD_BASE}/api/upload/presign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ filename, folder }),
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json.error?.message || 'Failed to get presigned URL');
+    }
+
+    return json.data;
+  },
+
+  // Direct upload to COS using presigned URL (no size limit)
+  uploadDirect: async (
+    file: File,
+    folder: string = 'uploads',
+    onProgress?: (progress: number) => void
+  ): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> => {
+    // Get presigned URL from server
+    const { uploadUrl, publicUrl } = await uploadApi.getPresignedUrl(file.name, folder);
+
+    // Upload directly to COS
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          const progress = Math.round((e.loaded / e.total) * 100);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
+
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.send(file);
+    });
+
+    // Determine file type
+    const isVideo = file.type.startsWith('video/');
+    const isGif = file.type === 'image/gif';
+    const type: 'image' | 'gif' | 'video' = isVideo ? 'video' : isGif ? 'gif' : 'image';
+
+    return {
+      url: publicUrl,
+      filename: file.name,
+      type,
+    };
+  },
+
+  // Delete file from COS
+  deleteFile: async (url: string): Promise<void> => {
+    const token = localStorage.getItem('auth_token');
+
+    const response = await fetch(`${UPLOAD_BASE}/api/upload/delete`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ url }),
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json.error?.message || 'Failed to delete file');
+    }
   },
 };

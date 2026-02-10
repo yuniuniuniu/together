@@ -5,9 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Together',
   webDir: 'dist',
   server: {
-    // Use http scheme for development to allow connecting to local API
-    // Change to 'https' for production
-    androidScheme: 'http'
+    // Use https for production with Cloudflare CDN
+    androidScheme: 'https'
   },
   plugins: {
     SplashScreen: {

@@ -146,7 +146,8 @@ const Dashboard: React.FC = () => {
           </button>
         </section>
 
-        {/* Recent Milestone */}
+        {/* Recent Milestone - Only show if there's no memory or there is a milestone */}
+        {(!recentMemory || recentMilestone) && (
         <section className="w-full px-1">
           <div className="flex items-center justify-between px-2 mb-3">
              <h3 className="text-xs font-bold uppercase tracking-widest text-[#8c5a5a] dark:text-gray-400">Recent Milestone</h3>
@@ -208,8 +209,10 @@ const Dashboard: React.FC = () => {
             </div>
           )}
         </section>
+        )}
 
-        {/* Daily Memory */}
+        {/* Daily Memory - Only show if there's no milestone or there is a memory */}
+        {(!recentMilestone || recentMemory) && (
         <section className="w-full px-1">
           <div className="flex items-center justify-between px-2 mb-3">
              <h3 className="text-xs font-bold uppercase tracking-widest text-[#8c5a5a] dark:text-gray-400">Daily Memory</h3>
@@ -239,7 +242,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex-1 min-w-0 py-0.5">
                    <div className="flex items-center justify-between mb-1.5">
                       <h4 className="font-bold text-[#4a2b2b] dark:text-white text-sm truncate pr-2">
-                         {recentMemory.mood ? recentMemory.mood.charAt(0).toUpperCase() + recentMemory.mood.slice(1) : 'Memory'}
+                         {recentMemory.content.length > 30 ? recentMemory.content.substring(0, 30) + '...' : recentMemory.content}
                       </h4>
                       <span className="text-[10px] font-bold text-accent/80 bg-accent/10 dark:bg-accent/20 px-2 py-0.5 rounded-full shrink-0">
                          {new Date(recentMemory.createdAt).toDateString() === new Date().toDateString() ? 'Today' : new Date(recentMemory.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -271,6 +274,7 @@ const Dashboard: React.FC = () => {
             </div>
           )}
         </section>
+        )}
 
         <section className="py-8 px-8 text-center relative">
           <span className="material-symbols-outlined absolute top-4 left-4 text-4xl text-primary/20 rotate-180">format_quote</span>

@@ -191,7 +191,7 @@ const Unbinding: React.FC = () => {
           {isPending ? (
             <button
               onClick={handleCancelUnbind}
-              disabled={isCancelling || isLoading}
+              disabled={isCancelling || isFetchingStatus}
               className="w-full h-12 rounded-full flex items-center justify-center text-ink/40 hover:text-ink transition-colors text-sm font-medium disabled:opacity-50"
             >
               {isCancelling ? 'Cancelling...' : 'Cancel Unbind Request'}
@@ -199,7 +199,7 @@ const Unbinding: React.FC = () => {
           ) : (
             <button
               onClick={handleUnbind}
-              disabled={isUnbinding || isLoading}
+              disabled={isUnbinding || isFetchingStatus}
               className="w-full h-12 rounded-full flex items-center justify-center text-ink/40 hover:text-red-500 transition-colors text-sm font-medium disabled:opacity-50"
             >
               {isUnbinding ? 'Submitting...' : 'Start Unbinding'}

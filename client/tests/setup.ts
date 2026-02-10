@@ -50,6 +50,10 @@ const mockGeolocation = {
 };
 Object.defineProperty(navigator, 'geolocation', { value: mockGeolocation });
 
+// Mock window.confirm and window.alert
+window.confirm = vi.fn(() => true);
+window.alert = vi.fn();
+
 // Mock MediaRecorder
 class MockMediaRecorder {
   static isTypeSupported = vi.fn(() => true);

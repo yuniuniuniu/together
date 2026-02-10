@@ -19,6 +19,7 @@ describe('API Client', () => {
     it('should make request with correct headers', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        headers: new Headers(),
         json: () => Promise.resolve({ success: true, data: 'test' }),
       });
 
@@ -38,6 +39,7 @@ describe('API Client', () => {
       localStorage.setItem('auth_token', 'test-token');
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        headers: new Headers(),
         json: () => Promise.resolve({ success: true, data: 'test' }),
       });
 
@@ -56,6 +58,7 @@ describe('API Client', () => {
     it('should throw error on failed request', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        headers: new Headers(),
         json: () => Promise.resolve({ success: false, message: 'Test error' }),
       });
 
@@ -74,6 +77,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: { code: '123456' } }),
         });
 
@@ -93,6 +97,7 @@ describe('API Client', () => {
       it('should call correct endpoint with credentials', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({
             success: true,
             data: { user: { id: '1' }, token: 'token' },
@@ -116,6 +121,7 @@ describe('API Client', () => {
         localStorage.setItem('auth_token', 'test-token');
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: { id: '1' } }),
         });
 
@@ -132,6 +138,7 @@ describe('API Client', () => {
       it('should call correct endpoint with updates', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: { id: '1', nickname: 'New' } }),
         });
 
@@ -153,6 +160,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: { id: 'space-1' } }),
         });
 
@@ -172,6 +180,7 @@ describe('API Client', () => {
       it('should call correct endpoint with invite code', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: { id: 'space-1' } }),
         });
 
@@ -191,6 +200,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: null }),
         });
 
@@ -207,6 +217,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true }),
         });
 
@@ -225,6 +236,7 @@ describe('API Client', () => {
       it('should call correct endpoint with memory data', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: { id: 'mem-1' } }),
         });
 
@@ -247,6 +259,7 @@ describe('API Client', () => {
       it('should call correct endpoint with pagination', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({
             success: true,
             data: { data: [], total: 0, page: 1, pageSize: 20, hasMore: false },
@@ -266,6 +279,7 @@ describe('API Client', () => {
       it('should call correct endpoint with updates', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: { id: 'mem-1' } }),
         });
 
@@ -285,6 +299,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true }),
         });
 
@@ -303,6 +318,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: { id: 'mile-1' } }),
         });
 
@@ -325,6 +341,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: [] }),
         });
 
@@ -343,6 +360,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, action: 'added', data: { id: 'r-1' } }),
         });
 
@@ -362,6 +380,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: [] }),
         });
 
@@ -378,6 +397,7 @@ describe('API Client', () => {
       it('should call correct endpoint', async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          headers: new Headers(),
           json: () => Promise.resolve({ success: true, data: null }),
         });
 

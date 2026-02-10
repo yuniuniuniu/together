@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { memoriesApi, uploadApi } from '../shared/api/client';
 import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
+import UnifiedDatePicker from '../components/UnifiedDatePicker';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -36,6 +37,7 @@ const EditMemory: React.FC = () => {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [content, setContent] = useState('');
   const [mood, setMood] = useState('Happy');
@@ -45,6 +47,7 @@ const EditMemory: React.FC = () => {
   const [location, setLocation] = useState<LocationData | null>(null);
   const [locationSearch, setLocationSearch] = useState('');
   const [originalDate, setOriginalDate] = useState<string>('');
+  const [customDate, setCustomDate] = useState<string>('');
   const [stickers, setStickers] = useState<string[]>([]);
 
   // Photo upload states
@@ -201,6 +204,7 @@ const EditMemory: React.FC = () => {
         setVoiceNote(memory.voiceNote || null);
         setStickers(memory.stickers || []);
         setOriginalDate(memory.createdAt);
+        setCustomDate(memory.createdAt);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load memory');
       } finally {
@@ -225,6 +229,7 @@ const EditMemory: React.FC = () => {
         location: location || undefined,
         voiceNote: voiceNote || undefined,
         stickers: stickers.length > 0 ? stickers : undefined,
+        date: customDate !== originalDate ? customDate : undefined,
       });
       await queryClient.invalidateQueries({ queryKey: MEMORIES_QUERY_KEY });
       navigate(`/memory/${id}`);
@@ -505,8 +510,13 @@ const EditMemory: React.FC = () => {
           </div>
         )}
         <div className="mt-8 mb-4">
-          <div className="flex items-center gap-2 text-accent/60 text-[10px] font-bold uppercase tracking-widest">
-            <span>{originalDate ? new Date(originalDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}</span>
+          <div
+            className="flex items-center gap-2 text-accent/60 text-[10px] font-bold uppercase tracking-widest cursor-pointer hover:text-accent transition-colors"
+            onClick={() => setShowDatePicker(true)}
+          >
+            <span className="material-symbols-outlined text-sm">calendar_today</span>
+            <span>{customDate ? new Date(customDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}</span>
+            <span className="material-symbols-outlined text-xs">edit</span>
           </div>
         </div>
 
@@ -966,6 +976,20 @@ const EditMemory: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Date Picker */}
+      {showDatePicker && (
+        <UnifiedDatePicker
+          initialDate={customDate ? new Date(customDate) : new Date()}
+          title="Edit Memory"
+          subtitle="Select Date & Time"
+          onConfirm={(selectedDate) => {
+            setCustomDate(selectedDate.toISOString());
+            setShowDatePicker(false);
+          }}
+          onCancel={() => setShowDatePicker(false)}
+        />
       )}
     </div>
   );

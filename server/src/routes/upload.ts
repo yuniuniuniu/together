@@ -1,37 +1,23 @@
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
-import { isR2Configured, uploadToR2 } from '../services/r2Service.js';
+import {
+  isR2Configured,
+  uploadToR2,
+  getPresignedUploadUrl,
+  deleteFromR2ByUrl,
+} from '../services/r2Service.js';
 
 const router = Router();
 
-// Check if we should use R2 (production) or local storage (development)
-const useR2 = process.env.NODE_ENV === 'production' && isR2Configured();
-
-// Ensure uploads directory exists (for local storage)
-const uploadsDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Check R2 configuration at startup
+if (!isR2Configured()) {
+  console.warn('[Upload] R2 is not configured. File uploads will fail.');
 }
 
-// Configure multer storage
-// In production with R2: use memory storage
-// In development: use disk storage
-const storage = useR2
-  ? multer.memoryStorage()
-  : multer.diskStorage({
-      destination: (_req, _file, cb) => {
-        cb(null, uploadsDir);
-      },
-      filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        const filename = `${uuidv4()}${ext}`;
-        cb(null, filename);
-      },
-    });
+// Configure multer storage - always use memory storage for R2
+const storage = multer.memoryStorage();
 
 // File filter for images (including GIF)
 const imageFilter = (_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
@@ -96,7 +82,7 @@ const videoUpload = multer({
   storage,
   fileFilter: videoFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit for video
+    fileSize: 100 * 1024 * 1024, // 100MB limit for video
   },
 });
 
@@ -104,23 +90,18 @@ const mediaUpload = multer({
   storage,
   fileFilter: mediaFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit for media (handles both images and videos)
+    fileSize: 100 * 1024 * 1024, // 100MB limit for media (handles both images and videos)
   },
 });
 
-// Helper function to handle file upload (R2 or local)
+// Helper function to handle file upload to R2
 async function handleFileUpload(file: Express.Multer.File, folder: string = 'uploads'): Promise<{ url: string; filename: string }> {
-  if (useR2 && file.buffer) {
-    // Upload to R2
-    const result = await uploadToR2(file.buffer, file.originalname, folder);
-    return { url: result.url, filename: path.basename(result.key) };
-  } else {
-    // Local storage - file is already saved by multer
-    return {
-      url: `/uploads/${file.filename}`,
-      filename: file.filename,
-    };
+  if (!file.buffer) {
+    throw new Error('File buffer is empty');
   }
+
+  const result = await uploadToR2(file.buffer, file.originalname, folder);
+  return { url: result.url, filename: path.basename(result.key) };
 }
 
 // All routes require authentication
@@ -295,6 +276,85 @@ router.post('/media', mediaUpload.single('file'), async (req: AuthRequest, res) 
     res.status(500).json({
       success: false,
       error: { code: 'UPLOAD_ERROR', message: 'Failed to upload media' },
+    });
+  }
+});
+
+// POST /api/upload/presign - Get presigned URL for direct upload to R2
+router.post('/presign', async (req: AuthRequest, res) => {
+  try {
+    const { filename, folder = 'uploads', contentType } = req.body;
+
+    if (!filename) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'NO_FILENAME', message: 'Filename is required' },
+      });
+      return;
+    }
+
+    // Validate file type
+    const ext = path.extname(filename).toLowerCase();
+    const allowedExtensions = [
+      // Images
+      '.jpg', '.jpeg', '.png', '.gif', '.webp',
+      // Videos
+      '.mp4', '.webm', '.mov', '.avi', '.m4v',
+      // Audio
+      '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.webm',
+    ];
+
+    if (!allowedExtensions.includes(ext)) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_TYPE', message: 'File type not allowed' },
+      });
+      return;
+    }
+
+    const result = await getPresignedUploadUrl(filename, folder);
+
+    res.json({
+      success: true,
+      data: {
+        uploadUrl: result.uploadUrl,
+        key: result.key,
+        publicUrl: result.publicUrl,
+      },
+    });
+  } catch (error) {
+    console.error('Presign error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'PRESIGN_ERROR', message: 'Failed to generate presigned URL' },
+    });
+  }
+});
+
+// DELETE /api/upload/delete - Delete file from R2
+router.delete('/delete', async (req: AuthRequest, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'NO_URL', message: 'URL is required' },
+      });
+      return;
+    }
+
+    await deleteFromR2ByUrl(url);
+
+    res.json({
+      success: true,
+      data: { message: 'File deleted successfully' },
+    });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'DELETE_ERROR', message: 'Failed to delete file' },
     });
   }
 });

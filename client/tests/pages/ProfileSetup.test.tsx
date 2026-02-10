@@ -24,6 +24,10 @@ vi.mock('@/shared/api/client', () => ({
     getMe: vi.fn(),
     updateProfile: vi.fn(),
   },
+  uploadApi: {
+    uploadFile: vi.fn(),
+    uploadMedia: vi.fn(),
+  },
 }));
 
 const mockAuthApi = client.authApi as {

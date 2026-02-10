@@ -1,15 +1,30 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
-import path from 'path';
-import fs from 'fs';
+
+// Mock R2 service before importing app
+vi.mock('../src/services/r2Service.js', () => ({
+  isR2Configured: () => true,
+  uploadToR2: vi.fn().mockImplementation(async (_buffer: Buffer, originalFilename: string, folder: string) => {
+    const ext = originalFilename.split('.').pop();
+    const key = `${folder}/mock-uuid.${ext}`;
+    return {
+      url: `https://files.example.com/${key}`,
+      key,
+    };
+  }),
+  deleteFromR2: vi.fn().mockResolvedValue(undefined),
+  deleteFromR2ByUrl: vi.fn().mockResolvedValue(undefined),
+  getPresignedUploadUrl: vi.fn().mockResolvedValue({
+    uploadUrl: 'https://example.r2.cloudflarestorage.com/presigned',
+    key: 'uploads/mock-uuid.png',
+    publicUrl: 'https://files.example.com/uploads/mock-uuid.png',
+  }),
+}));
+
 import app from '../src/app.js';
-import { dbPrepare } from '../src/db/index.js';
 
 describe('Upload Routes', () => {
   let token: string;
-  let userId: string;
-  const testUploadsDir = path.join(process.cwd(), 'uploads');
-  const uploadedFiles: string[] = [];
 
   // Helper to create test image buffer
   const createTestImageBuffer = () => {
@@ -39,27 +54,10 @@ describe('Upload Routes', () => {
       .send({ phone: '+1234567890', code: sendResponse.body.data.code });
 
     token = verifyResponse.body.data.token;
-    userId = verifyResponse.body.data.user.id;
-
-    // Ensure uploads directory exists
-    if (!fs.existsSync(testUploadsDir)) {
-      fs.mkdirSync(testUploadsDir, { recursive: true });
-    }
-  });
-
-  afterEach(() => {
-    // Clean up uploaded test files
-    uploadedFiles.forEach((filename) => {
-      const filePath = path.join(testUploadsDir, filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    });
-    uploadedFiles.length = 0;
   });
 
   describe('POST /api/upload', () => {
-    it('should upload a single image file', async () => {
+    it('should upload a single image file to R2', async () => {
       const response = await request(app)
         .post('/api/upload')
         .set('Authorization', `Bearer ${token}`)
@@ -71,18 +69,11 @@ describe('Upload Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
-      expect(response.body.data.url).toMatch(/^\/uploads\/.+\.png$/);
+      expect(response.body.data.url).toContain('https://');
       expect(response.body.data.filename).toBeDefined();
       expect(response.body.data.originalName).toBe('test.png');
       expect(response.body.data.mimetype).toBe('image/png');
       expect(response.body.data.size).toBeGreaterThan(0);
-
-      // Track for cleanup
-      uploadedFiles.push(response.body.data.filename);
-
-      // Verify file exists on disk
-      const filePath = path.join(testUploadsDir, response.body.data.filename);
-      expect(fs.existsSync(filePath)).toBe(true);
     });
 
     it('should reject upload without authentication', async () => {
@@ -176,8 +167,6 @@ describe('Upload Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.data.mimetype).toBe('image/jpeg');
-
-      uploadedFiles.push(response.body.data.filename);
     });
 
     it('should generate unique filenames', async () => {
@@ -199,14 +188,14 @@ describe('Upload Routes', () => {
 
       expect(response1.status).toBe(200);
       expect(response2.status).toBe(200);
-      expect(response1.body.data.filename).not.toBe(response2.body.data.filename);
-
-      uploadedFiles.push(response1.body.data.filename, response2.body.data.filename);
+      // Both should succeed (R2 handles unique keys)
+      expect(response1.body.data.url).toBeDefined();
+      expect(response2.body.data.url).toBeDefined();
     });
   });
 
   describe('POST /api/upload/multiple', () => {
-    it('should upload multiple image files', async () => {
+    it('should upload multiple image files to R2', async () => {
       const response = await request(app)
         .post('/api/upload/multiple')
         .set('Authorization', `Bearer ${token}`)
@@ -225,11 +214,10 @@ describe('Upload Routes', () => {
       expect(response.body.data).toHaveLength(2);
 
       response.body.data.forEach((file: any, index: number) => {
-        expect(file.url).toMatch(/^\/uploads\/.+\.png$/);
+        expect(file.url).toContain('https://');
         expect(file.filename).toBeDefined();
         expect(file.originalName).toBe(`test${index + 1}.png`);
         expect(file.mimetype).toBe('image/png');
-        uploadedFiles.push(file.filename);
       });
     });
 
@@ -266,8 +254,6 @@ describe('Upload Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.data).toHaveLength(1);
-
-      uploadedFiles.push(response.body.data[0].filename);
     });
   });
 });

@@ -1,51 +1,21 @@
-import fs from 'fs';
-import path from 'path';
-import { isR2Configured, deleteFromR2ByUrl } from './r2Service.js';
-
-const uploadsDir = path.join(process.cwd(), 'uploads');
-const useR2 = process.env.NODE_ENV === 'production' && isR2Configured();
+import { deleteFromR2ByUrl } from './r2Service.js';
 
 /**
- * Extract file paths from a URL that points to uploads
- * @param url URL like /uploads/abc.jpg
- * @returns filename or null if not a local upload
- */
-function extractFilename(url: string | null | undefined): string | null {
-  if (!url) return null;
-
-  // Handle /uploads/filename format
-  if (url.startsWith('/uploads/')) {
-    return url.substring('/uploads/'.length);
-  }
-
-  return null;
-}
-
-/**
- * Delete a single file from uploads (local or R2)
+ * Delete a single file from R2 storage
  */
 export async function deleteUploadedFile(url: string | null | undefined): Promise<void> {
   if (!url) return;
 
   try {
-    // Check if it's an R2 URL (contains r2.cloudflarestorage.com or custom domain)
-    const isR2Url = url.includes('r2.cloudflarestorage.com') || (process.env.R2_PUBLIC_URL && url.startsWith(process.env.R2_PUBLIC_URL));
+    // Check if it's an R2 URL (custom domain, r2.dev, or legacy COS URL)
+    const isR2Url = url.includes('.r2.dev') ||
+                    url.includes(process.env.R2_PUBLIC_DOMAIN || '') ||
+                    // Support legacy COS URLs during migration
+                    (url.includes('.cos.') && url.includes('.myqcloud.com'));
 
-    if (useR2 && isR2Url) {
-      // Delete from R2
+    if (isR2Url) {
       await deleteFromR2ByUrl(url);
       console.log(`[FileService] Deleted file from R2: ${url}`);
-    } else {
-      // Delete from local storage
-      const filename = extractFilename(url);
-      if (!filename) return;
-
-      const filePath = path.join(uploadsDir, filename);
-
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`[FileService] Deleted local file: ${filename}`);
-      }
     }
   } catch (error) {
     console.error(`[FileService] Failed to delete file ${url}:`, error);

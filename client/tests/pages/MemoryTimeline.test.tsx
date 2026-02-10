@@ -2,10 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MemoryTimeline from '@/pages/MemoryTimeline';
 import { AuthProvider } from '@/shared/context/AuthContext';
+import { SpaceProvider } from '@/shared/context/SpaceContext';
 import { ToastProvider } from '@/shared/components/feedback/Toast';
 import * as client from '@/shared/api/client';
+
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: { retry: false, gcTime: 0 },
+    mutations: { retry: false },
+  },
+});
 
 // Mock react-router-dom navigate
 const mockNavigate = vi.fn();
@@ -36,6 +45,12 @@ vi.mock('@/shared/api/client', () => ({
     verify: vi.fn(),
     updateProfile: vi.fn(),
   },
+  spacesApi: {
+    getMy: vi.fn(),
+    create: vi.fn(),
+    join: vi.fn(),
+    delete: vi.fn(),
+  },
 }));
 
 const mockMemoriesApi = client.memoriesApi as {
@@ -65,14 +80,19 @@ const createMockMemory = (overrides = {}) => ({
 });
 
 const renderMemoryTimeline = () => {
+  const queryClient = createTestQueryClient();
   return render(
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <MemoryTimeline />
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <SpaceProvider>
+            <ToastProvider>
+              <MemoryTimeline />
+            </ToastProvider>
+          </SpaceProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 };
 

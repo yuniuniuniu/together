@@ -1,5 +1,3 @@
-import { isProduction } from '../config/firebase-admin.js';
-
 // Database adapter interface
 export interface DatabaseAdapter {
   // Users
@@ -189,5 +187,3 @@ export interface SessionData {
   is_deleted?: number;
 }
 
-// Export environment check
-export { isProduction };

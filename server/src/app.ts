@@ -13,6 +13,14 @@ import uploadRoutes from './routes/upload.js';
 const app = express();
 
 app.use(cors({
+  origin: [
+    'https://www.together1024.top',
+    'https://together1024.top',
+    'capacitor://localhost',  // Android Capacitor WebView
+    'http://localhost',       // Android WebView fallback
+    'http://localhost:5173',  // Local development
+  ],
+  credentials: true,
   exposedHeaders: ['X-New-Token'], // Allow frontend to read token refresh header
 }));
 app.use(express.json());

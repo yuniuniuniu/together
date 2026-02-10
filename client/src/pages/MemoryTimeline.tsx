@@ -6,6 +6,7 @@ import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
 import { useMemoriesQuery, type Memory } from '../shared/hooks/useMemoriesQuery';
 import { setLastMemoryPath } from '../shared/utils';
+import { VideoPreview } from '../shared/components/display/VideoPreview';
 
 interface ReactionState {
   [memoryId: string]: { liked: boolean; count: number };
@@ -260,17 +261,12 @@ const MemoryTimeline: React.FC = () => {
 
                             if (isVideo) {
                               return (
-                                <>
-                                  <video
-                                    className="w-full h-full object-cover"
-                                    src={firstMedia}
-                                    muted
-                                    playsInline
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                                    <span className="material-symbols-outlined text-white text-4xl drop-shadow-lg">play_circle</span>
-                                  </div>
-                                </>
+                                <VideoPreview
+                                  src={firstMedia}
+                                  className="w-full h-full object-cover"
+                                  iconSize="lg"
+                                  enableFullscreen={true}
+                                />
                               );
                             }
 

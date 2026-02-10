@@ -1,18 +1,12 @@
-import { DatabaseAdapter, isProduction } from './adapter.js';
+import { DatabaseAdapter } from './adapter.js';
 import { sqliteAdapter } from './sqlite-adapter.js';
-import { firestoreAdapter } from './firestore-adapter.js';
 
 let adapter: DatabaseAdapter | null = null;
 
 export function getDatabase(): DatabaseAdapter {
   if (!adapter) {
-    if (isProduction()) {
-      console.log('[Database] Using Firestore adapter (production mode)');
-      adapter = firestoreAdapter;
-    } else {
-      console.log('[Database] Using SQLite adapter (development mode)');
-      adapter = sqliteAdapter;
-    }
+    console.log('[Database] Using SQLite adapter');
+    adapter = sqliteAdapter;
   }
   return adapter;
 }

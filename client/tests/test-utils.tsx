@@ -1,6 +1,7 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/shared/context/AuthContext';
 import { SpaceProvider } from '@/shared/context/SpaceContext';
 import { NotificationProvider } from '@/shared/context/NotificationContext';
@@ -9,18 +10,34 @@ interface WrapperProps {
   children: React.ReactNode;
 }
 
+// Create a fresh QueryClient for tests
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      gcTime: 0,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
+
 // Provider wrapper for all tests
 const AllProviders: React.FC<WrapperProps> = ({ children }) => {
+  const queryClient = createTestQueryClient();
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <SpaceProvider>
-          <NotificationProvider>
-            {children}
-          </NotificationProvider>
-        </SpaceProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <SpaceProvider>
+            <NotificationProvider>
+              {children}
+            </NotificationProvider>
+          </SpaceProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 };
 

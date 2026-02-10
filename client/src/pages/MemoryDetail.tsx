@@ -4,7 +4,7 @@ import { memoriesApi, reactionsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
-import { ImageViewer } from '../shared/components/display/ImageViewer';
+import { ImageGallery } from '../shared/components/display/ImageGallery';
 
 interface Memory {
   id: string;
@@ -34,8 +34,6 @@ const MemoryDetail: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
-  const [imageViewerOpen, setImageViewerOpen] = useState(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -146,11 +144,6 @@ const MemoryDetail: React.FC = () => {
     }
   };
 
-  const handleImageClick = (index: number) => {
-    setSelectedImageIndex(index);
-    setImageViewerOpen(true);
-  };
-
   if (!memory && !error) {
     return null;
   }
@@ -251,50 +244,33 @@ const MemoryDetail: React.FC = () => {
 
              {/* Media Grid (Photos, GIFs, Videos) */}
              {memory.photos && memory.photos.length > 0 && (
-               <div className={`grid gap-1.5 mb-8 rounded-2xl overflow-hidden ${
-                 memory.photos.length === 1 ? 'grid-cols-1' :
-                 memory.photos.length === 2 ? 'grid-cols-2' :
-                 'grid-cols-3'
-               }`}>
-                  {memory.photos.map((mediaUrl, index) => {
-                    const isVideo = mediaUrl.match(/\.(mp4|webm|mov|avi|m4v)$/i);
-                    const isGif = mediaUrl.match(/\.gif$/i);
+               <div className="mb-8">
+                 {/* Images and GIFs - Use new ImageGallery */}
+                 <ImageGallery
+                   images={memory.photos}
+                   className="rounded-2xl overflow-hidden"
+                 />
 
-                    return (
-                      <div
-                        key={index}
-                        className="aspect-square relative group overflow-hidden bg-gray-100 cursor-pointer"
-                        onClick={() => !isVideo && handleImageClick(index)}
-                      >
-                        {isVideo ? (
-                          <video
-                            src={mediaUrl}
-                            className="w-full h-full object-cover"
-                            controls
-                            playsInline
-                          />
-                        ) : (
-                          <>
-                            <img
-                              src={mediaUrl}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                              alt={`Memory ${index + 1}`}
-                            />
-                            {isGif && (
-                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
-                                GIF
-                              </div>
-                            )}
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                              <span className="material-symbols-outlined text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg">
-                                fullscreen
-                              </span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
+                 {/* Videos - Keep separate rendering */}
+                 {memory.photos.filter(url => url.match(/\.(mp4|webm|mov|avi|m4v)$/i)).length > 0 && (
+                   <div className="grid gap-4 mt-4">
+                     {memory.photos
+                       .filter(url => url.match(/\.(mp4|webm|mov|avi|m4v)$/i))
+                       .map((videoUrl, index) => (
+                         <div
+                           key={index}
+                           className="aspect-video relative overflow-hidden bg-gray-100 rounded-2xl"
+                         >
+                           <video
+                             src={videoUrl}
+                             className="w-full h-full object-cover"
+                             controls
+                             playsInline
+                           />
+                         </div>
+                       ))}
+                   </div>
+                 )}
                </div>
              )}
 
@@ -396,16 +372,6 @@ const MemoryDetail: React.FC = () => {
                <span className="material-symbols-outlined text-2xl">edit</span>
             </button>
          </div>
-       )}
-
-       {/* Image Viewer */}
-       {memory.photos && memory.photos.length > 0 && (
-         <ImageViewer
-           images={memory.photos}
-           initialIndex={selectedImageIndex}
-           isOpen={imageViewerOpen}
-           onClose={() => setImageViewerOpen(false)}
-         />
        )}
     </div>
   );

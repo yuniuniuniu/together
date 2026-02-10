@@ -10,6 +10,7 @@ const ProfileSetup: React.FC = () => {
   const [nickname, setNickname] = useState(user?.nickname || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasInitialized, setHasInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +49,7 @@ const ProfileSetup: React.FC = () => {
       return;
     }
     setError('');
+    setIsLoading(true);
     try {
       await updateProfile({
         nickname: nickname.trim(),
@@ -56,6 +58,8 @@ const ProfileSetup: React.FC = () => {
       navigate('/sanctuary');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save profile');
+    } finally {
+      setIsLoading(false);
     }
   };
 

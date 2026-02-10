@@ -84,7 +84,7 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 router.put('/:id', async (req: AuthRequest, res, next) => {
   try {
     const memoryId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const { content, mood, photos, location, voiceNote, stickers } = req.body;
+    const { content, mood, photos, location, voiceNote, stickers, date } = req.body;
     const memory = await updateMemory(memoryId, req.user!.id, {
       content,
       mood,
@@ -92,6 +92,7 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
       location,
       voiceNote,
       stickers,
+      date,
     });
 
     res.json({

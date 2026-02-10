@@ -23,8 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Firebase
-server/config/firebase-admin-key.json
 *.env
 .env.local
 .env.production
+server/data/sanctuary.db

@@ -1,8 +1,8 @@
 import nodemailer from 'nodemailer';
 
-// QQ 邮箱 SMTP 配置
+// 阿里云邮件推送 SMTP 配置
 const transporter = nodemailer.createTransport({
-  host: 'smtp.qq.com',
+  host: 'smtpdm.aliyun.com',
   port: 465,
   secure: true,
   auth: {

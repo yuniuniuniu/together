@@ -1,0 +1,21 @@
+/* Hardware acceleration hints */
+.image-gallery-item {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Prevent layout shift during image load */
+.lazy-image-container {
+  content-visibility: auto;
+}
+
+/* Smooth scrolling for touch devices */
+.image-viewer-container {
+  -webkit-overflow-scrolling: touch;
+  touch-action: none;
+}
+
+/* Optimize animations */
+.image-gallery-grid {
+  contain: layout style paint;
+}

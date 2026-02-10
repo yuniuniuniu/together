@@ -6,6 +6,7 @@ import { memoriesApi, uploadApi } from '../shared/api/client';
 import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
 import UnifiedDatePicker from '../components/UnifiedDatePicker';
 import { useFormDraft } from '../shared/hooks';
+import { VideoPreview } from '../shared/components/display/VideoPreview';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -36,7 +37,8 @@ interface MediaItem {
   type: 'image' | 'gif' | 'video';
 }
 
-const MAX_VIDEO_DURATION = 30; // Maximum video duration in seconds
+// Size threshold for using direct upload (files larger than this use presigned URL)
+const DIRECT_UPLOAD_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
 // Draft state interface for persistence
 interface MemoryDraft {
@@ -277,23 +279,14 @@ const NewMemory: React.FC = () => {
     }
   };
 
-  // Helper to check video duration
-  const checkVideoDuration = (file: File): Promise<number> => {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        resolve(video.duration);
-      };
-      video.onerror = () => {
-        reject(new Error('Failed to load video'));
-      };
-      video.src = URL.createObjectURL(file);
-    });
+  // Format file size for display
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Media upload handler (images, GIFs, videos)
+  // Media upload handler (images, GIFs, videos) - uses direct upload for large files
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -307,22 +300,31 @@ const NewMemory: React.FC = () => {
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        setUploadProgress(`Uploading ${i + 1}/${files.length}...`);
+        const isVideo = file.type.startsWith('video/');
+        const folder = isVideo ? 'videos' : 'images';
 
-        // Check if it's a video and validate duration
-        if (file.type.startsWith('video/')) {
-          const duration = await checkVideoDuration(file);
-          if (duration > MAX_VIDEO_DURATION) {
-            setError(`Video must be ${MAX_VIDEO_DURATION} seconds or less. This video is ${Math.round(duration)} seconds.`);
-            continue;
-          }
+        // Use direct upload for large files (> 10MB)
+        if (file.size > DIRECT_UPLOAD_THRESHOLD) {
+          setUploadProgress(`Uploading ${i + 1}/${files.length} (${formatFileSize(file.size)}) - 0%`);
+
+          const result = await uploadApi.uploadDirect(file, folder, (progress) => {
+            setUploadProgress(`Uploading ${i + 1}/${files.length} (${formatFileSize(file.size)}) - ${progress}%`);
+          });
+
+          uploadResults.push({
+            url: result.url,
+            type: result.type,
+          });
+        } else {
+          // Use traditional upload for small files
+          setUploadProgress(`Uploading ${i + 1}/${files.length} (${formatFileSize(file.size)})...`);
+
+          const result = await uploadApi.uploadMedia(file);
+          uploadResults.push({
+            url: result.url,
+            type: result.type,
+          });
         }
-
-        const result = await uploadApi.uploadMedia(file);
-        uploadResults.push({
-          url: result.url,
-          type: result.type,
-        });
       }
 
       setMedia(prev => [...prev, ...uploadResults]);
@@ -340,8 +342,17 @@ const NewMemory: React.FC = () => {
     }
   };
 
-  const handleRemoveMedia = (index: number) => {
+  const handleRemoveMedia = async (index: number) => {
+    const item = media[index];
+    // Remove from UI immediately
     setMedia(prev => prev.filter((_, i) => i !== index));
+    // Delete from COS in background (don't block UI)
+    try {
+      await uploadApi.deleteFile(item.url);
+    } catch (err) {
+      console.error('Failed to delete file from COS:', err);
+      // Don't show error to user - file is already removed from UI
+    }
   };
 
   // 选择 POI 位置
@@ -697,17 +708,11 @@ const NewMemory: React.FC = () => {
                 <div className="bg-white p-2 pb-6 rounded-sm shadow-sm transition-transform active:scale-95" style={{ transform: `rotate(${(index % 3 - 1) * 2}deg)` }}>
                   <div className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group">
                     {item.type === 'video' ? (
-                      <>
-                        <video
-                          src={item.url}
-                          className="w-full h-full object-cover"
-                          muted
-                          playsInline
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                          <span className="material-symbols-outlined text-white text-3xl drop-shadow-lg">play_circle</span>
-                        </div>
-                      </>
+                      <VideoPreview
+                        src={item.url}
+                        className="w-full h-full object-cover"
+                        iconSize="sm"
+                      />
                     ) : (
                       <img
                         alt={`Memory ${index + 1}`}
@@ -755,7 +760,7 @@ const NewMemory: React.FC = () => {
                 <div className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[-1deg] w-full flex flex-col items-center opacity-60">
                   <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center gap-1">
                     <span className="material-symbols-outlined text-ink/10 text-2xl">videocam</span>
-                    <span className="text-[8px] text-ink/20 font-bold">MAX 30s</span>
+                    <span className="text-[8px] text-ink/20 font-bold">VIDEO</span>
                   </div>
                 </div>
               </div>
