@@ -61,6 +61,7 @@ function runMigrations(database: Database): void {
     'milestones',
     'notifications',
     'reactions',
+    'comments',
     'unbind_requests',
   ];
 
@@ -101,6 +102,7 @@ export function resetDatabase(): void {
 
   // Drop all tables data
   db.run(`
+    DELETE FROM comments;
     DELETE FROM reactions;
     DELETE FROM notifications;
     DELETE FROM milestones;

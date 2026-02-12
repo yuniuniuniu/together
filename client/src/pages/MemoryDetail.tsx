@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { memoriesApi, reactionsApi } from '../shared/api/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { memoriesApi, reactionsApi, commentsApi, type CommentItem } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
@@ -48,9 +48,15 @@ const MemoryDetail: React.FC = () => {
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [commentText, setCommentText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<{ id: string; authorName: string } | null>(null);
+  const [commentSending, setCommentSending] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { topBarRef, topBarHeight } = useFixedTopBar();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const queryClient = useQueryClient();
   const memoryQuery = useQuery({
     queryKey: ['memory', id],
     queryFn: async () => {
@@ -65,6 +71,23 @@ const MemoryDetail: React.FC = () => {
     initialData: initialMemory ?? undefined,
   });
   const memory = memoryQuery.data ?? null;
+
+  const commentsQuery = useQuery({
+    queryKey: ['comments', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Memory id is required');
+      const response = await commentsApi.list(id);
+      return response.data as CommentItem[];
+    },
+    enabled: Boolean(id),
+    staleTime: 10_000,
+  });
+  const comments = commentsQuery.data ?? [];
+  const totalCommentCount = comments.reduce(
+    (acc, c) => acc + 1 + (c.replies?.length ?? 0),
+    0
+  );
+
   const errorMessage =
     actionError ||
     (memoryQuery.error instanceof Error
@@ -173,6 +196,54 @@ const MemoryDetail: React.FC = () => {
         setIsPlayingVoice(false);
         showToast('Audio cannot be played in app. Please retry.', 'error');
       });
+  };
+
+  const handleSendComment = async () => {
+    if (!id || !commentText.trim() || commentSending) return;
+    setCommentSending(true);
+    try {
+      await commentsApi.add(id, commentText.trim(), replyingTo?.id);
+      setCommentText('');
+      setReplyingTo(null);
+      await queryClient.invalidateQueries({ queryKey: ['comments', id] });
+    } catch {
+      showToast('Failed to send comment', 'error');
+    } finally {
+      setCommentSending(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (deletingCommentId) return;
+    setDeletingCommentId(commentId);
+    try {
+      await commentsApi.delete(commentId);
+      await queryClient.invalidateQueries({ queryKey: ['comments', id] });
+    } catch {
+      showToast('Failed to delete comment', 'error');
+    } finally {
+      setDeletingCommentId(null);
+    }
+  };
+
+  const handleReply = (comment: CommentItem) => {
+    setReplyingTo({ id: comment.id, authorName: comment.user.nickname });
+    commentInputRef.current?.focus();
+  };
+
+  const formatCommentTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMs / 3600000);
+    const diffDay = Math.floor(diffMs / 86400000);
+
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffDay < 7) return `${diffDay}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const formatDate = (dateStr: string) => {
@@ -299,7 +370,7 @@ const MemoryDetail: React.FC = () => {
        </div>
        <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
-       <main className="flex-1 overflow-y-auto no-scrollbar pb-[calc(6rem+env(safe-area-inset-bottom))]">
+       <main className="flex-1 overflow-y-auto no-scrollbar pb-[calc(8rem+env(safe-area-inset-bottom))]">
           <div className="px-6 py-6">
              {/* Header Info */}
              <div className="flex justify-between items-start mb-6">
@@ -499,12 +570,174 @@ const MemoryDetail: React.FC = () => {
                   )}
                 </div>
              </div>
+
+             {/* Comments Section */}
+             <div className="border-t border-black/[0.05] pt-6 mt-6">
+               <div className="flex items-center gap-2 mb-4">
+                 <span className="material-symbols-outlined text-lg text-ink/60">chat_bubble</span>
+                 <span className="text-[10px] font-bold text-soft-gray uppercase tracking-widest">
+                   Comments{totalCommentCount > 0 ? ` (${totalCommentCount})` : ''}
+                 </span>
+               </div>
+
+               {comments.length === 0 ? (
+                 <div className="py-6 text-center">
+                   <p className="text-sm text-soft-gray/60 italic font-serif">No comments yet. Say something...</p>
+                 </div>
+               ) : (
+                 <div className="space-y-4">
+                   {comments.map((comment) => (
+                     <div key={comment.id}>
+                       {/* Top-level comment */}
+                       <div className="flex gap-2.5 group">
+                         {comment.user.avatar ? (
+                           <div className="size-8 rounded-full overflow-hidden bg-stone-100 shrink-0">
+                             <div
+                               className="w-full h-full bg-cover bg-center"
+                               style={{ backgroundImage: `url("${comment.user.avatar}")` }}
+                             />
+                           </div>
+                         ) : (
+                           <div className="size-8 rounded-full bg-stone-100 flex items-center justify-center shrink-0">
+                             <span className="text-[10px] font-bold text-stone-400">
+                               {comment.user.nickname.slice(0, 1).toUpperCase()}
+                             </span>
+                           </div>
+                         )}
+                         <div className="flex-1 min-w-0">
+                           <div className="flex items-baseline gap-2">
+                             <span className="text-xs font-bold text-ink/80">
+                               {comment.userId === user?.id ? 'You' : comment.user.nickname}
+                             </span>
+                             <span className="text-[10px] text-soft-gray/60">{formatCommentTime(comment.createdAt)}</span>
+                           </div>
+                           <p className="text-sm text-ink/70 mt-0.5 break-words">{comment.content}</p>
+                           <div className="flex items-center gap-3 mt-1.5">
+                             <button
+                               onClick={() => handleReply(comment)}
+                               className="text-[10px] font-bold text-soft-gray/60 hover:text-accent uppercase tracking-wider transition-colors"
+                             >
+                               Reply
+                             </button>
+                             {comment.userId === user?.id && (
+                               <button
+                                 onClick={() => handleDeleteComment(comment.id)}
+                                 disabled={deletingCommentId === comment.id}
+                                 className="text-[10px] font-bold text-soft-gray/40 hover:text-red-400 uppercase tracking-wider transition-colors opacity-0 group-hover:opacity-100"
+                               >
+                                 {deletingCommentId === comment.id ? 'Deleting...' : 'Delete'}
+                               </button>
+                             )}
+                           </div>
+                         </div>
+                       </div>
+
+                       {/* Replies */}
+                       {comment.replies && comment.replies.length > 0 && (
+                         <div className="ml-10 mt-2 space-y-3 border-l-2 border-stone-100 pl-3">
+                           {comment.replies.map((reply) => (
+                             <div key={reply.id} className="flex gap-2.5 group">
+                               {reply.user.avatar ? (
+                                 <div className="size-6 rounded-full overflow-hidden bg-stone-100 shrink-0">
+                                   <div
+                                     className="w-full h-full bg-cover bg-center"
+                                     style={{ backgroundImage: `url("${reply.user.avatar}")` }}
+                                   />
+                                 </div>
+                               ) : (
+                                 <div className="size-6 rounded-full bg-stone-100 flex items-center justify-center shrink-0">
+                                   <span className="text-[9px] font-bold text-stone-400">
+                                     {reply.user.nickname.slice(0, 1).toUpperCase()}
+                                   </span>
+                                 </div>
+                               )}
+                               <div className="flex-1 min-w-0">
+                                 <div className="flex items-baseline gap-2">
+                                   <span className="text-[11px] font-bold text-ink/80">
+                                     {reply.userId === user?.id ? 'You' : reply.user.nickname}
+                                   </span>
+                                   <span className="text-[10px] text-soft-gray/60">{formatCommentTime(reply.createdAt)}</span>
+                                 </div>
+                                 <p className="text-[13px] text-ink/70 mt-0.5 break-words">{reply.content}</p>
+                                 <div className="flex items-center gap-3 mt-1">
+                                   <button
+                                     onClick={() => handleReply(comment)}
+                                     className="text-[10px] font-bold text-soft-gray/60 hover:text-accent uppercase tracking-wider transition-colors"
+                                   >
+                                     Reply
+                                   </button>
+                                   {reply.userId === user?.id && (
+                                     <button
+                                       onClick={() => handleDeleteComment(reply.id)}
+                                       disabled={deletingCommentId === reply.id}
+                                       className="text-[10px] font-bold text-soft-gray/40 hover:text-red-400 uppercase tracking-wider transition-colors opacity-0 group-hover:opacity-100"
+                                     >
+                                       {deletingCommentId === reply.id ? 'Deleting...' : 'Delete'}
+                                     </button>
+                                   )}
+                                 </div>
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       )}
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </div>
           </div>
        </main>
 
-       {/* Floating Action / Edit - Only show for own memories */}
+       {/* Comment Input Bar */}
+       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-40 w-full max-w-[430px] bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-black/[0.05]">
+         {replyingTo && (
+           <div className="flex items-center justify-between px-4 pt-2.5 pb-0">
+             <span className="text-[11px] text-soft-gray">
+               Replying to <span className="font-bold text-ink/70">{replyingTo.authorName}</span>
+             </span>
+             <button
+               onClick={() => setReplyingTo(null)}
+               className="p-0.5 hover:bg-black/5 rounded-full transition-colors"
+             >
+               <span className="material-symbols-outlined text-sm text-soft-gray">close</span>
+             </button>
+           </div>
+         )}
+         <div className="flex items-center gap-2 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+           <input
+             ref={commentInputRef}
+             type="text"
+             placeholder={replyingTo ? 'Write a reply...' : 'Write a comment...'}
+             value={commentText}
+             onChange={(e) => setCommentText(e.target.value)}
+             onKeyDown={(e) => {
+               if (e.key === 'Enter' && !e.shiftKey) {
+                 e.preventDefault();
+                 void handleSendComment();
+               }
+             }}
+             className="flex-1 bg-stone-100 dark:bg-zinc-900 rounded-full px-4 py-2.5 text-sm text-ink placeholder:text-soft-gray/50 focus:outline-none focus:ring-2 focus:ring-primary/20 border-none"
+           />
+           <button
+             onClick={() => void handleSendComment()}
+             disabled={!commentText.trim() || commentSending}
+             className={`size-10 rounded-full flex items-center justify-center transition-all shrink-0 ${
+               commentText.trim()
+                 ? 'bg-accent text-white hover:scale-105 active:scale-95'
+                 : 'bg-stone-100 text-stone-300 cursor-not-allowed'
+             }`}
+           >
+             <span className="material-symbols-outlined text-xl">
+               {commentSending ? 'more_horiz' : 'send'}
+             </span>
+           </button>
+         </div>
+       </div>
+
+       {/* Floating Action / Edit - Only show for own memories, positioned above comment bar */}
        {isOwnMemory && (
-         <div className="fixed bottom-6 right-6 z-30 pb-[env(safe-area-inset-bottom)]">
+         <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-30">
             <button
               onClick={handleEdit}
               className="w-14 h-14 bg-primary text-ink rounded-full shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all"

@@ -442,6 +442,41 @@ export const reactionsApi = {
     } | null>(`/reactions/${memoryId}/me`),
 };
 
+// Comments API
+export interface CommentUser {
+  id: string;
+  nickname: string;
+  avatar: string | null;
+}
+
+export interface CommentItem {
+  id: string;
+  memoryId: string;
+  userId: string;
+  parentId: string | null;
+  content: string;
+  createdAt: string;
+  user: CommentUser;
+  replies?: CommentItem[];
+}
+
+export const commentsApi = {
+  list: (memoryId: string) =>
+    apiClient<CommentItem[]>(`/comments/${memoryId}`),
+
+  add: (memoryId: string, content: string, parentId?: string) =>
+    apiClient<CommentItem>(`/comments/${memoryId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content, parentId }),
+    }),
+
+  delete: (commentId: string) =>
+    apiClient<null>(`/comments/item/${commentId}`, { method: 'DELETE' }),
+
+  count: (memoryId: string) =>
+    apiClient<{ count: number }>(`/comments/${memoryId}/count`),
+};
+
 // Upload API
 const UPLOAD_API_BASE = API_BASE.replace(/\/+$/, '');
 

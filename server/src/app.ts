@@ -8,6 +8,7 @@ import memoriesRoutes from './routes/memories.js';
 import milestonesRoutes from './routes/milestones.js';
 import notificationsRoutes from './routes/notifications.js';
 import reactionsRoutes from './routes/reactions.js';
+import commentsRoutes from './routes/comments.js';
 import uploadRoutes from './routes/upload.js';
 
 const app = express();
@@ -54,6 +55,7 @@ app.use('/api/memories', memoriesRoutes);
 app.use('/api/milestones', milestonesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/reactions', reactionsRoutes);
+app.use('/api/comments', commentsRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // Health check

@@ -66,6 +66,14 @@ export interface DatabaseAdapter {
   deleteReaction(id: string): Promise<void>;
   deleteReactionsByMemoryId(memoryId: string): Promise<void>;
 
+  // Comments
+  createComment(comment: CommentData): Promise<CommentData>;
+  getCommentById(id: string): Promise<CommentData | null>;
+  listCommentsByMemoryId(memoryId: string): Promise<CommentData[]>;
+  countCommentsByMemoryId(memoryId: string): Promise<number>;
+  deleteComment(id: string): Promise<void>;
+  deleteCommentsByMemoryId(memoryId: string): Promise<void>;
+
   // Unbind Requests
   createUnbindRequest(request: UnbindRequestData): Promise<UnbindRequestData>;
   getUnbindRequestBySpaceId(spaceId: string): Promise<UnbindRequestData | null>;
@@ -164,6 +172,16 @@ export interface ReactionData {
   memory_id: string;
   user_id: string;
   type: string;
+  created_at: string;
+  is_deleted?: number;
+}
+
+export interface CommentData {
+  id: string;
+  memory_id: string;
+  user_id: string;
+  parent_id: string | null;
+  content: string;
   created_at: string;
   is_deleted?: number;
 }

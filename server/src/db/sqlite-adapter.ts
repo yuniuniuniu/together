@@ -8,6 +8,7 @@ import {
   MilestoneData,
   NotificationData,
   ReactionData,
+  CommentData,
   UnbindRequestData,
   SessionData,
 } from './adapter.js';
@@ -477,6 +478,49 @@ export class SQLiteAdapter implements DatabaseAdapter {
   async deleteReactionsByMemoryId(memoryId: string): Promise<void> {
     // Use hard delete for reactions to avoid UNIQUE constraint conflicts
     dbPrepare('DELETE FROM reactions WHERE memory_id = ?').run(memoryId);
+    saveDatabase();
+  }
+
+  // Comments
+  async createComment(comment: CommentData): Promise<CommentData> {
+    dbPrepare(`
+      INSERT INTO comments (id, memory_id, user_id, parent_id, content, created_at, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, 0)
+    `).run(
+      comment.id,
+      comment.memory_id,
+      comment.user_id,
+      comment.parent_id,
+      comment.content,
+      comment.created_at || new Date().toISOString()
+    );
+    saveDatabase();
+    return (await this.getCommentById(comment.id))!;
+  }
+
+  async getCommentById(id: string): Promise<CommentData | null> {
+    const row = dbPrepare('SELECT * FROM comments WHERE id = ? AND is_deleted = 0').get(id);
+    return asType<CommentData>(row);
+  }
+
+  async listCommentsByMemoryId(memoryId: string): Promise<CommentData[]> {
+    const rows = dbPrepare('SELECT * FROM comments WHERE memory_id = ? AND is_deleted = 0 ORDER BY created_at ASC').all(memoryId);
+    return asTypeArray<CommentData>(rows);
+  }
+
+  async countCommentsByMemoryId(memoryId: string): Promise<number> {
+    const result = dbPrepare('SELECT COUNT(*) as count FROM comments WHERE memory_id = ? AND is_deleted = 0').get(memoryId) as { count: number };
+    return result.count;
+  }
+
+  async deleteComment(id: string): Promise<void> {
+    // Soft-delete the comment and all its replies
+    dbPrepare('UPDATE comments SET is_deleted = 1 WHERE (id = ? OR parent_id = ?) AND is_deleted = 0').run(id, id);
+    saveDatabase();
+  }
+
+  async deleteCommentsByMemoryId(memoryId: string): Promise<void> {
+    dbPrepare('UPDATE comments SET is_deleted = 1 WHERE memory_id = ? AND is_deleted = 0').run(memoryId);
     saveDatabase();
   }
 

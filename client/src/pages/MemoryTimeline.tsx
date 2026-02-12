@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { memoriesApi, reactionsApi } from '../shared/api/client';
+import { memoriesApi, reactionsApi, commentsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
@@ -11,6 +11,10 @@ import { VideoPreview } from '../shared/components/display/VideoPreview';
 
 interface ReactionState {
   [memoryId: string]: { liked: boolean; count: number };
+}
+
+interface CommentCountState {
+  [memoryId: string]: number;
 }
 
 const MemoryTimeline: React.FC = () => {
@@ -23,6 +27,7 @@ const MemoryTimeline: React.FC = () => {
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
   const [reactions, setReactions] = useState<ReactionState>({});
   const [reactionPending, setReactionPending] = useState<Record<string, boolean>>({});
+  const [commentCounts, setCommentCounts] = useState<CommentCountState>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
@@ -55,7 +60,26 @@ const MemoryTimeline: React.FC = () => {
       setReactions(reactionStates);
     };
 
+    const fetchCommentCounts = async () => {
+      if (!memories || memories.length === 0) {
+        setCommentCounts({});
+        return;
+      }
+
+      const counts: CommentCountState = {};
+      for (const memory of memories) {
+        try {
+          const res = await commentsApi.count(memory.id);
+          counts[memory.id] = res.data.count;
+        } catch {
+          counts[memory.id] = 0;
+        }
+      }
+      setCommentCounts(counts);
+    };
+
     fetchReactions();
+    fetchCommentCounts();
   }, [memories]);
 
   useEffect(() => {
@@ -381,6 +405,15 @@ const MemoryTimeline: React.FC = () => {
                              <span className="text-[10px] font-medium text-stone-400">
                                {reactions[memory.id].count} {reactions[memory.id].count === 1 ? 'reaction' : 'reactions'}
                              </span>
+                           )}
+
+                           {commentCounts[memory.id] > 0 && (
+                             <div className="flex items-center gap-1 text-stone-400">
+                               <span className="material-symbols-outlined text-sm">chat_bubble</span>
+                               <span className="text-[10px] font-medium">
+                                 {commentCounts[memory.id]}
+                               </span>
+                             </div>
                            )}
                         </div>
 
