@@ -8,6 +8,7 @@ import { ToastProvider } from './shared/components/feedback/Toast';
 import { MobileWrapper } from './shared/components/layout/MobileWrapper';
 import { ProtectedRoute, PublicOnlyRoute } from './shared/components/auth/ProtectedRoute';
 import { AndroidBackHandler } from './shared/components/native/AndroidBackHandler';
+import { WidgetSync } from './shared/components/native/WidgetSync';
 
 // Eagerly loaded pages (critical path: login + dashboard)
 import Login from './pages/Login';
@@ -57,6 +58,7 @@ const App: React.FC = () => {
           <ToastProvider>
           <HashRouter>
             <AndroidBackHandler />
+            <WidgetSync />
             <MobileWrapper>
               <Suspense fallback={<div className="flex-1 flex items-center justify-center min-h-screen bg-background-light"><div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" /></div>}>
               <Routes>

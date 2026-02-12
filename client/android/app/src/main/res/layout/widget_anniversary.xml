@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="@drawable/widget_background">
+
+    <!-- 头像区域 - 两个头像重叠 -->
+    <FrameLayout
+        android:id="@+id/avatar_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="12dp">
+
+        <!-- 用户1头像（左边） -->
+        <ImageView
+            android:id="@+id/widget_avatar1"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:src="@drawable/default_avatar"
+            android:scaleType="centerCrop"
+            android:background="@drawable/avatar_circle_pink"
+            android:clipToOutline="true"
+            android:layout_marginEnd="20dp" />
+
+        <!-- 用户2头像（右边，重叠） -->
+        <ImageView
+            android:id="@+id/widget_avatar2"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:src="@drawable/default_avatar"
+            android:scaleType="centerCrop"
+            android:background="@drawable/avatar_circle_pink"
+            android:clipToOutline="true"
+            android:layout_marginStart="36dp" />
+
+    </FrameLayout>
+
+    <!-- 天数 - 大号深蓝色数字 -->
+    <TextView
+        android:id="@+id/widget_days"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/avatar_container"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="8dp"
+        android:text="0"
+        android:textSize="52sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:fontFamily="sans-serif-medium" />
+
+    <!-- Days Together 标签 -->
+    <TextView
+        android:id="@+id/widget_days_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_days"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="-4dp"
+        android:text="Days Together"
+        android:textSize="16sp"
+        android:textColor="#000000"
+        android:fontFamily="sans-serif-medium" />
+
+    <!-- Since 日期 -->
+    <TextView
+        android:id="@+id/widget_since_date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_days_label"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="4dp"
+        android:text="Since Oct 14"
+        android:textSize="13sp"
+        android:textColor="#718096" />
+
+</RelativeLayout>
