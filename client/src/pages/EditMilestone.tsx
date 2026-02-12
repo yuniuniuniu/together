@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
-import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { Platform } from '../shared/utils/platform';
 import { mapWithConcurrency } from '../shared/utils/concurrency';
 import { compressImage } from '../shared/utils/imageCompress';
@@ -38,7 +37,6 @@ const EditMilestone: React.FC = () => {
   const [error, setError] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   useEffect(() => {
     const fetchMilestone = async () => {
@@ -172,13 +170,11 @@ const EditMilestone: React.FC = () => {
   }
 
   return (
-    <div className="bg-milestone-cream dark:bg-milestone-zinc-dark font-manrope antialiased text-zinc-900 dark:text-zinc-100 min-h-screen flex flex-col">
-      <div className="relative flex h-full min-h-screen w-full max-w-md mx-auto flex-col overflow-x-hidden sm:shadow-2xl bg-milestone-cream dark:bg-milestone-zinc-dark">
-
+    <div className="flex-1 flex flex-col bg-milestone-cream dark:bg-milestone-zinc-dark h-[100dvh] min-h-[100dvh] overflow-hidden relative font-manrope antialiased text-zinc-900 dark:text-zinc-100">
+      <main className="flex-1 min-h-0 flex flex-col w-full max-w-md mx-auto overflow-y-auto no-scrollbar sm:shadow-2xl bg-milestone-cream dark:bg-milestone-zinc-dark">
         {/* Top Navigation Bar */}
         <header
-          ref={topBarRef}
-          className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-5 pb-4 pt-safe-offset-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md border-b border-zinc-200/60 dark:border-zinc-800/80 transition-all"
+          className="sticky top-0 z-50 w-full flex items-center justify-between px-5 pb-4 pt-safe-offset-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md border-b border-zinc-200/60 dark:border-zinc-800/80 transition-all"
         >
           <button
             onClick={() => navigate(-1)}
@@ -197,10 +193,9 @@ const EditMilestone: React.FC = () => {
             <span>{isSaving ? 'Saving...' : 'Save'}</span>
           </button>
         </header>
-        <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col px-6 pb-10 pt-2 gap-8">
+        <div className="flex-1 flex flex-col px-6 pb-10 pt-2 gap-8">
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
@@ -397,8 +392,8 @@ const EditMilestone: React.FC = () => {
             </div>
           </div>
 
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };

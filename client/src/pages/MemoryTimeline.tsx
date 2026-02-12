@@ -28,6 +28,7 @@ const MemoryTimeline: React.FC = () => {
   const [reactions, setReactions] = useState<ReactionState>({});
   const [reactionPending, setReactionPending] = useState<Record<string, boolean>>({});
   const [commentCounts, setCommentCounts] = useState<CommentCountState>({});
+  const [reactionsLoaded, setReactionsLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
@@ -36,60 +37,61 @@ const MemoryTimeline: React.FC = () => {
   useEffect(() => {
     setLastMemoryPath('/memory/timeline');
 
-    const fetchReactions = async () => {
+    const fetchReactionsAndComments = async () => {
       if (!memories || memories.length === 0) {
         setReactions({});
-        return;
-      }
-
-      const results = await Promise.all(
-        memories.map(async (memory) => {
-          try {
-            const [reactionsRes, myReactionRes] = await Promise.all([
-              reactionsApi.list(memory.id),
-              reactionsApi.getMine(memory.id),
-            ]);
-            const state = {
-              liked: myReactionRes.data !== null,
-              count: reactionsRes.data.length,
-            };
-            // Seed the React Query cache so MemoryDetail won't re-fetch
-            queryClient.setQueryData(['reactions', memory.id], state);
-            return { id: memory.id, state };
-          } catch {
-            return { id: memory.id, state: { liked: false, count: 0 } };
-          }
-        })
-      );
-      const reactionStates: ReactionState = {};
-      for (const r of results) reactionStates[r.id] = r.state;
-      setReactions(reactionStates);
-    };
-
-    const fetchCommentCounts = async () => {
-      if (!memories || memories.length === 0) {
         setCommentCounts({});
+        setReactionsLoaded(true);
         return;
       }
 
-      const results = await Promise.all(
-        memories.map(async (memory) => {
-          try {
-            const res = await commentsApi.count(memory.id);
-            return { id: memory.id, count: res.data.count };
-          } catch {
-            return { id: memory.id, count: 0 };
-          }
-        })
-      );
+      // Fetch reactions and comments in parallel
+      const [reactionResults, commentResults] = await Promise.all([
+        Promise.all(
+          memories.map(async (memory) => {
+            try {
+              const [reactionsRes, myReactionRes] = await Promise.all([
+                reactionsApi.list(memory.id),
+                reactionsApi.getMine(memory.id),
+              ]);
+              const state = {
+                liked: myReactionRes.data !== null,
+                count: reactionsRes.data.length,
+              };
+              // Seed the React Query cache so MemoryDetail won't re-fetch
+              queryClient.setQueryData(['reactions', memory.id], state);
+              return { id: memory.id, state };
+            } catch {
+              return { id: memory.id, state: { liked: false, count: 0 } };
+            }
+          })
+        ),
+        Promise.all(
+          memories.map(async (memory) => {
+            try {
+              const res = await commentsApi.count(memory.id);
+              return { id: memory.id, count: res.data.count };
+            } catch {
+              return { id: memory.id, count: 0 };
+            }
+          })
+        ),
+      ]);
+
+      const reactionStates: ReactionState = {};
+      for (const r of reactionResults) reactionStates[r.id] = r.state;
+
       const counts: CommentCountState = {};
-      for (const r of results) counts[r.id] = r.count;
+      for (const r of commentResults) counts[r.id] = r.count;
+
+      // Update all states at once to avoid multiple re-renders
+      setReactions(reactionStates);
       setCommentCounts(counts);
+      setReactionsLoaded(true);
     };
 
-    fetchReactions();
-    fetchCommentCounts();
-  }, [memories]);
+    fetchReactionsAndComments();
+  }, [memories, queryClient]);
 
   useEffect(() => {
     const navElement = navRef.current;
@@ -389,19 +391,19 @@ const MemoryTimeline: React.FC = () => {
 
                       {/* Footer Actions */}
                       <div className="flex items-center justify-between pt-4 border-t border-stone-50 dark:border-zinc-800/50">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-h-[32px]">
                            <div className="flex items-center">
                              <button
                                onClick={(e) => handleToggleLike(memory.id, memory.createdBy, e)}
-                               disabled={reactionPending[memory.id] || isOwnMemory}
-                               className={`flex items-center justify-center size-8 rounded-full transition-all ${
+                               disabled={reactionPending[memory.id] || isOwnMemory || !reactionsLoaded}
+                               className={`flex items-center justify-center size-8 rounded-full transition-colors duration-150 ${
                                  reactions[memory.id]?.liked
                                    ? 'bg-red-50 text-wine'
                                    : 'bg-stone-50 text-stone-400 hover:bg-stone-100'
-                               } ${(reactionPending[memory.id] || isOwnMemory) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                               } ${(reactionPending[memory.id] || isOwnMemory || !reactionsLoaded) ? 'opacity-60 cursor-not-allowed' : ''}`}
                              >
                                <span
-                                 className={`material-symbols-outlined text-lg transition-transform ${
+                                 className={`material-symbols-outlined text-lg transition-transform duration-150 ${
                                    reactions[memory.id]?.liked ? 'scale-110' : ''
                                  }`}
                                  style={reactions[memory.id]?.liked ? { fontVariationSettings: "'FILL' 1" } : {}}
@@ -410,21 +412,21 @@ const MemoryTimeline: React.FC = () => {
                                </span>
                              </button>
                            </div>
-                           
-                           {reactions[memory.id]?.count > 0 && (
-                             <span className="text-[10px] font-medium text-stone-400">
-                               {reactions[memory.id].count} {reactions[memory.id].count === 1 ? 'reaction' : 'reactions'}
-                             </span>
-                           )}
 
-                           {commentCounts[memory.id] > 0 && (
-                             <div className="flex items-center gap-1 text-stone-400">
-                               <span className="material-symbols-outlined text-sm">chat_bubble</span>
-                               <span className="text-[10px] font-medium">
-                                 {commentCounts[memory.id]}
-                               </span>
-                             </div>
-                           )}
+                           <span className={`text-[10px] font-medium text-stone-400 transition-opacity duration-150 ${
+                             reactionsLoaded && reactions[memory.id]?.count > 0 ? 'opacity-100' : 'opacity-0'
+                           }`}>
+                             {reactions[memory.id]?.count || 0} {(reactions[memory.id]?.count || 0) === 1 ? 'reaction' : 'reactions'}
+                           </span>
+
+                           <div className={`flex items-center gap-1 text-stone-400 transition-opacity duration-150 ${
+                             reactionsLoaded && commentCounts[memory.id] > 0 ? 'opacity-100' : 'opacity-0'
+                           }`}>
+                             <span className="material-symbols-outlined text-sm">chat_bubble</span>
+                             <span className="text-[10px] font-medium">
+                               {commentCounts[memory.id] || 0}
+                             </span>
+                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-stone-300 min-w-0">

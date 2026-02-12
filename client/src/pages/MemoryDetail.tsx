@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { memoriesApi, reactionsApi, commentsApi, type CommentItem } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
-import { EnhancedImageViewer } from '../shared/components/display/EnhancedImageViewer';
 import { VideoPreview } from '../shared/components/display/VideoPreview';
+import { SwipeableImageContainer } from '../shared/components/display/SwipeableImageContainer';
 import { countWords } from '../shared/utils/wordCount';
 import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
+
+const PREVIEW_MIN_ZOOM = 1;
+const PREVIEW_MAX_ZOOM = 4;
 
 interface Memory {
   id: string;
@@ -46,6 +49,9 @@ const MemoryDetail: React.FC = () => {
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
+  const [isPreviewDragging, setIsPreviewDragging] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState<{ id: string; authorName: string } | null>(null);
   const [commentSending, setCommentSending] = useState(false);
@@ -56,6 +62,31 @@ const MemoryDetail: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   const { topBarRef, topBarHeight } = useFixedTopBar();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const previewGestureRef = useRef<{
+    pinchStartDistance: number;
+    pinchStartZoom: number;
+    dragStartX: number;
+    dragStartY: number;
+    dragOriginX: number;
+    dragOriginY: number;
+    touchStartX: number;
+    touchStartY: number;
+    hasMoved: boolean;
+    lastTapAt: number;
+  }>({
+    pinchStartDistance: 0,
+    pinchStartZoom: 1,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragOriginX: 0,
+    dragOriginY: 0,
+    touchStartX: 0,
+    touchStartY: 0,
+    hasMoved: false,
+    lastTapAt: 0,
+  });
+  const previewTapCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
   const memoryQuery = useQuery({
     queryKey: ['memory', id],
@@ -319,6 +350,183 @@ const MemoryDetail: React.FC = () => {
     }
   };
 
+  const isVideoUrl = (url: string) => /\.(mp4|webm|mov|avi|m4v)$/i.test(url);
+
+  // Media preview handlers
+  const handleOpenMediaPreview = (index: number) => {
+    setViewerIndex(index);
+    setViewerOpen(true);
+  };
+
+  const clampPreviewOffset = useCallback((nextZoom: number, nextOffset: { x: number; y: number }) => {
+    const bounds = previewContainerRef.current?.getBoundingClientRect();
+    if (!bounds) return nextOffset;
+
+    const maxX = Math.max(0, ((nextZoom - 1) * bounds.width) / 2);
+    const maxY = Math.max(0, ((nextZoom - 1) * bounds.height) / 2);
+
+    return {
+      x: Math.max(-maxX, Math.min(maxX, nextOffset.x)),
+      y: Math.max(-maxY, Math.min(maxY, nextOffset.y)),
+    };
+  }, []);
+
+  const resetPreviewTransform = useCallback(() => {
+    setPreviewZoom(1);
+    setPreviewOffset({ x: 0, y: 0 });
+    setIsPreviewDragging(false);
+    previewGestureRef.current.pinchStartDistance = 0;
+    previewGestureRef.current.pinchStartZoom = 1;
+    previewGestureRef.current.dragStartX = 0;
+    previewGestureRef.current.dragStartY = 0;
+    previewGestureRef.current.dragOriginX = 0;
+    previewGestureRef.current.dragOriginY = 0;
+    previewGestureRef.current.touchStartX = 0;
+    previewGestureRef.current.touchStartY = 0;
+    previewGestureRef.current.hasMoved = false;
+  }, []);
+
+  const clearPreviewTapCloseTimer = useCallback(() => {
+    if (previewTapCloseTimerRef.current) {
+      clearTimeout(previewTapCloseTimerRef.current);
+      previewTapCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const togglePreviewZoom = useCallback(() => {
+    if (previewZoom > PREVIEW_MIN_ZOOM) {
+      resetPreviewTransform();
+      return;
+    }
+    setPreviewZoom(2);
+  }, [previewZoom, resetPreviewTransform]);
+
+  const handleCloseMediaPreview = useCallback(() => {
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setViewerOpen(false);
+  }, [clearPreviewTapCloseTimer, resetPreviewTransform]);
+
+  const handlePrevPreviewMedia = useCallback((mediaLength: number) => {
+    if (mediaLength === 0) return;
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setViewerIndex((prev) => (prev - 1 + mediaLength) % mediaLength);
+  }, [clearPreviewTapCloseTimer, resetPreviewTransform]);
+
+  const handleNextPreviewMedia = useCallback((mediaLength: number) => {
+    if (mediaLength === 0) return;
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setViewerIndex((prev) => (prev + 1) % mediaLength);
+  }, [clearPreviewTapCloseTimer, resetPreviewTransform]);
+
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  const handlePreviewTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    clearPreviewTapCloseTimer();
+    const touchCount = event.touches.length;
+    if (touchCount === 2) {
+      const distance = getTouchDistance(event.touches);
+      previewGestureRef.current.pinchStartDistance = distance;
+      previewGestureRef.current.pinchStartZoom = previewZoom;
+      previewGestureRef.current.hasMoved = true;
+      setIsPreviewDragging(false);
+      return;
+    }
+
+    if (touchCount === 1) {
+      const touch = event.touches[0];
+      previewGestureRef.current.touchStartX = touch.clientX;
+      previewGestureRef.current.touchStartY = touch.clientY;
+      previewGestureRef.current.hasMoved = false;
+
+      if (previewZoom <= PREVIEW_MIN_ZOOM) return;
+
+      previewGestureRef.current.dragStartX = touch.clientX;
+      previewGestureRef.current.dragStartY = touch.clientY;
+      previewGestureRef.current.dragOriginX = previewOffset.x;
+      previewGestureRef.current.dragOriginY = previewOffset.y;
+      setIsPreviewDragging(true);
+    }
+  };
+
+  const handlePreviewTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 2) {
+      event.preventDefault();
+      previewGestureRef.current.hasMoved = true;
+      const distance = getTouchDistance(event.touches);
+      const startDistance = previewGestureRef.current.pinchStartDistance;
+      if (startDistance <= 0) return;
+      const rawZoom = previewGestureRef.current.pinchStartZoom * (distance / startDistance);
+      const nextZoom = Math.max(PREVIEW_MIN_ZOOM, Math.min(PREVIEW_MAX_ZOOM, rawZoom));
+      setPreviewZoom(nextZoom);
+      setPreviewOffset((previous) => clampPreviewOffset(nextZoom, previous));
+      return;
+    }
+
+    if (event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const distanceFromStart = Math.hypot(
+      touch.clientX - previewGestureRef.current.touchStartX,
+      touch.clientY - previewGestureRef.current.touchStartY
+    );
+    if (distanceFromStart > 8) {
+      previewGestureRef.current.hasMoved = true;
+    }
+
+    if (previewZoom > PREVIEW_MIN_ZOOM) {
+      event.preventDefault();
+      const deltaX = touch.clientX - previewGestureRef.current.dragStartX;
+      const deltaY = touch.clientY - previewGestureRef.current.dragStartY;
+      const nextOffset = {
+        x: previewGestureRef.current.dragOriginX + deltaX,
+        y: previewGestureRef.current.dragOriginY + deltaY,
+      };
+      setPreviewOffset(clampPreviewOffset(previewZoom, nextOffset));
+    }
+  };
+
+  const handlePreviewTouchEnd = () => {
+    setIsPreviewDragging(false);
+    if (previewGestureRef.current.hasMoved) return;
+
+    const now = Date.now();
+    if (now - previewGestureRef.current.lastTapAt < 280) {
+      clearPreviewTapCloseTimer();
+      togglePreviewZoom();
+      previewGestureRef.current.lastTapAt = 0;
+      return;
+    }
+    previewGestureRef.current.lastTapAt = now;
+
+    if (previewZoom <= PREVIEW_MIN_ZOOM) {
+      setPreviewOffset({ x: 0, y: 0 });
+      previewTapCloseTimerRef.current = setTimeout(() => {
+        handleCloseMediaPreview();
+      }, 280);
+    }
+  };
+
+  useEffect(() => {
+    if (!viewerOpen) {
+      clearPreviewTapCloseTimer();
+      resetPreviewTransform();
+    }
+  }, [viewerOpen, resetPreviewTransform, clearPreviewTapCloseTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearPreviewTapCloseTimer();
+    };
+  }, [clearPreviewTapCloseTimer]);
+
   if (memoryQuery.isLoading && !memory && !errorMessage) {
     return (
       <div className="flex-1 flex flex-col bg-background-light min-h-screen">
@@ -369,7 +577,6 @@ const MemoryDetail: React.FC = () => {
   const authorAvatarUrl = isOwnMemory ? user?.avatar : partner?.user?.avatar;
   const authorName = isOwnMemory ? (user?.nickname || 'You') : (partner?.user?.nickname || 'Partner');
   const mediaUrls = memory.photos || [];
-  const imageUrls = mediaUrls.filter((url) => !url.match(/\.(mp4|webm|mov|avi|m4v)$/i));
   const computedWordCount = memory.content ? countWords(memory.content) : 0;
   const wordCount = memory.wordCount ?? computedWordCount;
 
@@ -477,44 +684,39 @@ const MemoryDetail: React.FC = () => {
                <div className="mb-8">
                 <div className="grid grid-cols-3 gap-2">
                   {mediaUrls.map((url, index) => {
-                    const isVideo = url.match(/\.(mp4|webm|mov|avi|m4v)$/i);
+                    const isVideo = isVideoUrl(url);
                     const isGif = url.match(/\.gif$/i);
 
-                    if (isVideo) {
-                      return (
-                        <div key={index} className="aspect-square relative overflow-hidden rounded-xl bg-black">
-                          <VideoPreview
-                            src={url}
-                            className="w-full h-full object-cover"
-                            iconSize="sm"
-                            enableFullscreen={true}
-                          />
-                        </div>
-                      );
-                    }
-
-                    const imageIndex = imageUrls.indexOf(url);
                     return (
                       <button
                         key={index}
-                        onClick={() => {
-                          if (imageIndex < 0) return;
-                          setViewerIndex(imageIndex);
-                          setViewerOpen(true);
-                        }}
+                        onClick={() => handleOpenMediaPreview(index)}
                         className="aspect-square relative overflow-hidden rounded-xl bg-gray-100 active:scale-[0.98] transition-transform"
                       >
-                        <img
-                          src={url}
-                          alt={`Memory media ${index + 1}`}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                        {isGif && (
-                          <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
-                            GIF
+                        {isVideo ? (
+                          <div className="w-full h-full relative bg-black">
+                            <VideoPreview
+                              src={url}
+                              className="w-full h-full object-cover"
+                              iconSize="sm"
+                              enableFullscreen={false}
+                            />
                           </div>
+                        ) : (
+                          <>
+                            <img
+                              src={url}
+                              alt={`Memory media ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                            {isGif && (
+                              <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
+                                GIF
+                              </div>
+                            )}
+                          </>
                         )}
                       </button>
                     );
@@ -782,13 +984,87 @@ const MemoryDetail: React.FC = () => {
          </div>
        )}
 
-      {imageUrls.length > 0 && (
-        <EnhancedImageViewer
-          images={imageUrls}
-          initialIndex={viewerIndex}
-          isOpen={viewerOpen}
-          onClose={() => setViewerOpen(false)}
-        />
+      {/* Unified Media Preview Overlay */}
+      {viewerOpen && mediaUrls.length > 0 && mediaUrls[viewerIndex] && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col">
+          {/* Header with page indicator */}
+          {mediaUrls.length > 1 && (
+            <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center px-4 py-3 pt-safe-offset-3 bg-gradient-to-b from-black/50 to-transparent">
+              <span className="text-white/90 text-sm font-medium">
+                {viewerIndex + 1} / {mediaUrls.length}
+              </span>
+            </div>
+          )}
+
+          <div
+            ref={previewContainerRef}
+            className="flex-1 relative flex items-center justify-center overflow-hidden"
+            onDoubleClick={togglePreviewZoom}
+            onTouchStart={handlePreviewTouchStart}
+            onTouchMove={handlePreviewTouchMove}
+            onTouchEnd={handlePreviewTouchEnd}
+            style={{ touchAction: previewZoom > PREVIEW_MIN_ZOOM ? 'none' : 'manipulation' }}
+          >
+            <SwipeableImageContainer
+              onSwipeLeft={() => handleNextPreviewMedia(mediaUrls.length)}
+              onSwipeRight={() => handlePrevPreviewMedia(mediaUrls.length)}
+              canSwipeLeft={viewerIndex < mediaUrls.length - 1}
+              canSwipeRight={viewerIndex > 0}
+              disabled={previewZoom > PREVIEW_MIN_ZOOM}
+            >
+              {isVideoUrl(mediaUrls[viewerIndex]) ? (
+                <div
+                  className="flex items-center justify-center w-full h-full"
+                  onClick={handleCloseMediaPreview}
+                >
+                  <video
+                    src={mediaUrls[viewerIndex]}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-full max-w-full rounded-lg"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="max-h-full max-w-full flex items-center justify-center select-none"
+                  style={{
+                    transform: `translate3d(${previewOffset.x}px, ${previewOffset.y}px, 0) scale(${previewZoom})`,
+                    transition: isPreviewDragging ? 'none' : 'transform 140ms ease-out',
+                  }}
+                >
+                  <img
+                    src={mediaUrls[viewerIndex]}
+                    alt={`Memory media ${viewerIndex + 1}`}
+                    className="max-h-full max-w-full object-contain rounded-lg pointer-events-none select-none"
+                    draggable={false}
+                  />
+                </div>
+              )}
+            </SwipeableImageContainer>
+          </div>
+
+          {/* Dots Indicator */}
+          {mediaUrls.length > 1 && mediaUrls.length <= 9 && (
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 pb-safe">
+              {mediaUrls.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    resetPreviewTransform();
+                    setViewerIndex(index);
+                  }}
+                  className={`h-2 rounded-full transition-all ${
+                    index === viewerIndex
+                      ? 'bg-white w-6'
+                      : 'bg-white/40 hover:bg-white/60 w-2'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Delete Comment ActionSheet */}
