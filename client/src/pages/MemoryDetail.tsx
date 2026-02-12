@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { memoriesApi, reactionsApi } from '../shared/api/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { memoriesApi, reactionsApi, commentsApi, type CommentItem } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
-import { EnhancedImageViewer } from '../shared/components/display/EnhancedImageViewer';
 import { VideoPreview } from '../shared/components/display/VideoPreview';
+import { SwipeableImageContainer } from '../shared/components/display/SwipeableImageContainer';
 import { countWords } from '../shared/utils/wordCount';
 import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
+
+const PREVIEW_MIN_ZOOM = 1;
+const PREVIEW_MAX_ZOOM = 4;
 
 interface Memory {
   id: string;
@@ -40,17 +43,51 @@ const MemoryDetail: React.FC = () => {
   const initialMemory = routeState?.memory && routeState.memory.id === id ? routeState.memory : null;
   const [actionError, setActionError] = useState('');
   const [isVisible, setIsVisible] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
   const [reactionPending, setReactionPending] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
+  const [isPreviewDragging, setIsPreviewDragging] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<{ id: string; authorName: string } | null>(null);
+  const [commentSending, setCommentSending] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [longPressCommentId, setLongPressCommentId] = useState<string | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { topBarRef, topBarHeight } = useFixedTopBar();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const previewGestureRef = useRef<{
+    pinchStartDistance: number;
+    pinchStartZoom: number;
+    dragStartX: number;
+    dragStartY: number;
+    dragOriginX: number;
+    dragOriginY: number;
+    touchStartX: number;
+    touchStartY: number;
+    hasMoved: boolean;
+    lastTapAt: number;
+  }>({
+    pinchStartDistance: 0,
+    pinchStartZoom: 1,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragOriginX: 0,
+    dragOriginY: 0,
+    touchStartX: 0,
+    touchStartY: 0,
+    hasMoved: false,
+    lastTapAt: 0,
+  });
+  const previewTapCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryClient = useQueryClient();
   const memoryQuery = useQuery({
     queryKey: ['memory', id],
     queryFn: async () => {
@@ -61,10 +98,49 @@ const MemoryDetail: React.FC = () => {
       return response.data as Memory;
     },
     enabled: Boolean(id),
-    staleTime: 15_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
     initialData: initialMemory ?? undefined,
   });
   const memory = memoryQuery.data ?? null;
+
+  const reactionsQuery = useQuery({
+    queryKey: ['reactions', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Memory id is required');
+      const [reactionsRes, myReactionRes] = await Promise.all([
+        reactionsApi.list(id),
+        reactionsApi.getMine(id),
+      ]);
+      return {
+        count: reactionsRes.data.length,
+        liked: myReactionRes.data !== null,
+      };
+    },
+    enabled: Boolean(id),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+  });
+  const isLiked = reactionsQuery.data?.liked ?? false;
+  const likeCount = reactionsQuery.data?.count ?? 0;
+
+  const commentsQuery = useQuery({
+    queryKey: ['comments', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Memory id is required');
+      const response = await commentsApi.list(id);
+      return response.data as CommentItem[];
+    },
+    enabled: Boolean(id),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+  });
+  const comments = commentsQuery.data ?? [];
+  const totalCommentCount = comments.reduce(
+    (acc, c) => acc + 1 + (c.replies?.length ?? 0),
+    0
+  );
+
   const errorMessage =
     actionError ||
     (memoryQuery.error instanceof Error
@@ -80,24 +156,6 @@ const MemoryDetail: React.FC = () => {
     };
   }, [id]);
 
-  useEffect(() => {
-    const fetchReactions = async () => {
-      if (!id) return;
-      try {
-        const [reactionsRes, myReactionRes] = await Promise.all([
-          reactionsApi.list(id),
-          reactionsApi.getMine(id),
-        ]);
-        setLikeCount(reactionsRes.data.length);
-        setIsLiked(myReactionRes.data !== null);
-      } catch {
-        setLikeCount(0);
-        setIsLiked(false);
-      }
-    };
-
-    fetchReactions();
-  }, [id]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -116,14 +174,31 @@ const MemoryDetail: React.FC = () => {
       return;
     }
     setReactionPending(true);
+
+    // Optimistic update
+    const prev = reactionsQuery.data;
+    const optimistic = prev
+      ? { count: prev.liked ? Math.max(prev.count - 1, 0) : prev.count + 1, liked: !prev.liked }
+      : { count: 1, liked: true };
+    queryClient.setQueryData(['reactions', id], optimistic);
+
     try {
       const result = await reactionsApi.toggle(id);
       if (result.action === 'blocked') {
+        // Revert on blocked
+        if (prev) queryClient.setQueryData(['reactions', id], prev);
         return;
       }
-      setIsLiked(result.action === 'added');
-      setLikeCount(prev => result.action === 'added' ? prev + 1 : Math.max(prev - 1, 0));
+      // Reconcile with server truth
+      queryClient.setQueryData(['reactions', id], {
+        count: result.action === 'added'
+          ? (prev ? prev.count + 1 : 1)
+          : Math.max((prev?.count ?? 1) - 1, 0),
+        liked: result.action === 'added',
+      });
     } catch {
+      // Revert on error
+      if (prev) queryClient.setQueryData(['reactions', id], prev);
       showToast('Failed to update reaction', 'error');
     } finally {
       setReactionPending(false);
@@ -175,6 +250,81 @@ const MemoryDetail: React.FC = () => {
       });
   };
 
+  const handleSendComment = async () => {
+    if (!id || !commentText.trim() || commentSending) return;
+    setCommentSending(true);
+    try {
+      await commentsApi.add(id, commentText.trim(), replyingTo?.id);
+      setCommentText('');
+      setReplyingTo(null);
+      await queryClient.invalidateQueries({ queryKey: ['comments', id] });
+    } catch {
+      showToast('Failed to send comment', 'error');
+    } finally {
+      setCommentSending(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (deletingCommentId) return;
+    setDeletingCommentId(commentId);
+    try {
+      await commentsApi.delete(commentId);
+      await queryClient.invalidateQueries({ queryKey: ['comments', id] });
+    } catch {
+      showToast('Failed to delete comment', 'error');
+    } finally {
+      setDeletingCommentId(null);
+    }
+  };
+
+  const handleReply = (comment: CommentItem) => {
+    setReplyingTo({ id: comment.id, authorName: comment.user.nickname });
+    setLongPressCommentId(null);
+    commentInputRef.current?.focus();
+  };
+
+  // Long press handlers for touch devices (Android)
+  const startLongPress = (commentId: string, isOwn: boolean) => {
+    if (!isOwn) return;
+    longPressTimerRef.current = setTimeout(() => {
+      setLongPressCommentId(commentId);
+    }, 500);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleCommentTap = (comment: CommentItem, isReply: boolean, parentComment?: CommentItem) => {
+    // If long press menu is open, close it instead
+    if (longPressCommentId) {
+      setLongPressCommentId(null);
+      return;
+    }
+    // Tap on any comment/reply triggers reply to the top-level comment
+    const targetComment = isReply && parentComment ? parentComment : comment;
+    handleReply(targetComment);
+  };
+
+  const formatCommentTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMs / 3600000);
+    const diffDay = Math.floor(diffMs / 86400000);
+
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffDay < 7) return `${diffDay}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -199,6 +349,183 @@ const MemoryDetail: React.FC = () => {
       default: return 'sentiment_satisfied';
     }
   };
+
+  const isVideoUrl = (url: string) => /\.(mp4|webm|mov|avi|m4v)$/i.test(url);
+
+  // Media preview handlers
+  const handleOpenMediaPreview = (index: number) => {
+    setViewerIndex(index);
+    setViewerOpen(true);
+  };
+
+  const clampPreviewOffset = useCallback((nextZoom: number, nextOffset: { x: number; y: number }) => {
+    const bounds = previewContainerRef.current?.getBoundingClientRect();
+    if (!bounds) return nextOffset;
+
+    const maxX = Math.max(0, ((nextZoom - 1) * bounds.width) / 2);
+    const maxY = Math.max(0, ((nextZoom - 1) * bounds.height) / 2);
+
+    return {
+      x: Math.max(-maxX, Math.min(maxX, nextOffset.x)),
+      y: Math.max(-maxY, Math.min(maxY, nextOffset.y)),
+    };
+  }, []);
+
+  const resetPreviewTransform = useCallback(() => {
+    setPreviewZoom(1);
+    setPreviewOffset({ x: 0, y: 0 });
+    setIsPreviewDragging(false);
+    previewGestureRef.current.pinchStartDistance = 0;
+    previewGestureRef.current.pinchStartZoom = 1;
+    previewGestureRef.current.dragStartX = 0;
+    previewGestureRef.current.dragStartY = 0;
+    previewGestureRef.current.dragOriginX = 0;
+    previewGestureRef.current.dragOriginY = 0;
+    previewGestureRef.current.touchStartX = 0;
+    previewGestureRef.current.touchStartY = 0;
+    previewGestureRef.current.hasMoved = false;
+  }, []);
+
+  const clearPreviewTapCloseTimer = useCallback(() => {
+    if (previewTapCloseTimerRef.current) {
+      clearTimeout(previewTapCloseTimerRef.current);
+      previewTapCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const togglePreviewZoom = useCallback(() => {
+    if (previewZoom > PREVIEW_MIN_ZOOM) {
+      resetPreviewTransform();
+      return;
+    }
+    setPreviewZoom(2);
+  }, [previewZoom, resetPreviewTransform]);
+
+  const handleCloseMediaPreview = useCallback(() => {
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setViewerOpen(false);
+  }, [clearPreviewTapCloseTimer, resetPreviewTransform]);
+
+  const handlePrevPreviewMedia = useCallback((mediaLength: number) => {
+    if (mediaLength === 0) return;
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setViewerIndex((prev) => (prev - 1 + mediaLength) % mediaLength);
+  }, [clearPreviewTapCloseTimer, resetPreviewTransform]);
+
+  const handleNextPreviewMedia = useCallback((mediaLength: number) => {
+    if (mediaLength === 0) return;
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setViewerIndex((prev) => (prev + 1) % mediaLength);
+  }, [clearPreviewTapCloseTimer, resetPreviewTransform]);
+
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  const handlePreviewTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    clearPreviewTapCloseTimer();
+    const touchCount = event.touches.length;
+    if (touchCount === 2) {
+      const distance = getTouchDistance(event.touches);
+      previewGestureRef.current.pinchStartDistance = distance;
+      previewGestureRef.current.pinchStartZoom = previewZoom;
+      previewGestureRef.current.hasMoved = true;
+      setIsPreviewDragging(false);
+      return;
+    }
+
+    if (touchCount === 1) {
+      const touch = event.touches[0];
+      previewGestureRef.current.touchStartX = touch.clientX;
+      previewGestureRef.current.touchStartY = touch.clientY;
+      previewGestureRef.current.hasMoved = false;
+
+      if (previewZoom <= PREVIEW_MIN_ZOOM) return;
+
+      previewGestureRef.current.dragStartX = touch.clientX;
+      previewGestureRef.current.dragStartY = touch.clientY;
+      previewGestureRef.current.dragOriginX = previewOffset.x;
+      previewGestureRef.current.dragOriginY = previewOffset.y;
+      setIsPreviewDragging(true);
+    }
+  };
+
+  const handlePreviewTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 2) {
+      event.preventDefault();
+      previewGestureRef.current.hasMoved = true;
+      const distance = getTouchDistance(event.touches);
+      const startDistance = previewGestureRef.current.pinchStartDistance;
+      if (startDistance <= 0) return;
+      const rawZoom = previewGestureRef.current.pinchStartZoom * (distance / startDistance);
+      const nextZoom = Math.max(PREVIEW_MIN_ZOOM, Math.min(PREVIEW_MAX_ZOOM, rawZoom));
+      setPreviewZoom(nextZoom);
+      setPreviewOffset((previous) => clampPreviewOffset(nextZoom, previous));
+      return;
+    }
+
+    if (event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const distanceFromStart = Math.hypot(
+      touch.clientX - previewGestureRef.current.touchStartX,
+      touch.clientY - previewGestureRef.current.touchStartY
+    );
+    if (distanceFromStart > 8) {
+      previewGestureRef.current.hasMoved = true;
+    }
+
+    if (previewZoom > PREVIEW_MIN_ZOOM) {
+      event.preventDefault();
+      const deltaX = touch.clientX - previewGestureRef.current.dragStartX;
+      const deltaY = touch.clientY - previewGestureRef.current.dragStartY;
+      const nextOffset = {
+        x: previewGestureRef.current.dragOriginX + deltaX,
+        y: previewGestureRef.current.dragOriginY + deltaY,
+      };
+      setPreviewOffset(clampPreviewOffset(previewZoom, nextOffset));
+    }
+  };
+
+  const handlePreviewTouchEnd = () => {
+    setIsPreviewDragging(false);
+    if (previewGestureRef.current.hasMoved) return;
+
+    const now = Date.now();
+    if (now - previewGestureRef.current.lastTapAt < 280) {
+      clearPreviewTapCloseTimer();
+      togglePreviewZoom();
+      previewGestureRef.current.lastTapAt = 0;
+      return;
+    }
+    previewGestureRef.current.lastTapAt = now;
+
+    if (previewZoom <= PREVIEW_MIN_ZOOM) {
+      setPreviewOffset({ x: 0, y: 0 });
+      previewTapCloseTimerRef.current = setTimeout(() => {
+        handleCloseMediaPreview();
+      }, 280);
+    }
+  };
+
+  useEffect(() => {
+    if (!viewerOpen) {
+      clearPreviewTapCloseTimer();
+      resetPreviewTransform();
+    }
+  }, [viewerOpen, resetPreviewTransform, clearPreviewTapCloseTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearPreviewTapCloseTimer();
+    };
+  }, [clearPreviewTapCloseTimer]);
 
   if (memoryQuery.isLoading && !memory && !errorMessage) {
     return (
@@ -250,7 +577,6 @@ const MemoryDetail: React.FC = () => {
   const authorAvatarUrl = isOwnMemory ? user?.avatar : partner?.user?.avatar;
   const authorName = isOwnMemory ? (user?.nickname || 'You') : (partner?.user?.nickname || 'Partner');
   const mediaUrls = memory.photos || [];
-  const imageUrls = mediaUrls.filter((url) => !url.match(/\.(mp4|webm|mov|avi|m4v)$/i));
   const computedWordCount = memory.content ? countWords(memory.content) : 0;
   const wordCount = memory.wordCount ?? computedWordCount;
 
@@ -299,7 +625,7 @@ const MemoryDetail: React.FC = () => {
        </div>
        <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
-       <main className="flex-1 overflow-y-auto no-scrollbar pb-[calc(6rem+env(safe-area-inset-bottom))]">
+       <main className="flex-1 overflow-y-auto no-scrollbar pb-[calc(8rem+env(safe-area-inset-bottom))]">
           <div className="px-6 py-6">
              {/* Header Info */}
              <div className="flex justify-between items-start mb-6">
@@ -358,44 +684,39 @@ const MemoryDetail: React.FC = () => {
                <div className="mb-8">
                 <div className="grid grid-cols-3 gap-2">
                   {mediaUrls.map((url, index) => {
-                    const isVideo = url.match(/\.(mp4|webm|mov|avi|m4v)$/i);
+                    const isVideo = isVideoUrl(url);
                     const isGif = url.match(/\.gif$/i);
 
-                    if (isVideo) {
-                      return (
-                        <div key={index} className="aspect-square relative overflow-hidden rounded-xl bg-black">
-                          <VideoPreview
-                            src={url}
-                            className="w-full h-full object-cover"
-                            iconSize="sm"
-                            enableFullscreen={true}
-                          />
-                        </div>
-                      );
-                    }
-
-                    const imageIndex = imageUrls.indexOf(url);
                     return (
                       <button
                         key={index}
-                        onClick={() => {
-                          if (imageIndex < 0) return;
-                          setViewerIndex(imageIndex);
-                          setViewerOpen(true);
-                        }}
+                        onClick={() => handleOpenMediaPreview(index)}
                         className="aspect-square relative overflow-hidden rounded-xl bg-gray-100 active:scale-[0.98] transition-transform"
                       >
-                        <img
-                          src={url}
-                          alt={`Memory media ${index + 1}`}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                        {isGif && (
-                          <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
-                            GIF
+                        {isVideo ? (
+                          <div className="w-full h-full relative bg-black">
+                            <VideoPreview
+                              src={url}
+                              className="w-full h-full object-cover"
+                              iconSize="sm"
+                              enableFullscreen={false}
+                            />
                           </div>
+                        ) : (
+                          <>
+                            <img
+                              src={url}
+                              alt={`Memory media ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                            {isGif && (
+                              <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
+                                GIF
+                              </div>
+                            )}
+                          </>
                         )}
                       </button>
                     );
@@ -499,12 +820,161 @@ const MemoryDetail: React.FC = () => {
                   )}
                 </div>
              </div>
+
+             {/* Comments Section */}
+             <div className="border-t border-black/[0.05] pt-6 mt-6">
+               <div className="flex items-center gap-2 mb-4">
+                 <span className="material-symbols-outlined text-lg text-ink/60">chat_bubble</span>
+                 <span className="text-[10px] font-bold text-soft-gray uppercase tracking-widest">
+                   Comments{totalCommentCount > 0 ? ` (${totalCommentCount})` : ''}
+                 </span>
+               </div>
+
+               {comments.length === 0 ? (
+                 <div className="py-6 text-center">
+                   <p className="text-sm text-soft-gray/60 italic font-serif">No comments yet. Say something...</p>
+                 </div>
+               ) : (
+                 <div className="space-y-4">
+                   {comments.map((comment) => (
+                     <div key={comment.id}>
+                       {/* Top-level comment — tap to reply, long press to delete (own) */}
+                       <div
+                         className="flex gap-2.5 py-1.5 -mx-1 px-1 rounded-xl transition-colors active:bg-stone-50 cursor-pointer select-none"
+                         onClick={() => handleCommentTap(comment, false)}
+                         onTouchStart={() => startLongPress(comment.id, comment.userId === user?.id)}
+                         onTouchEnd={cancelLongPress}
+                         onTouchMove={cancelLongPress}
+                         onContextMenu={(e) => {
+                           e.preventDefault();
+                           if (comment.userId === user?.id) setLongPressCommentId(comment.id);
+                         }}
+                       >
+                         {comment.user.avatar ? (
+                           <div className="size-8 rounded-full overflow-hidden bg-stone-100 shrink-0">
+                             <div
+                               className="w-full h-full bg-cover bg-center"
+                               style={{ backgroundImage: `url("${comment.user.avatar}")` }}
+                             />
+                           </div>
+                         ) : (
+                           <div className="size-8 rounded-full bg-stone-100 flex items-center justify-center shrink-0">
+                             <span className="text-[10px] font-bold text-stone-400">
+                               {comment.user.nickname.slice(0, 1).toUpperCase()}
+                             </span>
+                           </div>
+                         )}
+                         <div className="flex-1 min-w-0">
+                           <div className="flex items-baseline gap-2">
+                             <span className="text-xs font-bold text-ink/80">
+                               {comment.userId === user?.id ? 'You' : comment.user.nickname}
+                             </span>
+                             <span className="text-[10px] text-soft-gray/60">{formatCommentTime(comment.createdAt)}</span>
+                           </div>
+                           <p className="text-sm text-ink/70 mt-0.5 break-words">{comment.content}</p>
+                         </div>
+                       </div>
+
+                       {/* Replies */}
+                       {comment.replies && comment.replies.length > 0 && (
+                         <div className="ml-10 mt-1 space-y-1 border-l-2 border-stone-100 pl-3">
+                           {comment.replies.map((reply) => (
+                             <div
+                               key={reply.id}
+                               className="flex gap-2.5 py-1.5 -mx-1 px-1 rounded-xl transition-colors active:bg-stone-50 cursor-pointer select-none"
+                               onClick={() => handleCommentTap(reply, true, comment)}
+                               onTouchStart={() => startLongPress(reply.id, reply.userId === user?.id)}
+                               onTouchEnd={cancelLongPress}
+                               onTouchMove={cancelLongPress}
+                               onContextMenu={(e) => {
+                                 e.preventDefault();
+                                 if (reply.userId === user?.id) setLongPressCommentId(reply.id);
+                               }}
+                             >
+                               {reply.user.avatar ? (
+                                 <div className="size-6 rounded-full overflow-hidden bg-stone-100 shrink-0">
+                                   <div
+                                     className="w-full h-full bg-cover bg-center"
+                                     style={{ backgroundImage: `url("${reply.user.avatar}")` }}
+                                   />
+                                 </div>
+                               ) : (
+                                 <div className="size-6 rounded-full bg-stone-100 flex items-center justify-center shrink-0">
+                                   <span className="text-[9px] font-bold text-stone-400">
+                                     {reply.user.nickname.slice(0, 1).toUpperCase()}
+                                   </span>
+                                 </div>
+                               )}
+                               <div className="flex-1 min-w-0">
+                                 <div className="flex items-baseline gap-2">
+                                   <span className="text-[11px] font-bold text-ink/80">
+                                     {reply.userId === user?.id ? 'You' : reply.user.nickname}
+                                   </span>
+                                   <span className="text-[10px] text-soft-gray/60">{formatCommentTime(reply.createdAt)}</span>
+                                 </div>
+                                 <p className="text-[13px] text-ink/70 mt-0.5 break-words">{reply.content}</p>
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       )}
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </div>
           </div>
        </main>
 
-       {/* Floating Action / Edit - Only show for own memories */}
+       {/* Comment Input Bar */}
+       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-40 w-full max-w-[430px] bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-black/[0.05]">
+         {replyingTo && (
+           <div className="flex items-center justify-between px-4 pt-2.5 pb-0">
+             <span className="text-[11px] text-soft-gray">
+               Replying to <span className="font-bold text-ink/70">{replyingTo.authorName}</span>
+             </span>
+             <button
+               onClick={() => setReplyingTo(null)}
+               className="p-0.5 hover:bg-black/5 rounded-full transition-colors"
+             >
+               <span className="material-symbols-outlined text-sm text-soft-gray">close</span>
+             </button>
+           </div>
+         )}
+         <div className="flex items-center gap-2 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+           <input
+             ref={commentInputRef}
+             type="text"
+             placeholder={replyingTo ? 'Write a reply...' : 'Write a comment...'}
+             value={commentText}
+             onChange={(e) => setCommentText(e.target.value)}
+             onKeyDown={(e) => {
+               if (e.key === 'Enter' && !e.shiftKey) {
+                 e.preventDefault();
+                 void handleSendComment();
+               }
+             }}
+             className="flex-1 bg-stone-100 dark:bg-zinc-900 rounded-full px-4 py-2.5 text-sm text-ink placeholder:text-soft-gray/50 focus:outline-none focus:ring-2 focus:ring-primary/20 border-none"
+           />
+           <button
+             onClick={() => void handleSendComment()}
+             disabled={!commentText.trim() || commentSending}
+             className={`size-10 rounded-full flex items-center justify-center transition-all shrink-0 ${
+               commentText.trim()
+                 ? 'bg-accent text-white hover:scale-105 active:scale-95'
+                 : 'bg-stone-100 text-stone-300 cursor-not-allowed'
+             }`}
+           >
+             <span className="material-symbols-outlined text-xl">
+               {commentSending ? 'more_horiz' : 'send'}
+             </span>
+           </button>
+         </div>
+       </div>
+
+       {/* Floating Action / Edit - Only show for own memories, positioned above comment bar */}
        {isOwnMemory && (
-         <div className="fixed bottom-6 right-6 z-30 pb-[env(safe-area-inset-bottom)]">
+         <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-30">
             <button
               onClick={handleEdit}
               className="w-14 h-14 bg-primary text-ink rounded-full shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
@@ -514,13 +984,127 @@ const MemoryDetail: React.FC = () => {
          </div>
        )}
 
-      {imageUrls.length > 0 && (
-        <EnhancedImageViewer
-          images={imageUrls}
-          initialIndex={viewerIndex}
-          isOpen={viewerOpen}
-          onClose={() => setViewerOpen(false)}
-        />
+      {/* Unified Media Preview Overlay */}
+      {viewerOpen && mediaUrls.length > 0 && mediaUrls[viewerIndex] && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col">
+          {/* Header with page indicator */}
+          {mediaUrls.length > 1 && (
+            <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center px-4 py-3 pt-safe-offset-3 bg-gradient-to-b from-black/50 to-transparent">
+              <span className="text-white/90 text-sm font-medium">
+                {viewerIndex + 1} / {mediaUrls.length}
+              </span>
+            </div>
+          )}
+
+          <div
+            ref={previewContainerRef}
+            className="flex-1 relative flex items-center justify-center overflow-hidden"
+            onDoubleClick={togglePreviewZoom}
+            onTouchStart={handlePreviewTouchStart}
+            onTouchMove={handlePreviewTouchMove}
+            onTouchEnd={handlePreviewTouchEnd}
+            style={{ touchAction: previewZoom > PREVIEW_MIN_ZOOM ? 'none' : 'manipulation' }}
+          >
+            <SwipeableImageContainer
+              onSwipeLeft={() => handleNextPreviewMedia(mediaUrls.length)}
+              onSwipeRight={() => handlePrevPreviewMedia(mediaUrls.length)}
+              canSwipeLeft={viewerIndex < mediaUrls.length - 1}
+              canSwipeRight={viewerIndex > 0}
+              disabled={previewZoom > PREVIEW_MIN_ZOOM}
+            >
+              {isVideoUrl(mediaUrls[viewerIndex]) ? (
+                <div
+                  className="flex items-center justify-center w-full h-full"
+                  onClick={handleCloseMediaPreview}
+                >
+                  <video
+                    src={mediaUrls[viewerIndex]}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-full max-w-full rounded-lg"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="max-h-full max-w-full flex items-center justify-center select-none"
+                  style={{
+                    transform: `translate3d(${previewOffset.x}px, ${previewOffset.y}px, 0) scale(${previewZoom})`,
+                    transition: isPreviewDragging ? 'none' : 'transform 140ms ease-out',
+                  }}
+                >
+                  <img
+                    src={mediaUrls[viewerIndex]}
+                    alt={`Memory media ${viewerIndex + 1}`}
+                    className="max-h-full max-w-full object-contain rounded-lg pointer-events-none select-none"
+                    draggable={false}
+                  />
+                </div>
+              )}
+            </SwipeableImageContainer>
+          </div>
+
+          {/* Dots Indicator */}
+          {mediaUrls.length > 1 && mediaUrls.length <= 9 && (
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 pb-safe">
+              {mediaUrls.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    resetPreviewTransform();
+                    setViewerIndex(index);
+                  }}
+                  className={`h-2 rounded-full transition-all ${
+                    index === viewerIndex
+                      ? 'bg-white w-6'
+                      : 'bg-white/40 hover:bg-white/60 w-2'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Delete Comment ActionSheet */}
+      {longPressCommentId && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center"
+          onClick={() => setLongPressCommentId(null)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40 animate-in fade-in duration-200" />
+          {/* Sheet */}
+          <div
+            className="relative w-full max-w-[430px] bg-white dark:bg-zinc-900 rounded-t-2xl overflow-hidden animate-in slide-in-from-bottom duration-200 pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="py-2">
+              <button
+                onClick={() => {
+                  const targetId = longPressCommentId;
+                  setLongPressCommentId(null);
+                  void handleDeleteComment(targetId);
+                }}
+                disabled={!!deletingCommentId}
+                className="w-full flex items-center justify-center gap-2 py-4 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-xl">delete</span>
+                <span className="text-base font-medium">
+                  {deletingCommentId === longPressCommentId ? 'Deleting...' : 'Delete Comment'}
+                </span>
+              </button>
+              <div className="h-px bg-stone-100 dark:bg-zinc-800 mx-4" />
+              <button
+                onClick={() => setLongPressCommentId(null)}
+                className="w-full py-4 text-center text-base font-medium text-ink/70 hover:bg-stone-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

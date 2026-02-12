@@ -13,10 +13,10 @@ export function useMilestonesQuery() {
     queryKey: QUERY_KEY,
     queryFn: fetchMilestones,
     // Refresh periodically so new milestones from self/partner appear without reload
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    staleTime: 5_000,
+    staleTime: 15_000,
   });
 }
 

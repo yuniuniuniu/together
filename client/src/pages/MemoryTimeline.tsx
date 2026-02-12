@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { memoriesApi, reactionsApi } from '../shared/api/client';
+import { memoriesApi, reactionsApi, commentsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
@@ -11,6 +11,10 @@ import { VideoPreview } from '../shared/components/display/VideoPreview';
 
 interface ReactionState {
   [memoryId: string]: { liked: boolean; count: number };
+}
+
+interface CommentCountState {
+  [memoryId: string]: number;
 }
 
 const MemoryTimeline: React.FC = () => {
@@ -23,6 +27,8 @@ const MemoryTimeline: React.FC = () => {
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
   const [reactions, setReactions] = useState<ReactionState>({});
   const [reactionPending, setReactionPending] = useState<Record<string, boolean>>({});
+  const [commentCounts, setCommentCounts] = useState<CommentCountState>({});
+  const [reactionsLoaded, setReactionsLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
@@ -31,32 +37,61 @@ const MemoryTimeline: React.FC = () => {
   useEffect(() => {
     setLastMemoryPath('/memory/timeline');
 
-    const fetchReactions = async () => {
+    const fetchReactionsAndComments = async () => {
       if (!memories || memories.length === 0) {
         setReactions({});
+        setCommentCounts({});
+        setReactionsLoaded(true);
         return;
       }
 
+      // Fetch reactions and comments in parallel
+      const [reactionResults, commentResults] = await Promise.all([
+        Promise.all(
+          memories.map(async (memory) => {
+            try {
+              const [reactionsRes, myReactionRes] = await Promise.all([
+                reactionsApi.list(memory.id),
+                reactionsApi.getMine(memory.id),
+              ]);
+              const state = {
+                liked: myReactionRes.data !== null,
+                count: reactionsRes.data.length,
+              };
+              // Seed the React Query cache so MemoryDetail won't re-fetch
+              queryClient.setQueryData(['reactions', memory.id], state);
+              return { id: memory.id, state };
+            } catch {
+              return { id: memory.id, state: { liked: false, count: 0 } };
+            }
+          })
+        ),
+        Promise.all(
+          memories.map(async (memory) => {
+            try {
+              const res = await commentsApi.count(memory.id);
+              return { id: memory.id, count: res.data.count };
+            } catch {
+              return { id: memory.id, count: 0 };
+            }
+          })
+        ),
+      ]);
+
       const reactionStates: ReactionState = {};
-      for (const memory of memories) {
-        try {
-          const [reactionsRes, myReactionRes] = await Promise.all([
-            reactionsApi.list(memory.id),
-            reactionsApi.getMine(memory.id),
-          ]);
-          reactionStates[memory.id] = {
-            liked: myReactionRes.data !== null,
-            count: reactionsRes.data.length,
-          };
-        } catch {
-          reactionStates[memory.id] = { liked: false, count: 0 };
-        }
-      }
+      for (const r of reactionResults) reactionStates[r.id] = r.state;
+
+      const counts: CommentCountState = {};
+      for (const r of commentResults) counts[r.id] = r.count;
+
+      // Update all states at once to avoid multiple re-renders
       setReactions(reactionStates);
+      setCommentCounts(counts);
+      setReactionsLoaded(true);
     };
 
-    fetchReactions();
-  }, [memories]);
+    fetchReactionsAndComments();
+  }, [memories, queryClient]);
 
   useEffect(() => {
     const navElement = navRef.current;
@@ -92,15 +127,15 @@ const MemoryTimeline: React.FC = () => {
       if (action === 'blocked') {
         return;
       }
-      setReactions((prev) => ({
-        ...prev,
-        [memoryId]: {
-          liked: action === 'added',
-          count: action === 'added'
-            ? (prev[memoryId]?.count || 0) + 1
-            : Math.max((prev[memoryId]?.count || 1) - 1, 0),
-        },
-      }));
+      const newState = {
+        liked: action === 'added',
+        count: action === 'added'
+          ? (reactions[memoryId]?.count || 0) + 1
+          : Math.max((reactions[memoryId]?.count || 1) - 1, 0),
+      };
+      setReactions((prev) => ({ ...prev, [memoryId]: newState }));
+      // Keep query cache in sync for MemoryDetail
+      queryClient.setQueryData(['reactions', memoryId], newState);
     } catch {
       showToast('Failed to update reaction', 'error');
     } finally {
@@ -336,11 +371,12 @@ const MemoryTimeline: React.FC = () => {
                                 key={`${memory.id}-${index}`}
                                 className="aspect-square relative overflow-hidden rounded-xl bg-stone-50 dark:bg-zinc-950/50"
                               >
-                                <div
-                                  className="w-full h-full bg-cover bg-center"
-                                  role="img"
-                                  aria-label={`Memory ${index + 1}`}
-                                  style={{ backgroundImage: `url("${mediaUrl}")` }}
+                                <img
+                                  src={mediaUrl}
+                                  alt={`Memory ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  decoding="async"
                                 />
                                 {isGif && (
                                   <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold tracking-wider">
@@ -355,19 +391,19 @@ const MemoryTimeline: React.FC = () => {
 
                       {/* Footer Actions */}
                       <div className="flex items-center justify-between pt-4 border-t border-stone-50 dark:border-zinc-800/50">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-h-[32px]">
                            <div className="flex items-center">
                              <button
                                onClick={(e) => handleToggleLike(memory.id, memory.createdBy, e)}
-                               disabled={reactionPending[memory.id] || isOwnMemory}
-                               className={`flex items-center justify-center size-8 rounded-full transition-all ${
+                               disabled={reactionPending[memory.id] || isOwnMemory || !reactionsLoaded}
+                               className={`flex items-center justify-center size-8 rounded-full transition-colors duration-150 ${
                                  reactions[memory.id]?.liked
                                    ? 'bg-red-50 text-wine'
                                    : 'bg-stone-50 text-stone-400 hover:bg-stone-100'
-                               } ${(reactionPending[memory.id] || isOwnMemory) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                               } ${(reactionPending[memory.id] || isOwnMemory || !reactionsLoaded) ? 'opacity-60 cursor-not-allowed' : ''}`}
                              >
                                <span
-                                 className={`material-symbols-outlined text-lg transition-transform ${
+                                 className={`material-symbols-outlined text-lg transition-transform duration-150 ${
                                    reactions[memory.id]?.liked ? 'scale-110' : ''
                                  }`}
                                  style={reactions[memory.id]?.liked ? { fontVariationSettings: "'FILL' 1" } : {}}
@@ -376,12 +412,21 @@ const MemoryTimeline: React.FC = () => {
                                </span>
                              </button>
                            </div>
-                           
-                           {reactions[memory.id]?.count > 0 && (
-                             <span className="text-[10px] font-medium text-stone-400">
-                               {reactions[memory.id].count} {reactions[memory.id].count === 1 ? 'reaction' : 'reactions'}
+
+                           <span className={`text-[10px] font-medium text-stone-400 transition-opacity duration-150 ${
+                             reactionsLoaded && reactions[memory.id]?.count > 0 ? 'opacity-100' : 'opacity-0'
+                           }`}>
+                             {reactions[memory.id]?.count || 0} {(reactions[memory.id]?.count || 0) === 1 ? 'reaction' : 'reactions'}
+                           </span>
+
+                           <div className={`flex items-center gap-1 text-stone-400 transition-opacity duration-150 ${
+                             reactionsLoaded && commentCounts[memory.id] > 0 ? 'opacity-100' : 'opacity-0'
+                           }`}>
+                             <span className="material-symbols-outlined text-sm">chat_bubble</span>
+                             <span className="text-[10px] font-medium">
+                               {commentCounts[memory.id] || 0}
                              </span>
-                           )}
+                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-stone-300 min-w-0">
@@ -462,7 +507,7 @@ const MemoryTimeline: React.FC = () => {
 
       {/* Fixed Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-8 pt-4 z-50">
-        <div className="flex items-center justify-around max-w-3xl mx-auto px-4">
+        <div className="flex items-center justify-around max-w-md mx-auto px-6">
           <button
             className="flex flex-col items-center gap-1 group w-16"
             onClick={() => navigate('/dashboard')}

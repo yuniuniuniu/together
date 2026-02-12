@@ -17,7 +17,13 @@ import { Platform } from '../shared/utils/platform';
 import { photoResultToFile } from '../shared/utils/photoFile';
 import { countWords } from '../shared/utils/wordCount';
 import { mapWithConcurrency } from '../shared/utils/concurrency';
+import { compressImage } from '../shared/utils/imageCompress';
+import { compressVideo } from '../shared/utils/videoCompress';
 import { VideoPreview } from '../shared/components/display/VideoPreview';
+import { SwipeableImageContainer } from '../shared/components/display/SwipeableImageContainer';
+
+const PREVIEW_MIN_ZOOM = 1;
+const PREVIEW_MAX_ZOOM = 4;
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -71,6 +77,7 @@ const EditMemory: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Voice recording states
@@ -85,6 +92,37 @@ const EditMemory: React.FC = () => {
   const shouldSaveRef = React.useRef<boolean>(true);
   const streamRef = React.useRef<MediaStream | null>(null);
   const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // Media preview states
+  const [previewMediaIndex, setPreviewMediaIndex] = useState<number | null>(null);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
+  const [isPreviewDragging, setIsPreviewDragging] = useState(false);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const previewGestureRef = useRef<{
+    pinchStartDistance: number;
+    pinchStartZoom: number;
+    dragStartX: number;
+    dragStartY: number;
+    dragOriginX: number;
+    dragOriginY: number;
+    touchStartX: number;
+    touchStartY: number;
+    hasMoved: boolean;
+    lastTapAt: number;
+  }>({
+    pinchStartDistance: 0,
+    pinchStartZoom: 1,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragOriginX: 0,
+    dragOriginY: 0,
+    touchStartX: 0,
+    touchStartY: 0,
+    hasMoved: false,
+    lastTapAt: 0,
+  });
+  const previewTapCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 高德地图 POI 搜索相关
   const [poiResults, setPOIResults] = useState<POIResult[]>([]);
@@ -293,11 +331,17 @@ const EditMemory: React.FC = () => {
 
       const outcomes = await mapWithConcurrency(files, concurrency, async (file, index): Promise<UploadOutcome> => {
         const maxAttempts = 2;
+        const isVideo = file.type.startsWith('video/');
+        // Compress media before upload
+        const fileToUpload = isVideo
+          ? await compressVideo(file)
+          : await compressImage(file);
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
             perFileProgress[index] = 0;
             updateProgressUi();
-            const result = await uploadApi.uploadDirect(file, 'images', (progress) => {
+            const folder = isVideo ? 'videos' : 'images';
+            const result = await uploadApi.uploadDirect(fileToUpload, folder, (progress) => {
               perFileProgress[index] = progress;
               updateProgressUi();
             });
@@ -330,13 +374,16 @@ const EditMemory: React.FC = () => {
       }
 
       if (failedCount > 0) {
-        setError(`${failedCount} photo(s) failed to upload. Please retry.`);
+        setError(`${failedCount} media file(s) failed to upload. Please retry.`);
       }
     } finally {
       setIsUploading(false);
       setUploadProgress('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+      }
+      if (videoInputRef.current) {
+        videoInputRef.current.value = '';
       }
     }
   };
@@ -672,6 +719,183 @@ const EditMemory: React.FC = () => {
     }
   };
 
+  // Media preview handlers
+  const handleOpenMediaPreview = (index: number) => {
+    setPreviewMediaIndex(index);
+  };
+
+  const clampPreviewOffset = useCallback((nextZoom: number, nextOffset: { x: number; y: number }) => {
+    const bounds = previewContainerRef.current?.getBoundingClientRect();
+    if (!bounds) return nextOffset;
+
+    const maxX = Math.max(0, ((nextZoom - 1) * bounds.width) / 2);
+    const maxY = Math.max(0, ((nextZoom - 1) * bounds.height) / 2);
+
+    return {
+      x: Math.max(-maxX, Math.min(maxX, nextOffset.x)),
+      y: Math.max(-maxY, Math.min(maxY, nextOffset.y)),
+    };
+  }, []);
+
+  const resetPreviewTransform = useCallback(() => {
+    setPreviewZoom(1);
+    setPreviewOffset({ x: 0, y: 0 });
+    setIsPreviewDragging(false);
+    previewGestureRef.current.pinchStartDistance = 0;
+    previewGestureRef.current.pinchStartZoom = 1;
+    previewGestureRef.current.dragStartX = 0;
+    previewGestureRef.current.dragStartY = 0;
+    previewGestureRef.current.dragOriginX = 0;
+    previewGestureRef.current.dragOriginY = 0;
+    previewGestureRef.current.touchStartX = 0;
+    previewGestureRef.current.touchStartY = 0;
+    previewGestureRef.current.hasMoved = false;
+  }, []);
+
+  const clearPreviewTapCloseTimer = useCallback(() => {
+    if (previewTapCloseTimerRef.current) {
+      clearTimeout(previewTapCloseTimerRef.current);
+      previewTapCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const togglePreviewZoom = useCallback(() => {
+    if (previewZoom > PREVIEW_MIN_ZOOM) {
+      resetPreviewTransform();
+      return;
+    }
+    setPreviewZoom(2);
+  }, [previewZoom, resetPreviewTransform]);
+
+  const handleCloseMediaPreview = useCallback(() => {
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setPreviewMediaIndex(null);
+  }, [clearPreviewTapCloseTimer, resetPreviewTransform]);
+
+  const handlePrevPreviewMedia = () => {
+    if (previewMediaIndex === null || photos.length === 0) return;
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setPreviewMediaIndex((previewMediaIndex - 1 + photos.length) % photos.length);
+  };
+
+  const handleNextPreviewMedia = () => {
+    if (previewMediaIndex === null || photos.length === 0) return;
+    clearPreviewTapCloseTimer();
+    resetPreviewTransform();
+    setPreviewMediaIndex((previewMediaIndex + 1) % photos.length);
+  };
+
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  const handlePreviewTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    clearPreviewTapCloseTimer();
+    const touchCount = event.touches.length;
+    if (touchCount === 2) {
+      const distance = getTouchDistance(event.touches);
+      previewGestureRef.current.pinchStartDistance = distance;
+      previewGestureRef.current.pinchStartZoom = previewZoom;
+      previewGestureRef.current.hasMoved = true;
+      setIsPreviewDragging(false);
+      return;
+    }
+
+    if (touchCount === 1) {
+      const touch = event.touches[0];
+      previewGestureRef.current.touchStartX = touch.clientX;
+      previewGestureRef.current.touchStartY = touch.clientY;
+      previewGestureRef.current.hasMoved = false;
+
+      if (previewZoom <= PREVIEW_MIN_ZOOM) return;
+
+      previewGestureRef.current.dragStartX = touch.clientX;
+      previewGestureRef.current.dragStartY = touch.clientY;
+      previewGestureRef.current.dragOriginX = previewOffset.x;
+      previewGestureRef.current.dragOriginY = previewOffset.y;
+      setIsPreviewDragging(true);
+    }
+  };
+
+  const handlePreviewTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 2) {
+      event.preventDefault();
+      previewGestureRef.current.hasMoved = true;
+      const distance = getTouchDistance(event.touches);
+      const startDistance = previewGestureRef.current.pinchStartDistance;
+      if (startDistance <= 0) return;
+      const rawZoom = previewGestureRef.current.pinchStartZoom * (distance / startDistance);
+      const nextZoom = Math.max(PREVIEW_MIN_ZOOM, Math.min(PREVIEW_MAX_ZOOM, rawZoom));
+      setPreviewZoom(nextZoom);
+      setPreviewOffset((previous) => clampPreviewOffset(nextZoom, previous));
+      return;
+    }
+
+    if (event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const distanceFromStart = Math.hypot(
+      touch.clientX - previewGestureRef.current.touchStartX,
+      touch.clientY - previewGestureRef.current.touchStartY
+    );
+    if (distanceFromStart > 8) {
+      previewGestureRef.current.hasMoved = true;
+    }
+
+    if (previewZoom > PREVIEW_MIN_ZOOM) {
+      event.preventDefault();
+      const deltaX = touch.clientX - previewGestureRef.current.dragStartX;
+      const deltaY = touch.clientY - previewGestureRef.current.dragStartY;
+      const nextOffset = {
+        x: previewGestureRef.current.dragOriginX + deltaX,
+        y: previewGestureRef.current.dragOriginY + deltaY,
+      };
+      setPreviewOffset(clampPreviewOffset(previewZoom, nextOffset));
+    }
+  };
+
+  const handlePreviewTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length > 0) return;
+    setIsPreviewDragging(false);
+    if (previewGestureRef.current.hasMoved) return;
+
+    const now = Date.now();
+    if (now - previewGestureRef.current.lastTapAt < 280) {
+      clearPreviewTapCloseTimer();
+      togglePreviewZoom();
+      previewGestureRef.current.lastTapAt = 0;
+      return;
+    }
+    previewGestureRef.current.lastTapAt = now;
+
+    if (previewZoom <= PREVIEW_MIN_ZOOM) {
+      setPreviewOffset({ x: 0, y: 0 });
+      previewTapCloseTimerRef.current = setTimeout(() => {
+        if (previewMediaIndex !== null) {
+          handleCloseMediaPreview();
+        }
+      }, 280);
+    }
+  };
+
+  useEffect(() => {
+    if (previewMediaIndex === null) {
+      clearPreviewTapCloseTimer();
+      resetPreviewTransform();
+    }
+  }, [previewMediaIndex, resetPreviewTransform, clearPreviewTapCloseTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearPreviewTapCloseTimer();
+    };
+  }, [clearPreviewTapCloseTimer]);
+
   // 要显示的 POI 列表
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
   const wordCount = countWords(content);
@@ -755,21 +979,34 @@ const EditMemory: React.FC = () => {
             onChange={handlePhotoUpload}
             className="hidden"
           />
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/*"
+            onChange={handlePhotoUpload}
+            className="hidden"
+          />
           {uploadProgress && (
             <div className="mb-3 text-sm text-accent font-medium">{uploadProgress}</div>
           )}
           <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 no-scrollbar">
             {photos.map((photo, index) => (
               <div key={index} className="flex-shrink-0 w-32">
-                <div className="bg-white p-2 pb-6 rounded-sm shadow-sm transition-transform active:scale-95" style={{ transform: `rotate(${(index % 3 - 1) * 2}deg)` }}>
+                <div
+                  className="bg-white p-2 pb-6 rounded-sm shadow-sm transition-transform active:scale-95 cursor-pointer"
+                  style={{ transform: `rotate(${(index % 3 - 1) * 2}deg)` }}
+                  onClick={() => handleOpenMediaPreview(index)}
+                >
                   <div className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group">
                     {isVideoUrl(photo) ? (
-                      <VideoPreview
-                        src={photo}
-                        className="w-full h-full object-cover"
-                        iconSize="sm"
-                        enableFullscreen={false}
-                      />
+                      <div className="w-full h-full relative">
+                        <VideoPreview
+                          src={photo}
+                          className="w-full h-full object-cover"
+                          iconSize="sm"
+                          enableFullscreen={false}
+                        />
+                      </div>
                     ) : (
                       <div
                         role="img"
@@ -779,7 +1016,10 @@ const EditMemory: React.FC = () => {
                       />
                     )}
                     <button
-                      onClick={() => handleRemovePhoto(index)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemovePhoto(index);
+                      }}
                       className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     >
                       <span className="material-symbols-outlined text-sm">close</span>
@@ -800,6 +1040,18 @@ const EditMemory: React.FC = () => {
                   ) : (
                     <span className="material-symbols-outlined text-ink/20 text-3xl">add_a_photo</span>
                   )}
+                </div>
+              </button>
+            </div>
+            <div className="flex-shrink-0 w-32">
+              <button
+                onClick={() => videoInputRef.current?.click()}
+                disabled={isUploading}
+                className="bg-white p-2 pb-6 rounded-sm shadow-sm -rotate-[1deg] w-full flex flex-col items-center opacity-85 transition-transform active:scale-95 disabled:opacity-50"
+              >
+                <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center hover:bg-gray-50 gap-1">
+                  <span className="material-symbols-outlined text-ink/30 text-2xl">videocam</span>
+                  <span className="text-[8px] text-ink/30 font-bold">VIDEO</span>
                 </div>
               </button>
             </div>
@@ -1296,6 +1548,89 @@ const EditMemory: React.FC = () => {
           }}
           onCancel={() => setShowDatePicker(false)}
         />
+      )}
+
+      {/* Media Preview Overlay */}
+      {previewMediaIndex !== null && photos[previewMediaIndex] && (
+        <div className="fixed inset-0 z-[70] bg-black/95 flex flex-col">
+          {/* Header with page indicator */}
+          {photos.length > 1 && (
+            <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center px-4 py-3 pt-safe-offset-3 bg-gradient-to-b from-black/50 to-transparent">
+              <span className="text-white/90 text-sm font-medium">
+                {previewMediaIndex + 1} / {photos.length}
+              </span>
+            </div>
+          )}
+
+          <div
+            ref={previewContainerRef}
+            className="flex-1 relative flex items-center justify-center overflow-hidden"
+            onDoubleClick={togglePreviewZoom}
+            onTouchStart={handlePreviewTouchStart}
+            onTouchMove={handlePreviewTouchMove}
+            onTouchEnd={handlePreviewTouchEnd}
+            style={{ touchAction: previewZoom > PREVIEW_MIN_ZOOM ? 'none' : 'manipulation' }}
+          >
+            <SwipeableImageContainer
+              onSwipeLeft={handleNextPreviewMedia}
+              onSwipeRight={handlePrevPreviewMedia}
+              canSwipeLeft={previewMediaIndex < photos.length - 1}
+              canSwipeRight={previewMediaIndex > 0}
+              disabled={previewZoom > PREVIEW_MIN_ZOOM}
+            >
+              {isVideoUrl(photos[previewMediaIndex]) ? (
+                <div
+                  className="flex items-center justify-center w-full h-full"
+                  onClick={handleCloseMediaPreview}
+                >
+                  <video
+                    src={photos[previewMediaIndex]}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-full max-w-full rounded-lg"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="max-h-full max-w-full flex items-center justify-center select-none"
+                  style={{
+                    transform: `translate3d(${previewOffset.x}px, ${previewOffset.y}px, 0) scale(${previewZoom})`,
+                    transition: isPreviewDragging ? 'none' : 'transform 140ms ease-out',
+                  }}
+                >
+                  <img
+                    src={photos[previewMediaIndex]}
+                    alt={`Memory media ${previewMediaIndex + 1}`}
+                    className="max-h-full max-w-full object-contain rounded-lg pointer-events-none select-none"
+                    draggable={false}
+                  />
+                </div>
+              )}
+            </SwipeableImageContainer>
+          </div>
+
+          {/* Dots Indicator */}
+          {photos.length > 1 && photos.length <= 9 && (
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 pb-safe">
+              {photos.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    resetPreviewTransform();
+                    setPreviewMediaIndex(index);
+                  }}
+                  className={`h-2 rounded-full transition-all ${
+                    index === previewMediaIndex
+                      ? 'bg-white w-6'
+                      : 'bg-white/40 hover:bg-white/60 w-2'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -117,7 +117,7 @@ const MemoryMap: React.FC = () => {
     });
   }, [memories]);
 
-  // 添加标记点
+  // 创建标记点（仅当 locations 数据变化时重建）
   useEffect(() => {
     if (!mapReady || !mapRef.current || !AMapRef.current || locations.length === 0) return;
 
@@ -128,19 +128,17 @@ const MemoryMap: React.FC = () => {
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
 
-    // 创建标记
+    // 创建标记（默认非选中样式）
     locations.forEach((location, index) => {
-      const isSelected = selectedLocation?.id === location.id;
-
-      // 自定义标记内容
       const markerContent = document.createElement('div');
       markerContent.className = 'amap-custom-marker';
+      markerContent.setAttribute('data-location-id', location.id);
       markerContent.innerHTML = `
-        <div style="
-          width: ${isSelected ? 44 : 32}px;
-          height: ${isSelected ? 44 : 32}px;
-          background: ${isSelected ? '#ac3960' : '#F3C6C6'};
-          border: 3px solid ${isSelected ? '#fff' : '#ac3960'};
+        <div class="marker-dot" style="
+          width: 32px;
+          height: 32px;
+          background: #F3C6C6;
+          border: 3px solid #ac3960;
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -149,34 +147,32 @@ const MemoryMap: React.FC = () => {
           cursor: pointer;
           transition: all 0.3s ease;
         ">
-          <span class="material-symbols-outlined" style="
-            font-size: ${isSelected ? 20 : 16}px;
-            color: ${isSelected ? '#fff' : '#ac3960'};
+          <span class="material-symbols-outlined marker-icon" style="
+            font-size: 16px;
+            color: #ac3960;
             font-variation-settings: 'FILL' 1;
+            transition: all 0.3s ease;
           ">favorite</span>
         </div>
-        ${
-          isSelected
-            ? `<div style="
-            position: absolute;
-            width: 64px;
-            height: 64px;
-            background: rgba(172, 57, 96, 0.2);
-            border-radius: 50%;
-            top: -10px;
-            left: -10px;
-            animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-            z-index: -1;
-          "></div>`
-            : ''
-        }
+        <div class="marker-ping" style="
+          position: absolute;
+          width: 64px;
+          height: 64px;
+          background: rgba(172, 57, 96, 0.2);
+          border-radius: 50%;
+          top: -10px;
+          left: -10px;
+          animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+          z-index: -1;
+          display: none;
+        "></div>
       `;
 
       const marker = new AMap.Marker({
         position: new AMap.LngLat(location.longitude, location.latitude),
         content: markerContent,
-        offset: new AMap.Pixel(isSelected ? -22 : -16, isSelected ? -22 : -16),
-        zIndex: isSelected ? 100 : 10,
+        offset: new AMap.Pixel(-16, -16),
+        zIndex: 10,
       });
 
       marker.on('click', () => {
@@ -185,6 +181,8 @@ const MemoryMap: React.FC = () => {
         map.setZoom(15);
       });
 
+      // Store location id on the marker for style updates
+      (marker as any)._locationId = location.id;
       marker.setMap(map);
       markersRef.current.push(marker);
 
@@ -198,13 +196,46 @@ const MemoryMap: React.FC = () => {
     // 多个标记时自动适应视野
     if (locations.length > 1) {
       try {
-        // Use overlays to fit view; avoids invalid Bounds construction with dynamic points.
         map.setFitView(markersRef.current, false, [60, 60, 60, 60]);
       } catch (error) {
         console.error('地图视野调整失败:', error);
       }
     }
-  }, [mapReady, locations, selectedLocation]);
+  }, [mapReady, locations]);
+
+  // 选中状态样式更新（仅更新 DOM 样式，不重建 marker）
+  useEffect(() => {
+    if (!AMapRef.current) return;
+    const AMap = AMapRef.current;
+
+    markersRef.current.forEach((marker) => {
+      const locId = (marker as any)._locationId;
+      const isSelected = selectedLocation?.id === locId;
+      const el = marker.getContent?.() as HTMLElement | undefined;
+      if (!el) return;
+
+      const dot = el.querySelector('.marker-dot') as HTMLElement | null;
+      const icon = el.querySelector('.marker-icon') as HTMLElement | null;
+      const ping = el.querySelector('.marker-ping') as HTMLElement | null;
+
+      if (dot) {
+        dot.style.width = isSelected ? '44px' : '32px';
+        dot.style.height = isSelected ? '44px' : '32px';
+        dot.style.background = isSelected ? '#ac3960' : '#F3C6C6';
+        dot.style.borderColor = isSelected ? '#fff' : '#ac3960';
+      }
+      if (icon) {
+        icon.style.fontSize = isSelected ? '20px' : '16px';
+        icon.style.color = isSelected ? '#fff' : '#ac3960';
+      }
+      if (ping) {
+        ping.style.display = isSelected ? 'block' : 'none';
+      }
+
+      marker.setOffset(new AMap.Pixel(isSelected ? -22 : -16, isSelected ? -22 : -16));
+      marker.setzIndex(isSelected ? 100 : 10);
+    });
+  }, [selectedLocation]);
 
   // 定位到当前位置
   const handleLocateMe = () => {
@@ -241,8 +272,8 @@ const MemoryMap: React.FC = () => {
           </div>
           
           {/* Controls */}
-          <div className="px-4 pb-4 mt-4 flex items-center justify-center">
-             <div className="w-full bg-stone-100 dark:bg-zinc-900 p-1 rounded-full flex items-center relative">
+          <div className="px-4 pb-4 mt-4 flex items-center gap-3">
+             <div className="flex-1 bg-stone-100 dark:bg-zinc-900 p-1 rounded-full flex items-center relative">
                <button 
                  onClick={() => navigate('/memory/timeline')}
                  className="flex-1 py-1.5 rounded-full text-stone-400 dark:text-zinc-500 hover:text-stone-600 dark:hover:text-zinc-300 text-[10px] font-bold tracking-widest uppercase transition-all"
@@ -251,6 +282,8 @@ const MemoryMap: React.FC = () => {
                </button>
                <button className="flex-1 py-1.5 rounded-full bg-white dark:bg-zinc-800 text-charcoal dark:text-zinc-200 shadow-sm text-[10px] font-bold tracking-widest uppercase transition-all">Map</button>
              </div>
+             {/* Placeholder to match Timeline layout with search button */}
+             <div className="size-9 shrink-0" />
           </div>
         </div>
       </nav>
@@ -343,8 +376,8 @@ const MemoryMap: React.FC = () => {
       </main>
 
       {/* Fixed Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-safe pt-4 z-[2001] flex justify-center pointer-events-auto">
-        <div className="flex items-center justify-around max-w-3xl w-full px-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-8 pt-4 z-[2001] flex justify-center pointer-events-auto">
+        <div className="flex items-center justify-around max-w-md mx-auto px-6">
           <button
             className="flex flex-col items-center gap-1 group w-16"
             onClick={() => navigate('/dashboard')}

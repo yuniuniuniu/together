@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './shared/context/AuthContext';
@@ -9,32 +9,34 @@ import { MobileWrapper } from './shared/components/layout/MobileWrapper';
 import { ProtectedRoute, PublicOnlyRoute } from './shared/components/auth/ProtectedRoute';
 import { AndroidBackHandler } from './shared/components/native/AndroidBackHandler';
 
-// Pages
+// Eagerly loaded pages (critical path: login + dashboard)
 import Login from './pages/Login';
-import Sanctuary from './pages/Sanctuary';
-import JoinSpace from './pages/JoinSpace';
-import ConfirmPartner from './pages/ConfirmPartner';
-import Celebration from './pages/Celebration';
-import ProfileSetup from './pages/ProfileSetup';
-import DateSelection from './pages/DateSelection';
-import CreateSpace from './pages/CreateSpace';
 import Dashboard from './pages/Dashboard';
-import NewMemory from './pages/NewMemory';
-import MemoryDetail from './pages/MemoryDetail';
-import Settings from './pages/Settings';
-import Unbinding from './pages/Unbinding';
-import SelectRecordType from './pages/SelectRecordType';
-import NewMilestone from './pages/NewMilestone';
-import EditMemory from './pages/EditMemory';
-import MemoryMap from './pages/MemoryMap';
-import MemoryTimeline from './pages/MemoryTimeline';
-import MemoryHome from './pages/MemoryHome';
-import MilestoneTimeline from './pages/MilestoneTimeline';
-import MilestoneDetail from './pages/MilestoneDetail';
-import EditMilestone from './pages/EditMilestone';
-import Notifications from './pages/Notifications';
-import Terms from './pages/Terms';
-import Privacy from './pages/Privacy';
+
+// Lazy loaded pages
+const Sanctuary = lazy(() => import('./pages/Sanctuary'));
+const JoinSpace = lazy(() => import('./pages/JoinSpace'));
+const ConfirmPartner = lazy(() => import('./pages/ConfirmPartner'));
+const Celebration = lazy(() => import('./pages/Celebration'));
+const ProfileSetup = lazy(() => import('./pages/ProfileSetup'));
+const DateSelection = lazy(() => import('./pages/DateSelection'));
+const CreateSpace = lazy(() => import('./pages/CreateSpace'));
+const NewMemory = lazy(() => import('./pages/NewMemory'));
+const MemoryDetail = lazy(() => import('./pages/MemoryDetail'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Unbinding = lazy(() => import('./pages/Unbinding'));
+const SelectRecordType = lazy(() => import('./pages/SelectRecordType'));
+const NewMilestone = lazy(() => import('./pages/NewMilestone'));
+const EditMemory = lazy(() => import('./pages/EditMemory'));
+const MemoryMap = lazy(() => import('./pages/MemoryMap'));
+const MemoryTimeline = lazy(() => import('./pages/MemoryTimeline'));
+const MemoryHome = lazy(() => import('./pages/MemoryHome'));
+const MilestoneTimeline = lazy(() => import('./pages/MilestoneTimeline'));
+const MilestoneDetail = lazy(() => import('./pages/MilestoneDetail'));
+const EditMilestone = lazy(() => import('./pages/EditMilestone'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Privacy = lazy(() => import('./pages/Privacy'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +58,7 @@ const App: React.FC = () => {
           <HashRouter>
             <AndroidBackHandler />
             <MobileWrapper>
+              <Suspense fallback={<div className="flex-1 flex items-center justify-center min-h-screen bg-background-light"><div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" /></div>}>
               <Routes>
                 {/* Public routes - redirect to dashboard if logged in */}
                 <Route path="/" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
@@ -90,6 +93,7 @@ const App: React.FC = () => {
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />
               </Routes>
+              </Suspense>
             </MobileWrapper>
           </HashRouter>
           </ToastProvider>

@@ -13,6 +13,7 @@ import { getPermissionDeniedMessage } from '../shared/utils/permissions';
 import { Platform } from '../shared/utils/platform';
 import { photoResultToFile } from '../shared/utils/photoFile';
 import { mapWithConcurrency } from '../shared/utils/concurrency';
+import { compressImage } from '../shared/utils/imageCompress';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -376,11 +377,13 @@ const NewMilestone: React.FC = () => {
 
       const outcomes = await mapWithConcurrency(files, concurrency, async (file, index): Promise<UploadOutcome> => {
         const maxAttempts = 2;
+        // Compress images before upload
+        const fileToUpload = await compressImage(file);
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
             perFileProgress[index] = 0;
             updateProgressUi();
-            const result = await uploadApi.uploadDirect(file, 'images', (progress) => {
+            const result = await uploadApi.uploadDirect(fileToUpload, 'images', (progress) => {
               perFileProgress[index] = progress;
               updateProgressUi();
             });

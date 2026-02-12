@@ -20,9 +20,12 @@ import { photoResultToFile } from '../shared/utils/photoFile';
 import { cropImageToDataUrl } from '../shared/utils/imageCrop';
 import { countWords } from '../shared/utils/wordCount';
 import { VideoPreview } from '../shared/components/display/VideoPreview';
+import { SwipeableImageContainer } from '../shared/components/display/SwipeableImageContainer';
 import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { Haptics } from '../shared/utils/haptics';
 import { mapWithConcurrency } from '../shared/utils/concurrency';
+import { compressImage } from '../shared/utils/imageCompress';
+import { compressVideo } from '../shared/utils/videoCompress';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -432,14 +435,19 @@ const NewMemory: React.FC = () => {
         const folder = isVideo ? 'videos' : 'images';
         const maxAttempts = 2;
 
-        const debug = `File: ${file.name}, Size: ${formatFileSize(file.size)}, Type: ${file.type || 'unknown'}`;
+        // Compress media before upload
+        const fileToUpload = isVideo
+          ? await compressVideo(file)
+          : await compressImage(file);
+
+        const debug = `File: ${file.name}, Size: ${formatFileSize(fileToUpload.size)}, Type: ${fileToUpload.type || 'unknown'}`;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
             perFileProgress[index] = 0;
             updateProgressUi();
 
-            const result = await uploadApi.uploadDirect(file, folder, (progress) => {
+            const result = await uploadApi.uploadDirect(fileToUpload, folder, (progress) => {
               perFileProgress[index] = progress;
               updateProgressUi();
             });
@@ -992,7 +1000,7 @@ const NewMemory: React.FC = () => {
     if (previewZoom <= PREVIEW_MIN_ZOOM) {
       setPreviewOffset({ x: 0, y: 0 });
       previewTapCloseTimerRef.current = setTimeout(() => {
-        if (previewMediaIndex !== null && media[previewMediaIndex]?.type !== 'video') {
+        if (previewMediaIndex !== null) {
           handleCloseMediaPreview();
         }
       }, 280);
@@ -1977,69 +1985,84 @@ const NewMemory: React.FC = () => {
 
       {/* Media Preview Overlay */}
       {previewMediaIndex !== null && media[previewMediaIndex] && (
-        <div className="fixed inset-0 z-[70] bg-black/90 flex flex-col">
-          <div className="flex items-center justify-center px-4 py-3 text-white/90">
-            <span className="text-sm font-medium">
-              {previewMediaIndex + 1} / {media.length}
-            </span>
-          </div>
+        <div className="fixed inset-0 z-[70] bg-black/95 flex flex-col">
+          {/* Header with page indicator */}
+          {media.length > 1 && (
+            <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center px-4 py-3 pt-safe-offset-3 bg-gradient-to-b from-black/50 to-transparent">
+              <span className="text-white/90 text-sm font-medium">
+                {previewMediaIndex + 1} / {media.length}
+              </span>
+            </div>
+          )}
 
           <div
             ref={previewContainerRef}
-            className="flex-1 relative flex items-center justify-center px-4 overflow-hidden"
+            className="flex-1 relative flex items-center justify-center overflow-hidden"
             onDoubleClick={togglePreviewZoom}
             onTouchStart={handlePreviewTouchStart}
             onTouchMove={handlePreviewTouchMove}
             onTouchEnd={handlePreviewTouchEnd}
             style={{ touchAction: previewZoom > PREVIEW_MIN_ZOOM ? 'none' : 'manipulation' }}
           >
-            {media[previewMediaIndex].type === 'video' ? (
-              <video
-                src={media[previewMediaIndex].url}
-                controls
-                autoPlay
-                playsInline
-                className="max-h-full max-w-full rounded-lg"
-              />
-            ) : (
-              <div
-                className="max-h-full max-w-full flex items-center justify-center select-none"
-                style={{
-                  transform: `translate3d(${previewOffset.x}px, ${previewOffset.y}px, 0) scale(${previewZoom})`,
-                  transition: isPreviewDragging ? 'none' : 'transform 140ms ease-out',
-                  cursor: previewZoom > PREVIEW_MIN_ZOOM ? (isPreviewDragging ? 'grabbing' : 'grab') : 'zoom-in',
-                }}
-              >
-                <img
-                  src={media[previewMediaIndex].url}
-                  alt={`Memory media ${previewMediaIndex + 1}`}
-                  className="max-h-full max-w-full object-contain rounded-lg pointer-events-none select-none"
-                  draggable={false}
-                />
-              </div>
-            )}
-
-            {media.length > 1 && (
-              <>
-                <button
-                  onClick={handlePrevPreviewMedia}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
-                  aria-label="Previous media"
-                  disabled={previewZoom > PREVIEW_MIN_ZOOM}
+            <SwipeableImageContainer
+              onSwipeLeft={handleNextPreviewMedia}
+              onSwipeRight={handlePrevPreviewMedia}
+              canSwipeLeft={previewMediaIndex < media.length - 1}
+              canSwipeRight={previewMediaIndex > 0}
+              disabled={previewZoom > PREVIEW_MIN_ZOOM}
+            >
+              {media[previewMediaIndex].type === 'video' ? (
+                <div
+                  className="flex items-center justify-center w-full h-full"
+                  onClick={handleCloseMediaPreview}
                 >
-                  <span className="material-symbols-outlined">chevron_left</span>
-                </button>
-                <button
-                  onClick={handleNextPreviewMedia}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
-                  aria-label="Next media"
-                  disabled={previewZoom > PREVIEW_MIN_ZOOM}
+                  <video
+                    src={media[previewMediaIndex].url}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-full max-w-full rounded-lg"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="max-h-full max-w-full flex items-center justify-center select-none"
+                  style={{
+                    transform: `translate3d(${previewOffset.x}px, ${previewOffset.y}px, 0) scale(${previewZoom})`,
+                    transition: isPreviewDragging ? 'none' : 'transform 140ms ease-out',
+                  }}
                 >
-                  <span className="material-symbols-outlined">chevron_right</span>
-                </button>
-              </>
-            )}
+                  <img
+                    src={media[previewMediaIndex].url}
+                    alt={`Memory media ${previewMediaIndex + 1}`}
+                    className="max-h-full max-w-full object-contain rounded-lg pointer-events-none select-none"
+                    draggable={false}
+                  />
+                </div>
+              )}
+            </SwipeableImageContainer>
           </div>
+
+          {/* Dots Indicator */}
+          {media.length > 1 && media.length <= 9 && (
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 pb-safe">
+              {media.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    resetPreviewTransform();
+                    setPreviewMediaIndex(index);
+                  }}
+                  className={`h-2 rounded-full transition-all ${
+                    index === previewMediaIndex
+                      ? 'bg-white w-6'
+                      : 'bg-white/40 hover:bg-white/60 w-2'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

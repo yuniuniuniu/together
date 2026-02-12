@@ -102,6 +102,17 @@ CREATE TABLE IF NOT EXISTS reactions (
   UNIQUE(memory_id, user_id)
 );
 
+-- Comments (on memories, with reply support)
+CREATE TABLE IF NOT EXISTS comments (
+  id TEXT PRIMARY KEY,
+  memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  parent_id TEXT REFERENCES comments(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER DEFAULT 0
+);
+
 -- Unbind requests (cooling-off period)
 CREATE TABLE IF NOT EXISTS unbind_requests (
   id TEXT PRIMARY KEY,
@@ -120,4 +131,6 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_space_members_user_id ON space_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
 CREATE INDEX IF NOT EXISTS idx_reactions_memory_id ON reactions(memory_id);
+CREATE INDEX IF NOT EXISTS idx_comments_memory_id ON comments(memory_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id);
 CREATE INDEX IF NOT EXISTS idx_unbind_requests_space_id ON unbind_requests(space_id);

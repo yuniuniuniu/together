@@ -172,7 +172,7 @@ export function VideoPreview({
           className={className}
           muted
           playsInline
-          preload="auto"
+          preload="metadata"
           onLoadedMetadata={(event) => {
             const video = event.currentTarget;
             setDuration(video.duration);
