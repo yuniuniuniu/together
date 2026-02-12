@@ -1,9 +1,12 @@
 import { useCallback } from 'react';
-import { Camera, CameraResultType, CameraSource, Photo } from '@capacitor/camera';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 import { Platform } from '@/shared/utils/platform';
 
 export interface PhotoResult {
-  dataUrl: string;
+  // Unified media source. Can be a data URL, a file/content URL, or a web URL.
+  source: string;
+  sourceType: 'data-url' | 'native-file-url' | 'web-url';
   format: string;
 }
 
@@ -11,6 +14,21 @@ type PermissionState = 'prompt' | 'prompt-with-rationale' | 'granted' | 'denied'
 
 function isGranted(state?: PermissionState): boolean {
   return state === 'granted' || state === 'limited';
+}
+
+function inferFormatFromPath(path?: string): string {
+  if (!path) return 'jpeg';
+  const cleanedPath = path.split('?')[0];
+  const extension = cleanedPath.split('.').pop()?.toLowerCase();
+  if (!extension) return 'jpeg';
+  if (extension === 'jpg') return 'jpeg';
+  return extension;
+}
+
+function resolveNativePhotoSource(photo: { webPath?: string; path?: string }): string | null {
+  if (photo.webPath) return photo.webPath;
+  if (photo.path) return Capacitor.convertFileSrc(photo.path);
+  return null;
 }
 
 /**
@@ -34,7 +52,8 @@ export function usePhotoPicker() {
 
         if (photo.dataUrl) {
           return {
-            dataUrl: photo.dataUrl,
+            source: photo.dataUrl,
+            sourceType: 'data-url',
             format: photo.format
           };
         }
@@ -51,7 +70,8 @@ export function usePhotoPicker() {
               const reader = new FileReader();
               reader.onload = () => {
                 resolve({
-                  dataUrl: reader.result as string,
+                  source: reader.result as string,
+                  sourceType: 'data-url',
                   format: file.type.split('/')[1] || 'jpeg'
                 });
               };
@@ -86,7 +106,8 @@ export function usePhotoPicker() {
 
         if (photo.dataUrl) {
           return {
-            dataUrl: photo.dataUrl,
+            source: photo.dataUrl,
+            sourceType: 'data-url',
             format: photo.format
           };
         }
@@ -104,7 +125,8 @@ export function usePhotoPicker() {
               const reader = new FileReader();
               reader.onload = () => {
                 resolve({
-                  dataUrl: reader.result as string,
+                  source: reader.result as string,
+                  sourceType: 'data-url',
                   format: file.type.split('/')[1] || 'jpeg'
                 });
               };
@@ -135,11 +157,16 @@ export function usePhotoPicker() {
         });
 
         return result.photos
-          .filter(p => p.webPath)
-          .map(p => ({
-            dataUrl: p.webPath!,
-            format: p.format
-          }));
+          .map((p) => {
+            const source = resolveNativePhotoSource(p);
+            if (!source) return null;
+            return {
+              source,
+              sourceType: 'native-file-url',
+              format: p.format || inferFormatFromPath(p.path || p.webPath),
+            } satisfies PhotoResult;
+          })
+          .filter((photo): photo is NonNullable<typeof photo> => Boolean(photo));
       } else {
         // Web fallback
         return new Promise((resolve) => {
@@ -159,7 +186,8 @@ export function usePhotoPicker() {
                   reader.readAsDataURL(file);
                 });
                 photos.push({
-                  dataUrl,
+                  source: dataUrl,
+                  sourceType: 'data-url',
                   format: file.type.split('/')[1] || 'jpeg'
                 });
               }

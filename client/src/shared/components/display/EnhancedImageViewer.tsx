@@ -216,17 +216,22 @@ export const EnhancedImageViewer: React.FC<EnhancedImageViewerProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  const handleTapToClose = useCallback(() => {
+    // Keep zoom interactions first; tap-to-close only in default scale.
+    if (scale !== 1) return;
+    onClose();
+  }, [onClose, scale]);
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
-      >
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
+        >
         {/* Header */}
         <motion.div
           initial={{ y: -50, opacity: 0 }}
@@ -250,13 +255,14 @@ export const EnhancedImageViewer: React.FC<EnhancedImageViewerProps> = ({
         </motion.div>
 
         {/* Image Container */}
-        <div
-          ref={containerRef}
-          className="flex-1 flex items-center justify-center overflow-hidden image-viewer-container"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
+          <div
+            ref={containerRef}
+            className="flex-1 flex items-center justify-center overflow-hidden image-viewer-container"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onClick={handleTapToClose}
+          >
           <SwipeableImageContainer
             onSwipeLeft={handleSwipeLeft}
             onSwipeRight={handleSwipeRight}
@@ -267,9 +273,9 @@ export const EnhancedImageViewer: React.FC<EnhancedImageViewerProps> = ({
             <motion.div
               key={currentIndex}
               layoutId={`image-${currentIndex}`}
-              initial={{ opacity: 0, scale: 0.8 }}
+              initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
+              exit={{ opacity: 0, scale: 0.82 }}
               transition={{
                 type: 'spring',
                 damping: 25,
@@ -301,58 +307,59 @@ export const EnhancedImageViewer: React.FC<EnhancedImageViewerProps> = ({
               </motion.div>
             </motion.div>
           </SwipeableImageContainer>
-        </div>
+          </div>
 
         {/* Navigation Arrows (Desktop) */}
-        {images.length > 1 && (
-          <>
-            {currentIndex > 0 && (
-              <motion.button
-                initial={{ x: -50, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.1 }}
-                onClick={() => setCurrentIndex(prev => prev - 1)}
-                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors hidden sm:block"
-              >
-                <span className="material-symbols-outlined text-2xl">chevron_left</span>
-              </motion.button>
-            )}
-            {currentIndex < images.length - 1 && (
-              <motion.button
-                initial={{ x: 50, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.1 }}
-                onClick={() => setCurrentIndex(prev => prev + 1)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors hidden sm:block"
-              >
-                <span className="material-symbols-outlined text-2xl">chevron_right</span>
-              </motion.button>
-            )}
-          </>
-        )}
+          {images.length > 1 && (
+            <>
+              {currentIndex > 0 && (
+                <motion.button
+                  initial={{ x: -50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  onClick={() => setCurrentIndex(prev => prev - 1)}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors hidden sm:block"
+                >
+                  <span className="material-symbols-outlined text-2xl">chevron_left</span>
+                </motion.button>
+              )}
+              {currentIndex < images.length - 1 && (
+                <motion.button
+                  initial={{ x: 50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  onClick={() => setCurrentIndex(prev => prev + 1)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors hidden sm:block"
+                >
+                  <span className="material-symbols-outlined text-2xl">chevron_right</span>
+                </motion.button>
+              )}
+            </>
+          )}
 
         {/* Dots Indicator */}
-        {images.length > 1 && images.length <= 9 && (
-          <motion.div
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="absolute bottom-6 left-0 right-0 flex justify-center gap-2"
-          >
-            {images.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentIndex(index)}
-                className={`h-2 rounded-full transition-all ${
-                  index === currentIndex
-                    ? 'bg-white w-6'
-                    : 'bg-white/40 hover:bg-white/60 w-2'
-                }`}
-              />
-            ))}
-          </motion.div>
-        )}
-      </motion.div>
+          {images.length > 1 && images.length <= 9 && (
+            <motion.div
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.1 }}
+              className="absolute bottom-6 left-0 right-0 flex justify-center gap-2"
+            >
+              {images.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentIndex(index)}
+                  className={`h-2 rounded-full transition-all ${
+                    index === currentIndex
+                      ? 'bg-white w-6'
+                      : 'bg-white/40 hover:bg-white/60 w-2'
+                  }`}
+                />
+              ))}
+            </motion.div>
+          )}
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 };

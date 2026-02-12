@@ -24,6 +24,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <LoadingScreen />;
   }
 
+  // For auth-flow routes (e.g. /setup/create), wait until space state is resolved.
+  // Otherwise a previously cached setup URL can flash briefly before redirecting.
+  if (!requireSpace && isAuthenticated && isProfileComplete && isSpaceLoading) {
+    return <LoadingScreen />;
+  }
+
   if (!isAuthenticated) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }

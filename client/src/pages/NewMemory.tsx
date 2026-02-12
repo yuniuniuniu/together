@@ -80,7 +80,7 @@ const NewMemory: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [date, setDate] = useState(new Date().toISOString());
   const { getCurrentPosition, checkPermissions } = useNativeGeolocation();
-  const { pickFromGallery, pickMultiple, takePhoto, checkPhotosPermission, checkCameraPermission } = usePhotoPicker();
+  const { pickMultiple, takePhoto, checkPhotosPermission, checkCameraPermission } = usePhotoPicker();
 
   // Use draft hook for form persistence
   const { state: draft, updateField, clearDraft } = useFormDraft<MemoryDraft>(
@@ -449,7 +449,7 @@ const NewMemory: React.FC = () => {
 
     setIsApplyingPhotoCrop(true);
     try {
-      const croppedDataUrl = await cropImageToDataUrl(target.dataUrl, {
+      const croppedDataUrl = await cropImageToDataUrl(target.source, {
         x: Math.round(photoCroppedAreaPixels.x),
         y: Math.round(photoCroppedAreaPixels.y),
         width: Math.round(photoCroppedAreaPixels.width),
@@ -460,7 +460,8 @@ const NewMemory: React.FC = () => {
         previous.map((photo, index) =>
           index === editingPhotoIndex
             ? {
-                dataUrl: croppedDataUrl,
+                source: croppedDataUrl,
+                sourceType: 'data-url',
                 format: 'jpeg',
               }
             : photo
@@ -530,27 +531,6 @@ const NewMemory: React.FC = () => {
       await uploadMediaFiles([file]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to take photo');
-      fileInputRef.current?.click();
-    }
-  };
-
-  const handlePickAndEditPhotoNative = async () => {
-    setShowPhotoActions(false);
-
-    try {
-      const hasPermission = await checkPhotosPermission();
-      if (!hasPermission) {
-        setError(getPermissionDeniedMessage('photo'));
-        return;
-      }
-
-      const photo = await pickFromGallery();
-      if (!photo) return;
-
-      const file = await photoResultToFile(photo, `memory-gallery-${Date.now()}`);
-      await uploadMediaFiles([file]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to pick and edit photo');
       fileInputRef.current?.click();
     }
   };
@@ -1559,11 +1539,11 @@ const NewMemory: React.FC = () => {
               <div className="grid grid-cols-3 gap-3">
                 {pendingPhotos.map((photo, index) => (
                   <button
-                    key={`${photo.dataUrl}-${index}`}
+                    key={`${photo.source}-${index}`}
                     onClick={() => handleOpenSinglePhotoCrop(index)}
                     className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 active:scale-[0.98] transition-transform"
                   >
-                    <img src={photo.dataUrl} alt={`Selected ${index + 1}`} className="w-full h-full object-cover" />
+                    <img src={photo.source} alt={`Selected ${index + 1}`} className="w-full h-full object-cover" />
                     <div className="absolute top-1 right-1 bg-black/45 text-white text-[10px] px-1.5 py-0.5 rounded">
                       Crop
                     </div>
@@ -1575,7 +1555,7 @@ const NewMemory: React.FC = () => {
 
           {editingPhotoIndex !== null && pendingPhotos[editingPhotoIndex] && (
             <div className="fixed inset-0 z-[66] bg-black/90 flex flex-col">
-              <div className="px-4 py-3 flex items-center justify-between text-white border-b border-white/10">
+              <div className="px-4 pt-safe-offset-4 pb-3 flex items-center justify-between text-white border-b border-white/10">
                 <button
                   onClick={() => {
                     setEditingPhotoIndex(null);
@@ -1600,7 +1580,7 @@ const NewMemory: React.FC = () => {
 
               <div className="relative flex-1 bg-black">
                 <Cropper
-                  image={pendingPhotos[editingPhotoIndex].dataUrl}
+                  image={pendingPhotos[editingPhotoIndex].source}
                   crop={photoCrop}
                   zoom={photoZoom}
                   aspect={1}
@@ -1723,28 +1703,11 @@ const NewMemory: React.FC = () => {
                 Take Photo
               </button>
               <button
-                onClick={handlePickAndEditPhotoNative}
-                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined">crop</span>
-                Pick & Crop Photo
-              </button>
-              <button
                 onClick={handlePickPhotosNative}
                 className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined">photo_library</span>
                 Choose from Gallery (Multiple)
-              </button>
-              <button
-                onClick={() => {
-                  setShowPhotoActions(false);
-                  videoInputRef.current?.click();
-                }}
-                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined">videocam</span>
-                Upload Video
               </button>
               <button
                 onClick={() => setShowPhotoActions(false)}

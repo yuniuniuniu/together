@@ -272,44 +272,46 @@ const MemoryTimeline: React.FC = () => {
 
                       {/* Media */}
                       {memory.photos && memory.photos.length > 0 && (
-                        <div className="rounded-2xl overflow-hidden aspect-[4/3] w-full mb-6 relative bg-stone-50 dark:bg-zinc-950/50">
-                          {(() => {
-                            const firstMedia = memory.photos[0];
-                            const isVideo = firstMedia.match(/\.(mp4|webm|mov|avi|m4v)$/i);
-                            const isGif = firstMedia.match(/\.gif$/i);
+                        <div className="grid grid-cols-3 gap-1.5 mb-6">
+                          {memory.photos.map((mediaUrl, index) => {
+                            const isVideo = mediaUrl.match(/\.(mp4|webm|mov|avi|m4v)$/i);
+                            const isGif = mediaUrl.match(/\.gif$/i);
 
                             if (isVideo) {
                               return (
-                                <VideoPreview
-                                  src={firstMedia}
-                                  className="w-full h-full object-cover"
-                                  iconSize="lg"
-                                  enableFullscreen={true}
-                                />
+                                <div key={`${memory.id}-${index}`} className="aspect-square relative overflow-hidden rounded-xl bg-black">
+                                  <VideoPreview
+                                    src={mediaUrl}
+                                    className="w-full h-full object-cover"
+                                    iconSize="sm"
+                                    enableFullscreen={true}
+                                  />
+                                  <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
+                                    VIDEO
+                                  </div>
+                                </div>
                               );
                             }
 
                             return (
-                              <>
+                              <div
+                                key={`${memory.id}-${index}`}
+                                className="aspect-square relative overflow-hidden rounded-xl bg-stone-50 dark:bg-zinc-950/50"
+                              >
                                 <div
                                   className="w-full h-full bg-cover bg-center"
                                   role="img"
-                                  aria-label="Memory"
-                                  style={{ backgroundImage: `url("${firstMedia}")` }}
+                                  aria-label={`Memory ${index + 1}`}
+                                  style={{ backgroundImage: `url("${mediaUrl}")` }}
                                 />
                                 {isGif && (
-                                  <div className="absolute bottom-2 left-2 bg-black/50 text-white text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wider">
+                                  <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold tracking-wider">
                                     GIF
                                   </div>
                                 )}
-                              </>
+                              </div>
                             );
-                          })()}
-                          {memory.photos.length > 1 && (
-                            <div className="absolute top-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full font-bold">
-                              +{memory.photos.length - 1}
-                            </div>
-                          )}
+                          })}
                         </div>
                       )}
 

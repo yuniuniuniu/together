@@ -1,4 +1,5 @@
 import type { ApiResponse } from '../types';
+import { Platform } from '../utils/platform';
 
 
 const DEFAULT_API_BASE = `${window.location.protocol}//${window.location.hostname}:3005/api`;
@@ -460,11 +461,85 @@ function normalizeUploadUrl(url: string): string {
 }
 
 export const uploadApi = {
+  uploadViaServer: async (
+    file: File,
+    folder: string = 'uploads',
+    onProgress?: (progress: number) => void
+  ): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> =>
+    new Promise((resolve, reject) => {
+      const token = localStorage.getItem('auth_token');
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+
+      formData.append('file', file, file.name);
+      formData.append('folder', folder);
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        try {
+          const payload =
+            typeof xhr.response === 'string'
+              ? JSON.parse(xhr.response || '{}')
+              : xhr.response;
+
+          if (xhr.status < 200 || xhr.status >= 300 || !payload?.success) {
+            const message = payload?.error?.message || payload?.message || `Upload failed with status ${xhr.status}`;
+            reject(new Error(message));
+            return;
+          }
+
+          const data = payload.data || {};
+          const isVideo = file.type.startsWith('video/');
+          const isGif = file.type === 'image/gif';
+          const fallbackType: 'image' | 'gif' | 'video' = isVideo ? 'video' : isGif ? 'gif' : 'image';
+
+          resolve({
+            url: normalizeUploadUrl(data.url),
+            filename: data.filename || file.name,
+            type: data.type || fallbackType,
+          });
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error('Invalid upload response'));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
+
+      xhr.addEventListener('timeout', () => {
+        reject(new Error('Upload timed out, please retry on a stable network'));
+      });
+
+      xhr.open('POST', `${UPLOAD_BASE}/api/upload`);
+      xhr.responseType = 'json';
+      xhr.timeout = 15 * 60 * 1000;
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+      xhr.send(formData);
+    }),
+
   uploadAudio: async (blob: Blob, filename: string = 'voice-note.webm'): Promise<{ url: string; filename: string }> => {
     const file = new File([blob], filename, {
       type: blob.type || 'audio/webm',
       lastModified: Date.now(),
     });
+
+    if (Platform.isNative()) {
+      const result = await uploadApi.uploadViaServer(file, 'audio');
+      return {
+        url: result.url,
+        filename: result.filename,
+      };
+    }
+
     const { uploadUrl, publicUrl, contentType } = await uploadApi.getPresignedUrl(
       file.name,
       'audio',
@@ -534,6 +609,10 @@ export const uploadApi = {
     folder: string = 'uploads',
     onProgress?: (progress: number) => void
   ): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> => {
+    if (Platform.isNative()) {
+      return uploadApi.uploadViaServer(file, folder, onProgress);
+    }
+
     // Get presigned URL from server
     const { uploadUrl, publicUrl, contentType } = await uploadApi.getPresignedUrl(
       file.name,

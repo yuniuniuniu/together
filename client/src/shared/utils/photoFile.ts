@@ -1,4 +1,5 @@
 import type { PhotoResult } from '../hooks/usePhotoPicker';
+import { Capacitor } from '@capacitor/core';
 
 function normalizeImageMimeType(format?: string): string {
   if (!format) return 'image/jpeg';
@@ -29,17 +30,28 @@ function decodeDataUrl(dataUrl: string): { mimeType: string; blob: Blob } {
   };
 }
 
+function resolveFetchableSource(source: string): string {
+  if (/^(content|file):\/\//i.test(source)) {
+    return Capacitor.convertFileSrc(source);
+  }
+  return source;
+}
+
 export async function photoResultToFile(photo: PhotoResult, baseName: string): Promise<File> {
   const fallbackMimeType = normalizeImageMimeType(photo.format);
   const extension = (photo.format || 'jpeg').toLowerCase();
   const filename = `${baseName}.${extension}`;
 
-  if (photo.dataUrl.startsWith('data:')) {
-    const parsed = decodeDataUrl(photo.dataUrl);
+  if (photo.source.startsWith('data:')) {
+    const parsed = decodeDataUrl(photo.source);
     return new File([parsed.blob], filename, { type: parsed.mimeType || fallbackMimeType });
   }
 
-  const response = await fetch(photo.dataUrl);
+  const source = resolveFetchableSource(photo.source);
+  const response = await fetch(source);
+  if (!response.ok) {
+    throw new Error(`Failed to read selected photo (${response.status})`);
+  }
   const blob = await response.blob();
   return new File([blob], filename, { type: blob.type || fallbackMimeType });
 }

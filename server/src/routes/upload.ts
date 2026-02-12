@@ -1,13 +1,28 @@
 import { Router } from 'express';
 import path from 'path';
+import multer from 'multer';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import {
   isR2Configured,
   getPresignedUploadUrl,
   deleteFromR2ByUrl,
+  uploadToR2,
 } from '../services/r2Service.js';
 
 const router = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    // Keep a generous cap for short videos while preventing abuse.
+    fileSize: 150 * 1024 * 1024,
+    files: 10,
+  },
+  fileFilter: (_req, file, callback) => {
+    const allowedMimePrefixes = ['image/', 'video/', 'audio/'];
+    const isAllowed = allowedMimePrefixes.some((prefix) => file.mimetype.startsWith(prefix));
+    callback(isAllowed ? null : new Error('Unsupported file type'));
+  },
+});
 
 // Check R2 configuration at startup
 if (!isR2Configured()) {
@@ -16,6 +31,102 @@ if (!isR2Configured()) {
 
 // All routes require authentication
 router.use(authenticate);
+
+// POST /api/upload - Upload a single media file via backend proxy
+router.post('/', upload.single('file'), async (req: AuthRequest, res) => {
+  try {
+    const request = req as AuthRequest & { file?: Express.Multer.File };
+    const file = request.file;
+
+    if (!file) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'NO_FILE', message: 'File is required' },
+      });
+      return;
+    }
+
+    const requestedFolder = typeof req.body?.folder === 'string' ? req.body.folder : 'uploads';
+    const { url, key } = await uploadToR2(file.buffer, file.originalname, requestedFolder, file.mimetype);
+    const filename = path.basename(key);
+    const type: 'image' | 'gif' | 'video' =
+      file.mimetype.startsWith('video/')
+        ? 'video'
+        : file.mimetype === 'image/gif'
+          ? 'gif'
+          : 'image';
+
+    res.json({
+      success: true,
+      data: {
+        url,
+        key,
+        filename,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        type,
+      },
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'UPLOAD_ERROR', message: 'Failed to upload file' },
+    });
+  }
+});
+
+// POST /api/upload/multiple - Upload multiple media files via backend proxy
+router.post('/multiple', upload.array('files', 10), async (req: AuthRequest, res) => {
+  try {
+    const request = req as AuthRequest & { files?: Express.Multer.File[] };
+    const files = request.files ?? [];
+
+    if (files.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'NO_FILES', message: 'At least one file is required' },
+      });
+      return;
+    }
+
+    const requestedFolder = typeof req.body?.folder === 'string' ? req.body.folder : 'uploads';
+    const uploaded = await Promise.all(
+      files.map(async (file) => {
+        const { url, key } = await uploadToR2(file.buffer, file.originalname, requestedFolder, file.mimetype);
+        const filename = path.basename(key);
+        const type: 'image' | 'gif' | 'video' =
+          file.mimetype.startsWith('video/')
+            ? 'video'
+            : file.mimetype === 'image/gif'
+              ? 'gif'
+              : 'image';
+
+        return {
+          url,
+          key,
+          filename,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          type,
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: uploaded,
+    });
+  } catch (error) {
+    console.error('Multiple upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'UPLOAD_ERROR', message: 'Failed to upload files' },
+    });
+  }
+});
 
 // POST /api/upload/presign - Get presigned URL for direct upload to R2
 router.post('/presign', async (req: AuthRequest, res) => {
