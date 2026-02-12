@@ -20,7 +20,12 @@ const upload = multer({
   fileFilter: (_req, file, callback) => {
     const allowedMimePrefixes = ['image/', 'video/', 'audio/'];
     const isAllowed = allowedMimePrefixes.some((prefix) => file.mimetype.startsWith(prefix));
-    callback(isAllowed ? null : new Error('Unsupported file type'));
+    if (!isAllowed) {
+      callback(new Error('Unsupported file type'));
+      return;
+    }
+
+    callback(null, true);
   },
 });
 
