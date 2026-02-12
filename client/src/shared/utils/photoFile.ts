@@ -42,16 +42,32 @@ export async function photoResultToFile(photo: PhotoResult, baseName: string): P
   const extension = (photo.format || 'jpeg').toLowerCase();
   const filename = `${baseName}.${extension}`;
 
+  console.log('[PhotoFile Debug] Converting photo to file:', {
+    sourceType: photo.sourceType,
+    sourcePrefix: photo.source.substring(0, 100),
+    format: photo.format,
+    filename,
+  });
+
   if (photo.source.startsWith('data:')) {
+    console.log('[PhotoFile Debug] Using data URL decode');
     const parsed = decodeDataUrl(photo.source);
-    return new File([parsed.blob], filename, { type: parsed.mimeType || fallbackMimeType });
+    const file = new File([parsed.blob], filename, { type: parsed.mimeType || fallbackMimeType });
+    console.log('[PhotoFile Debug] Created file from data URL:', { size: file.size, type: file.type });
+    return file;
   }
 
   const source = resolveFetchableSource(photo.source);
+  console.log('[PhotoFile Debug] Fetching from source:', source);
+
   const response = await fetch(source);
+  console.log('[PhotoFile Debug] Fetch response:', { ok: response.ok, status: response.status });
+
   if (!response.ok) {
     throw new Error(`Failed to read selected photo (${response.status})`);
   }
   const blob = await response.blob();
-  return new File([blob], filename, { type: blob.type || fallbackMimeType });
+  const file = new File([blob], filename, { type: blob.type || fallbackMimeType });
+  console.log('[PhotoFile Debug] Created file from fetch:', { size: file.size, type: file.type });
+  return file;
 }

@@ -2,8 +2,15 @@ import type { ApiResponse } from '../types';
 import { Platform } from '../utils/platform';
 
 
+// Production API URL - hardcoded for reliability in native apps
+const PRODUCTION_API_URL = 'https://together1024.top/api';
+
+// For web development, use localhost; for native apps, always use production
 const DEFAULT_API_BASE = `${window.location.protocol}//${window.location.hostname}:3005/api`;
-const API_BASE = import.meta.env.VITE_API_URL || DEFAULT_API_BASE;
+const API_BASE = import.meta.env.VITE_API_URL ||
+  (window.location.hostname === 'localhost' && window.location.port === ''
+    ? PRODUCTION_API_URL  // Native app (Capacitor serves on localhost without port)
+    : DEFAULT_API_BASE);
 
 // Debug: Log API configuration on load
 console.log('[API Debug] VITE_API_URL:', import.meta.env.VITE_API_URL);
@@ -464,66 +471,81 @@ export const uploadApi = {
     file: File,
     folder: string = 'uploads',
     onProgress?: (progress: number) => void
-  ): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> =>
-    new Promise((resolve, reject) => {
-      const token = localStorage.getItem('auth_token');
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
+  ): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> => {
+    const token = localStorage.getItem('auth_token');
+    const uploadUrl = `${UPLOAD_API_BASE}/upload`;
 
-      formData.append('file', file, file.name);
-      formData.append('folder', folder);
+    console.log('[Upload Debug] Starting upload with fetch:', {
+      url: uploadUrl,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      folder,
+      hasToken: !!token,
+    });
 
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable && onProgress) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          onProgress(progress);
-        }
-      });
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    formData.append('folder', folder);
 
-      xhr.addEventListener('load', () => {
-        try {
-          const payload =
-            typeof xhr.response === 'string'
-              ? JSON.parse(xhr.response || '{}')
-              : xhr.response;
+    // Note: fetch doesn't support upload progress natively
+    // For progress support on native, we'd need a different approach
+    if (onProgress) {
+      onProgress(0);
+    }
 
-          if (xhr.status < 200 || xhr.status >= 300 || !payload?.success) {
-            const message = payload?.error?.message || payload?.message || `Upload failed with status ${xhr.status}`;
-            reject(new Error(message));
-            return;
-          }
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
 
-          const data = payload.data || {};
-          const isVideo = file.type.startsWith('video/');
-          const isGif = file.type === 'image/gif';
-          const fallbackType: 'image' | 'gif' | 'video' = isVideo ? 'video' : isGif ? 'gif' : 'image';
+    console.log('[Upload Debug] Response received:', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type'),
+    });
 
-          resolve({
-            url: normalizeUploadUrl(data.url),
-            filename: data.filename || file.name,
-            type: data.type || fallbackType,
-          });
-        } catch (error) {
-          reject(error instanceof Error ? error : new Error('Invalid upload response'));
-        }
-      });
+    if (onProgress) {
+      onProgress(100);
+    }
 
-      xhr.addEventListener('error', () => {
-        reject(new Error('Upload failed'));
-      });
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('[Upload Debug] Non-JSON response:', { status: response.status, contentType, body: text.substring(0, 500) });
+      throw new Error(`Upload failed: server returned ${response.status} (expected JSON, got ${contentType || 'unknown'})\nURL: ${uploadUrl}`);
+    }
 
-      xhr.addEventListener('timeout', () => {
-        reject(new Error('Upload timed out, please retry on a stable network'));
-      });
+    let payload;
+    try {
+      payload = await response.json();
+    } catch (parseError) {
+      console.error('[Upload Debug] JSON parse error:', parseError);
+      throw new Error(`Upload failed: invalid JSON response (status ${response.status})`);
+    }
 
-      xhr.open('POST', `${UPLOAD_API_BASE}/upload`);
-      xhr.responseType = 'json';
-      xhr.timeout = 15 * 60 * 1000;
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-      xhr.send(formData);
-    }),
+    if (!response.ok || !payload?.success) {
+      const message = payload?.error?.message || payload?.message || `Upload failed with status ${response.status}`;
+      console.error('[Upload Debug] Upload failed:', { status: response.status, payload, message });
+      throw new Error(message);
+    }
+
+    const data = payload.data || {};
+    const isVideo = file.type.startsWith('video/');
+    const isGif = file.type === 'image/gif';
+    const fallbackType: 'image' | 'gif' | 'video' = isVideo ? 'video' : isGif ? 'gif' : 'image';
+
+    return {
+      url: normalizeUploadUrl(data.url),
+      filename: data.filename || file.name,
+      type: data.type || fallbackType,
+    };
+  },
 
   uploadAudio: async (blob: Blob, filename: string = 'voice-note.webm'): Promise<{ url: string; filename: string }> => {
     const file = new File([blob], filename, {

@@ -17,6 +17,7 @@ const ALLOWED_ORIGINS = new Set([
   'https://together1024.top',
   'capacitor://localhost',
   'http://localhost',
+  'https://localhost',  // Capacitor Android with androidScheme: 'https'
 ]);
 
 const LOCAL_DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;

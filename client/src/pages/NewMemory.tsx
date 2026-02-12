@@ -126,6 +126,7 @@ const NewMemory: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [errorPopup, setErrorPopup] = useState<string | null>(null);
   const [locationSearch, setLocationSearch] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
@@ -404,6 +405,9 @@ const NewMemory: React.FC = () => {
     setError('');
     setUploadProgress('');
 
+    // Collect debug info for error reporting
+    let debugInfo = '';
+
     try {
       const uploadResults: MediaItem[] = [];
 
@@ -413,6 +417,9 @@ const NewMemory: React.FC = () => {
         const folder = isVideo ? 'videos' : 'images';
         const maxAttempts = 2;
         let lastError: Error | null = null;
+
+        // Record file info for debugging
+        debugInfo = `File: ${file.name}, Size: ${formatFileSize(file.size)}, Type: ${file.type || 'unknown'}`;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
@@ -442,7 +449,12 @@ const NewMemory: React.FC = () => {
       setMedia(prev => [...prev, ...uploadResults]);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload media');
+      // Build detailed error message for debugging
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorStack = err instanceof Error ? err.stack : '';
+      const detailedError = `${errorMessage}\n\n[Debug Info]\n${debugInfo}${errorStack ? `\n\n[Stack]\n${errorStack}` : ''}`;
+      setError(errorMessage);
+      setErrorPopup(detailedError);
       return false;
     } finally {
       setIsUploading(false);
@@ -1270,7 +1282,7 @@ const NewMemory: React.FC = () => {
       <main className="flex-1 flex flex-col w-full px-6 pb-24 overflow-y-auto no-scrollbar">
         <div className="sticky top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 -mx-6 px-6 pt-3 pb-2 bg-paper/90 backdrop-blur-md">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
+            <div className="bg-red-50 border border-red-200 text-red-600 text-xs px-4 py-2 rounded-lg whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
               {error}
             </div>
           )}
@@ -2102,6 +2114,42 @@ const NewMemory: React.FC = () => {
                   </button>
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* Error Debug Popup */}
+      {errorPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setErrorPopup(null)}
+          />
+          <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <h3 className="font-bold text-red-600">Upload Error</h3>
+              <button
+                onClick={() => setErrorPopup(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <pre className="text-xs text-gray-800 whitespace-pre-wrap break-all font-mono">
+                {errorPopup}
+              </pre>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(errorPopup);
+                }}
+                className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium text-sm"
+              >
+                Copy to Clipboard
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
