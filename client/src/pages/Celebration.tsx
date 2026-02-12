@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 const Celebration: React.FC = () => {
   const navigate = useNavigate();
   const { anniversaryDate, partner } = useSpace();
   const { user } = useAuth();
+  const { topBarRef, topBarHeight } = useFixedTopBar();
   const myAvatarUrl = resolveMediaUrl(user?.avatar);
   const partnerAvatarUrl = resolveMediaUrl(partner?.user?.avatar);
 
@@ -30,7 +32,10 @@ const Celebration: React.FC = () => {
         <span className="material-symbols-outlined text-primary/40 absolute bottom-1/3 left-1/4 text-xl">favorite</span>
       </div>
 
-      <div className="flex items-center px-6 pb-6 pt-safe-offset-6 justify-between z-20">
+      <div
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center px-6 pb-4 pt-safe-offset-4 justify-between bg-background-light/70 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <div
           className="text-[#181010] flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm cursor-pointer"
           onClick={() => navigate('/dashboard')}
@@ -38,6 +43,7 @@ const Celebration: React.FC = () => {
           <span className="material-symbols-outlined">close</span>
         </div>
       </div>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center z-20">
         <div className="relative w-full max-w-[280px] aspect-square flex items-center justify-center mb-6">

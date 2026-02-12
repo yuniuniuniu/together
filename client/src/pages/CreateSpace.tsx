@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useClipboard } from '../shared/hooks/useClipboard';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 const CreateSpace: React.FC = () => {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ const CreateSpace: React.FC = () => {
   const [error, setError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   useEffect(() => {
     const storedDate = sessionStorage.getItem('anniversaryDate');
@@ -89,7 +91,10 @@ const CreateSpace: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-background-light relative overflow-hidden">
-      <header className="flex items-center px-4 pb-2 pt-safe-offset-4 justify-between">
+      <header
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center px-4 pb-4 pt-safe-offset-4 justify-between bg-background-light/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <button
           className="text-ink flex size-12 shrink-0 items-center justify-center rounded-full hover:bg-black/5 transition-colors"
           onClick={() => navigate(-1)}
@@ -98,6 +103,7 @@ const CreateSpace: React.FC = () => {
         </button>
         <h2 className="text-ink text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Create Couple Space</h2>
       </header>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <main className="flex-1 flex flex-col items-center justify-center px-6 pb-12">
         {error && (

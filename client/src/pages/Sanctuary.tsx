@@ -1,13 +1,18 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 const Sanctuary: React.FC = () => {
   const navigate = useNavigate();
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   return (
     <div className="flex-1 flex flex-col bg-background-light">
-      <div className="flex items-center px-6 pb-6 pt-safe-offset-6 justify-between">
+      <div
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center px-6 pb-4 pt-safe-offset-4 justify-between bg-background-light/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <div className="size-10 flex items-center justify-center rounded-full bg-white shadow-sm cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => navigate('/')}>
           <span className="material-symbols-outlined text-ink text-xl">close</span>
         </div>
@@ -16,6 +21,7 @@ const Sanctuary: React.FC = () => {
         </div>
         <div className="size-10"></div>
       </div>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <div className="flex-1 flex flex-col items-center justify-center px-8 pb-12">
         <div className="relative w-full max-w-[320px] aspect-square mb-12 flex items-center justify-center">

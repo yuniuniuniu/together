@@ -5,6 +5,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { milestonesApi } from '../shared/api/client';
 import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 interface Milestone {
   id: string;
@@ -26,6 +27,7 @@ const MilestoneTimeline: React.FC = () => {
   const { anniversaryDate, partner } = useSpace();
   const { data: milestones = [], error } = useMilestonesQuery();
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -79,7 +81,10 @@ const MilestoneTimeline: React.FC = () => {
   return (
     <div className="bg-milestone-cream dark:bg-milestone-zinc-dark font-manrope antialiased text-zinc-900 dark:text-zinc-100 min-h-screen pb-32 flex flex-col">
       {/* Navbar */}
-      <nav className="sticky top-0 z-50 bg-milestone-cream/95 dark:bg-milestone-zinc-dark/95 backdrop-blur-xl border-b border-zinc-100 dark:border-zinc-800 shadow-sm pt-safe">
+      <nav
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] bg-milestone-cream/95 dark:bg-milestone-zinc-dark/95 backdrop-blur-xl border-b border-zinc-100 dark:border-zinc-800 shadow-sm pt-safe-offset-4"
+      >
         <div className="flex items-center justify-between px-6 py-4">
           <button
             onClick={() => navigate('/dashboard')}
@@ -98,6 +103,7 @@ const MilestoneTimeline: React.FC = () => {
           </button>
         </div>
       </nav>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       {error ? (
         <main className="flex-1 flex items-center justify-center px-6">

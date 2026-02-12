@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 interface Milestone {
   id: string;
@@ -34,6 +35,7 @@ const EditMilestone: React.FC = () => {
   const [error, setError] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   useEffect(() => {
     const fetchMilestone = async () => {
@@ -138,7 +140,10 @@ const EditMilestone: React.FC = () => {
       <div className="relative flex h-full min-h-screen w-full max-w-md mx-auto flex-col overflow-x-hidden sm:shadow-2xl bg-milestone-cream dark:bg-milestone-zinc-dark">
 
         {/* Top Navigation Bar */}
-        <header className="sticky top-0 z-50 flex items-center justify-between px-5 pb-4 pt-safe-offset-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md transition-all">
+        <header
+          ref={topBarRef}
+          className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-5 pb-4 pt-safe-offset-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md border-b border-zinc-200/60 dark:border-zinc-800/80 transition-all"
+        >
           <button
             onClick={() => navigate(-1)}
             className="text-zinc-500 dark:text-zinc-400 text-base font-medium hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
@@ -156,6 +161,7 @@ const EditMilestone: React.FC = () => {
             <span>{isSaving ? 'Saving...' : 'Save'}</span>
           </button>
         </header>
+        <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col px-6 pb-10 pt-2 gap-8">

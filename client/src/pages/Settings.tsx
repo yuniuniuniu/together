@@ -4,6 +4,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { uploadApi, spacesApi } from '../shared/api/client';
 import { useToast } from '../shared/components/feedback/Toast';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 const Settings: React.FC = () => {
@@ -22,6 +23,7 @@ const Settings: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [partnerAvatarLoadFailed, setPartnerAvatarLoadFailed] = useState(false);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const myAvatarUrl = resolveMediaUrl(user?.avatar);
   const partnerAvatarUrl = resolveMediaUrl(partner?.user?.avatar);
@@ -107,7 +109,10 @@ const Settings: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-background-light pb-32">
-      <header className="sticky top-0 z-50 bg-background-light/90 backdrop-blur-md px-6 pb-4 pt-safe-offset-4 flex items-center justify-between border-b border-black/[0.03]">
+      <header
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md px-6 pb-4 pt-safe-offset-4 flex items-center justify-between border-b border-black/[0.03] dark:border-zinc-800/80"
+      >
         <button 
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors -ml-2"
           onClick={() => navigate('/dashboard')}
@@ -162,6 +167,7 @@ const Settings: React.FC = () => {
           )}
         </div>
       </header>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <main className="flex-1 px-6">
         <>

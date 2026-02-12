@@ -1,12 +1,17 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 const Privacy: React.FC = () => {
   const navigate = useNavigate();
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   return (
     <div className="flex-1 flex flex-col bg-paper min-h-screen font-sans">
-      <header className="sticky top-0 z-40 flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/80 backdrop-blur-md">
+      <header
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <button
           onClick={() => navigate(-1)}
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors -ml-2"
@@ -16,6 +21,7 @@ const Privacy: React.FC = () => {
         <h1 className="text-xs font-bold tracking-[0.15em] uppercase text-soft-gray text-center">Privacy Policy</h1>
         <div className="w-10"></div>
       </header>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <main className="flex-1 px-6 py-4">
         <div className="prose prose-sm max-w-none text-ink/80">

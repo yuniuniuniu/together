@@ -439,8 +439,7 @@ export const reactionsApi = {
 };
 
 // Upload API
-const UPLOAD_BASE =
-  import.meta.env.VITE_API_URL?.replace('/api', '') || `${window.location.protocol}//${window.location.hostname}:3005`;
+const UPLOAD_API_BASE = API_BASE.replace(/\/+$/, '');
 
 function normalizeUploadUrl(url: string): string {
   const trimmed = url.trim();
@@ -517,7 +516,7 @@ export const uploadApi = {
         reject(new Error('Upload timed out, please retry on a stable network'));
       });
 
-      xhr.open('POST', `${UPLOAD_BASE}/api/upload`);
+      xhr.open('POST', `${UPLOAD_API_BASE}/upload`);
       xhr.responseType = 'json';
       xhr.timeout = 15 * 60 * 1000;
       if (token) {
@@ -585,7 +584,7 @@ export const uploadApi = {
   ): Promise<{ uploadUrl: string; key: string; publicUrl: string; contentType: string }> => {
     const token = localStorage.getItem('auth_token');
 
-    const response = await fetch(`${UPLOAD_BASE}/api/upload/presign`, {
+    const response = await fetch(`${UPLOAD_API_BASE}/upload/presign`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -669,7 +668,7 @@ export const uploadApi = {
   deleteFile: async (url: string): Promise<void> => {
     const token = localStorage.getItem('auth_token');
 
-    const response = await fetch(`${UPLOAD_BASE}/api/upload/delete`, {
+    const response = await fetch(`${UPLOAD_API_BASE}/upload/delete`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

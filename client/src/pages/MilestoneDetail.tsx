@@ -5,6 +5,7 @@ import { milestonesApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 interface Milestone {
   id: string;
@@ -40,6 +41,7 @@ const MilestoneDetail: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
   const milestoneQuery = useQuery({
     queryKey: ['milestone', id],
     queryFn: async () => {
@@ -170,6 +172,52 @@ const MilestoneDetail: React.FC = () => {
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
     >
+      <header
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-4 pb-4 pt-safe-offset-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md border-b border-zinc-200/60 dark:border-zinc-800/80"
+      >
+        <button
+          onClick={() => navigate(-1)}
+          className="w-10 h-10 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center"
+        >
+          <span className="material-symbols-outlined text-zinc-700 dark:text-zinc-200">arrow_back</span>
+        </button>
+        <h1 className="text-zinc-900 dark:text-zinc-100 text-sm font-bold tracking-wide truncate max-w-[180px] text-center">
+          {milestone.title}
+        </h1>
+        <div className="relative w-10 h-10 flex items-center justify-end" ref={menuRef}>
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className="w-10 h-10 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center"
+          >
+            <span className="material-symbols-outlined text-zinc-700 dark:text-zinc-200">more_horiz</span>
+          </button>
+          {showMenu && isOwnMilestone && (
+            <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-black/5 py-2 min-w-[160px] z-50">
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  navigate(`/milestone/${id}/edit`);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 transition-colors text-left"
+              >
+                <span className="material-symbols-outlined text-[20px] text-zinc-600">edit</span>
+                <span className="text-sm font-medium text-zinc-700">Edit Milestone</span>
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 transition-colors text-left disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[20px] text-red-500">delete</span>
+                <span className="text-sm font-medium text-red-500">{isDeleting ? 'Deleting...' : 'Delete Milestone'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
+
       {/* Header with Hero Image */}
       <div className="relative">
         {/* Cover Photo or Gradient */}
@@ -203,46 +251,6 @@ const MilestoneDetail: React.FC = () => {
         ) : (
           <div className="h-48 bg-gradient-to-br from-milestone-pink/30 via-gold/20 to-milestone-cream"></div>
         )}
-
-        {/* Top Navigation */}
-        <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pb-4 pt-safe-offset-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors"
-          >
-            <span className="material-symbols-outlined text-white">arrow_back</span>
-          </button>
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <span className="material-symbols-outlined text-white">more_horiz</span>
-            </button>
-            {showMenu && isOwnMilestone && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-black/5 py-2 min-w-[160px] z-50">
-                <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    navigate(`/milestone/${id}/edit`);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 transition-colors text-left"
-                >
-                  <span className="material-symbols-outlined text-[20px] text-zinc-600">edit</span>
-                  <span className="text-sm font-medium text-zinc-700">Edit Milestone</span>
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 transition-colors text-left disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[20px] text-red-500">delete</span>
-                  <span className="text-sm font-medium text-red-500">{isDeleting ? 'Deleting...' : 'Delete Milestone'}</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </header>
 
         {/* Title Overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white">

@@ -8,6 +8,7 @@ import { useFormDraft } from '../shared/hooks';
 import UnifiedDatePicker from '../components/UnifiedDatePicker';
 import { useNativeGeolocation } from '../shared/hooks/useNativeGeolocation';
 import { usePhotoPicker } from '../shared/hooks/usePhotoPicker';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { getPermissionDeniedMessage } from '../shared/utils/permissions';
 import { Platform } from '../shared/utils/platform';
 import { photoResultToFile } from '../shared/utils/photoFile';
@@ -110,6 +111,7 @@ const NewMilestone: React.FC = () => {
   const [nearbyPOIs, setNearbyPOIs] = useState<POIResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingNearby, setIsLoadingNearby] = useState(false);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
   const [currentPosition, setCurrentPosition] = useState<{ lng: number; lat: number } | null>(null);
   const AMapRef = useRef<any>(null);
   const placeSearchRef = useRef<any>(null);
@@ -515,7 +517,10 @@ const NewMilestone: React.FC = () => {
       <div className="relative flex h-full min-h-screen w-full max-w-md mx-auto flex-col overflow-x-hidden sm:shadow-2xl bg-milestone-cream dark:bg-milestone-zinc-dark">
         
         {/* Top Navigation Bar */}
-        <header className="sticky top-0 z-50 flex items-center justify-between px-5 pb-4 pt-safe-offset-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md transition-all">
+        <header
+          ref={topBarRef}
+          className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-5 pb-4 pt-safe-offset-4 bg-milestone-cream/90 dark:bg-milestone-zinc-dark/90 backdrop-blur-md border-b border-zinc-200/60 dark:border-zinc-800/80 transition-all"
+        >
           <button 
             onClick={() => navigate(-1)}
             className="text-zinc-500 dark:text-zinc-400 text-base font-medium hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
@@ -533,6 +538,7 @@ const NewMilestone: React.FC = () => {
             <span>{isLoading ? 'Saving...' : 'Save'}</span>
           </button>
         </header>
+        <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
         {/* Main Content Scroll Area */}
         <main className="flex-1 flex flex-col px-6 pb-10 pt-2 gap-8">

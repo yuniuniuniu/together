@@ -20,9 +20,12 @@ export function VideoPreview({
   iconSize = 'lg',
   enableFullscreen = false
 }: VideoPreviewProps) {
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const fullscreenVideoRef = useRef<HTMLVideoElement>(null);
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
   const [duration, setDuration] = useState<number | null>(null);
+  const [previewReady, setPreviewReady] = useState(false);
+  const [hasTriedWarmupPlay, setHasTriedWarmupPlay] = useState(false);
 
   const iconSizeClass = {
     sm: 'text-3xl',
@@ -68,6 +71,38 @@ export function VideoPreview({
     });
   };
 
+  const seekPreviewFrame = (video: HTMLVideoElement) => {
+    const totalDuration = video.duration;
+    if (!Number.isFinite(totalDuration) || totalDuration <= 0) {
+      return;
+    }
+
+    // Skip black intro frames by seeking to an informative early point.
+    const targetTime = Math.min(Math.max(totalDuration * 0.2, 0.35), Math.max(totalDuration - 0.1, 0));
+    if (targetTime <= 0) return;
+
+    try {
+      video.currentTime = targetTime;
+    } catch {
+      // Some devices can reject early seek; keep first frame as fallback.
+    }
+  };
+
+  const warmupAndSeekPreviewFrame = (video: HTMLVideoElement) => {
+    if (previewReady || hasTriedWarmupPlay) return;
+    setHasTriedWarmupPlay(true);
+
+    // Some Android WebViews only render a visible frame after a muted play/pause cycle.
+    void video.play()
+      .then(() => {
+        video.pause();
+        seekPreviewFrame(video);
+      })
+      .catch(() => {
+        seekPreviewFrame(video);
+      });
+  };
+
   useEffect(() => {
     if (!isFullscreenOpen) return;
     const previousOverflow = document.body.style.overflow;
@@ -76,6 +111,11 @@ export function VideoPreview({
       document.body.style.overflow = previousOverflow;
     };
   }, [isFullscreenOpen]);
+
+  useEffect(() => {
+    setPreviewReady(false);
+    setHasTriedWarmupPlay(false);
+  }, [src]);
 
   useEffect(() => {
     if (!isFullscreenOpen) return;
@@ -94,16 +134,30 @@ export function VideoPreview({
     <>
       <div className="relative w-full h-full" onClick={handleOpenFullscreen}>
         <video
+          ref={previewVideoRef}
           src={src}
           className={className}
           muted
           playsInline
-          preload="metadata"
+          preload="auto"
           onLoadedMetadata={(event) => {
-            setDuration(event.currentTarget.duration);
+            const video = event.currentTarget;
+            setDuration(video.duration);
+            seekPreviewFrame(video);
+          }}
+          onLoadedData={(event) => {
+            if (previewReady) return;
+            warmupAndSeekPreviewFrame(event.currentTarget);
+          }}
+          onCanPlay={(event) => {
+            if (previewReady) return;
+            warmupAndSeekPreviewFrame(event.currentTarget);
+          }}
+          onSeeked={() => {
+            setPreviewReady(true);
           }}
         />
-        <div className={`absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none ${overlayClassName}`}>
+        <div className={`absolute inset-0 flex items-center justify-center bg-black/15 pointer-events-none ${overlayClassName}`}>
           <span className={`material-symbols-outlined text-white ${iconSizeClass} drop-shadow-lg`}>
             play_circle
           </span>

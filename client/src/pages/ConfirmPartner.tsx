@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { spacesApi } from '../shared/api/client';
 import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
@@ -23,6 +24,7 @@ const ConfirmPartner: React.FC = () => {
   const [partner, setPartner] = useState<{ nickname: string; avatar?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const partnerAvatarUrl = resolveMediaUrl(partner?.avatar);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   useEffect(() => {
     const stored = sessionStorage.getItem('pendingSpace');
@@ -74,7 +76,10 @@ const ConfirmPartner: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-background-light">
-      <div className="flex items-center px-4 pb-2 pt-safe-offset-4 justify-between">
+      <div
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center px-4 pb-4 pt-safe-offset-4 justify-between bg-background-light/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <div
           className="text-ink flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-gray-100 rounded-full transition-colors"
           onClick={() => navigate(-1)}
@@ -83,6 +88,7 @@ const ConfirmPartner: React.FC = () => {
         </div>
         <h2 className="text-ink text-lg font-serif font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Confirm Partner</h2>
       </div>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <div className="px-8 mt-2">
         <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">

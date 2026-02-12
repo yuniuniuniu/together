@@ -5,6 +5,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useNotifications } from '../shared/context/NotificationContext';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 interface Memory {
@@ -52,6 +53,7 @@ const Dashboard: React.FC = () => {
   const [quote] = useState(() => loveQuotes[Math.floor(Math.random() * loveQuotes.length)]);
   const myAvatarUrl = resolveMediaUrl(user?.avatar);
   const partnerAvatarUrl = resolveMediaUrl(partner?.user?.avatar);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   const formatAnniversaryDate = () => {
     if (!anniversaryDate) return '';
@@ -64,7 +66,10 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#2c1818] dark:text-gray-100 min-h-screen pb-32 selection:bg-primary/30 flex flex-col font-sans">
-      <nav className="flex items-center justify-between px-6 pb-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] sticky top-0 z-40 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm">
+      <nav
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-b border-black/[0.03] dark:border-zinc-800/80"
+      >
         <div className="size-10 flex items-center justify-start">
           <span className="material-symbols-outlined text-dusty-rose text-2xl">favorite</span>
         </div>
@@ -83,6 +88,7 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
       </nav>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <main className="max-w-md mx-auto w-full px-6 pt-2 space-y-10 flex-1">
         <section className="flex flex-col items-center gap-10 mt-4">

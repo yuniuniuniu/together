@@ -8,6 +8,7 @@ import { useToast } from '../shared/components/feedback/Toast';
 import { EnhancedImageViewer } from '../shared/components/display/EnhancedImageViewer';
 import { VideoPreview } from '../shared/components/display/VideoPreview';
 import { countWords } from '../shared/utils/wordCount';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 interface Memory {
   id: string;
@@ -47,6 +48,7 @@ const MemoryDetail: React.FC = () => {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const memoryQuery = useQuery({
     queryKey: ['memory', id],
@@ -191,11 +193,15 @@ const MemoryDetail: React.FC = () => {
   if (memoryQuery.isLoading && !memory && !errorMessage) {
     return (
       <div className="flex-1 flex flex-col bg-background-light min-h-screen">
-        <div className="sticky top-0 z-20 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] flex justify-between items-center bg-background-light/95 backdrop-blur-md border-b border-black/[0.03]">
+        <div
+          ref={topBarRef}
+          className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] px-4 pb-4 pt-safe-offset-4 flex justify-between items-center bg-background-light/95 backdrop-blur-md border-b border-black/[0.03]"
+        >
           <div className="w-9 h-9 rounded-full bg-black/5 animate-pulse" />
           <div className="h-3 w-20 rounded bg-black/5 animate-pulse" />
           <div className="w-9 h-9 rounded-full bg-black/5 animate-pulse" />
         </div>
+        <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
         <main className="flex-1 px-6 py-6 space-y-6">
           <div className="h-4 w-32 rounded bg-black/5 animate-pulse" />
           <div className="space-y-3">
@@ -243,7 +249,10 @@ const MemoryDetail: React.FC = () => {
       }`}
     >
        {/* Header */}
-       <div className="sticky top-0 z-20 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] flex justify-between items-center bg-background-light/95 backdrop-blur-md border-b border-black/[0.03]">
+       <div
+         ref={topBarRef}
+         className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] px-4 pb-4 pt-safe-offset-4 flex justify-between items-center bg-background-light/95 backdrop-blur-md border-b border-black/[0.03]"
+       >
           <button onClick={() => navigate(-1)} className="p-2 -ml-2 hover:bg-black/5 rounded-full transition-colors">
              <span className="material-symbols-outlined text-ink">arrow_back</span>
           </button>
@@ -276,6 +285,7 @@ const MemoryDetail: React.FC = () => {
             )}
           </div>
        </div>
+       <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
        <main className="flex-1 overflow-y-auto no-scrollbar pb-[calc(6rem+env(safe-area-inset-bottom))]">
           <div className="px-6 py-6">

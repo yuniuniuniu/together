@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { spacesApi } from '../shared/api/client';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 const JoinSpace: React.FC = () => {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ const JoinSpace: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   useEffect(() => {
     // Focus first input on mount
@@ -79,7 +81,10 @@ const JoinSpace: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-background-light">
-      <div className="flex items-center px-4 pb-2 pt-safe-offset-4 justify-between">
+      <div
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center px-4 pb-4 pt-safe-offset-4 justify-between bg-background-light/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <div
           className="text-ink flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-gray-100 rounded-full transition-colors"
           onClick={() => navigate(-1)}
@@ -89,6 +94,7 @@ const JoinSpace: React.FC = () => {
         <div className="text-sm font-medium opacity-50 uppercase tracking-widest">Onboarding</div>
         <div className="size-12"></div>
       </div>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <div className="flex w-full grow-0 px-8 py-6">
         <div className="w-full aspect-square rounded-3xl overflow-hidden bg-white/50 flex items-center justify-center border border-primary/20 relative group">

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../shared/context/NotificationContext';
 import { useToast } from '../shared/components/feedback/Toast';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 interface Notification {
   id: string;
@@ -19,6 +20,7 @@ const Notifications: React.FC = () => {
   const { showToast } = useToast();
   const { notifications, unreadCount, error, markAsRead, markAllAsRead } = useNotifications();
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   const handleMarkAsRead = async (id: string) => {
     try {
@@ -106,7 +108,10 @@ const Notifications: React.FC = () => {
       <div className="max-w-[430px] mx-auto min-h-screen flex flex-col relative pb-8">
         
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md flex items-center px-6 pb-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] justify-between">
+        <div
+          ref={topBarRef}
+          className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-black/[0.03] dark:border-zinc-800/80 flex items-center px-6 pb-4 pt-safe-offset-4 justify-between"
+        >
           <div className="text-[#1b100e] dark:text-white flex size-10 shrink-0 items-center justify-start -ml-2">
             <span 
               onClick={() => navigate(-1)}
@@ -130,6 +135,7 @@ const Notifications: React.FC = () => {
             )}
           </div>
         </div>
+        <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
         {error ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 pb-24">

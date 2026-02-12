@@ -1,9 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 const DateSelection: React.FC = () => {
   const navigate = useNavigate();
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const currentYear = new Date().getFullYear();
@@ -92,7 +94,10 @@ const DateSelection: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-background-light">
-      <div className="flex items-center px-4 pb-2 pt-safe-offset-4 justify-between z-10">
+      <div
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center px-4 pb-4 pt-safe-offset-4 justify-between bg-background-light/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <div
           className="text-ink flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-gray-100 rounded-full transition-colors"
           onClick={() => navigate(-1)}
@@ -102,6 +107,7 @@ const DateSelection: React.FC = () => {
         <div className="text-sm font-medium opacity-50 uppercase tracking-widest">Onboarding</div>
         <div className="size-12"></div>
       </div>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <div className="flex flex-col flex-1 px-8 pt-6 pb-8">
         <div className="mt-4 mb-10 text-center">

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { setLastMemoryPath } from '../shared/utils';
 
 interface Location {
@@ -30,6 +31,7 @@ const MemoryMap: React.FC = () => {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const { data: memories = [] } = useMemoriesQuery();
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -212,7 +214,10 @@ const MemoryMap: React.FC = () => {
   return (
     <div className="bg-background-light dark:bg-background-dark text-[#4A2B2B] dark:text-gray-100 font-sans h-screen flex flex-col overflow-hidden selection:bg-dusty-rose/30 relative">
       {/* Header */}
-      <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full pt-safe">
+      <nav
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none pt-safe-offset-4"
+      >
         <div className="max-w-3xl mx-auto w-full">
           {/* Header Title Area */}
           <div className="pt-6 pb-2 text-center">
@@ -236,6 +241,7 @@ const MemoryMap: React.FC = () => {
           </div>
         </div>
       </nav>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       {/* Map Container */}
       <main className="flex-1 relative w-full overflow-hidden pb-32">

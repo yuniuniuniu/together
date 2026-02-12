@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpace } from '../shared/context/SpaceContext';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 const Unbinding: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ const Unbinding: React.FC = () => {
     status: 'pending' | 'cancelled' | 'completed';
   } | null>(null);
   const [isFetchingStatus, setIsFetchingStatus] = useState(true);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   useEffect(() => {
     if (!space) return;
@@ -82,7 +84,10 @@ const Unbinding: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col bg-background-light relative h-full min-h-screen">
       {/* Header */}
-      <div className="flex items-center px-6 pb-6 pt-safe-offset-6 justify-between relative z-10">
+      <div
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center px-6 pb-4 pt-safe-offset-4 justify-between bg-background-light/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <button 
           onClick={() => navigate(-1)}
           className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/50 backdrop-blur-sm hover:bg-white/80 transition-colors"
@@ -92,6 +97,7 @@ const Unbinding: React.FC = () => {
         <h2 className="text-sm font-semibold tracking-wide uppercase text-soft-gray">Unbinding</h2>
         <div className="size-10"></div>
       </div>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       {/* Illustration */}
       <div className="px-6 pt-2 pb-6">

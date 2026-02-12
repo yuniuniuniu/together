@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
@@ -20,6 +20,7 @@ import { photoResultToFile } from '../shared/utils/photoFile';
 import { cropImageToDataUrl } from '../shared/utils/imageCrop';
 import { countWords } from '../shared/utils/wordCount';
 import { VideoPreview } from '../shared/components/display/VideoPreview';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -69,6 +70,18 @@ const initialDraft: MemoryDraft = {
   voiceNote: null,
 };
 
+const reorderMediaItems = (items: MediaItem[], fromIndex: number, toIndex: number): MediaItem[] => {
+  if (fromIndex === toIndex) return items;
+  if (fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) {
+    return items;
+  }
+
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+};
+
 const NewMemory: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -116,6 +129,8 @@ const NewMemory: React.FC = () => {
   const [locationSearch, setLocationSearch] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
+  const [draggingMediaIndex, setDraggingMediaIndex] = useState<number | null>(null);
+  const [mediaDragOverIndex, setMediaDragOverIndex] = useState<number | null>(null);
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
   const [isPreviewDragging, setIsPreviewDragging] = useState(false);
@@ -130,6 +145,9 @@ const NewMemory: React.FC = () => {
     dragOriginX: number;
     dragOriginY: number;
     lastTapAt: number;
+    touchStartX: number;
+    touchStartY: number;
+    hasMoved: boolean;
   }>({
     pinchStartDistance: 0,
     pinchStartZoom: 1,
@@ -138,15 +156,55 @@ const NewMemory: React.FC = () => {
     dragOriginX: 0,
     dragOriginY: 0,
     lastTapAt: 0,
+    touchStartX: 0,
+    touchStartY: 0,
+    hasMoved: false,
   });
+  const previewTapCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [showPhotoEditor, setShowPhotoEditor] = useState(false);
   const [pendingPhotos, setPendingPhotos] = useState<PhotoResult[]>([]);
   const [editingPhotoIndex, setEditingPhotoIndex] = useState<number | null>(null);
+  const [photoEditorTranslateY, setPhotoEditorTranslateY] = useState(0);
+  const [isPhotoEditorDragging, setIsPhotoEditorDragging] = useState(false);
+  const photoEditorScrollRef = useRef<HTMLDivElement>(null);
+  const photoEditorGestureRef = useRef<{
+    startX: number;
+    startY: number;
+    startTime: number;
+    lastTranslateY: number;
+    lastMoveTime: number;
+    velocityY: number;
+    isActive: boolean;
+  }>({
+    startX: 0,
+    startY: 0,
+    startTime: 0,
+    lastTranslateY: 0,
+    lastMoveTime: 0,
+    velocityY: 0,
+    isActive: false,
+  });
   const [photoCrop, setPhotoCrop] = useState({ x: 0, y: 0 });
   const [photoZoom, setPhotoZoom] = useState(1);
   const [photoCroppedAreaPixels, setPhotoCroppedAreaPixels] = useState<Area | null>(null);
   const [isApplyingPhotoCrop, setIsApplyingPhotoCrop] = useState(false);
   const [isSubmittingPhotoEdits, setIsSubmittingPhotoEdits] = useState(false);
+  const mediaDragGestureRef = useRef<{
+    pointerId: number | null;
+    startX: number;
+    startY: number;
+    sourceIndex: number;
+    currentIndex: number;
+    isDragging: boolean;
+  }>({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    sourceIndex: -1,
+    currentIndex: -1,
+    isDragging: false,
+  });
+  const suppressMediaClickRef = useRef(false);
 
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
@@ -166,6 +224,9 @@ const NewMemory: React.FC = () => {
   const PREVIEW_MAX_ZOOM = 4;
   const PHOTO_EDITOR_MIN_ZOOM = 1;
   const PHOTO_EDITOR_MAX_ZOOM = 4;
+  const PHOTO_EDITOR_CLOSE_SWIPE_THRESHOLD = 120;
+  const PHOTO_EDITOR_MAX_DRAG = 260;
+  const PHOTO_EDITOR_CLOSE_FLING_VELOCITY = 0.6;
 
   // 高德地图 POI 搜索相关
   const [poiResults, setPOIResults] = useState<POIResult[]>([]);
@@ -420,17 +481,92 @@ const NewMemory: React.FC = () => {
   const handleOpenPhotoEditor = (photos: PhotoResult[]) => {
     setPendingPhotos(photos);
     setEditingPhotoIndex(null);
+    setPhotoEditorTranslateY(0);
+    setIsPhotoEditorDragging(false);
+    photoEditorGestureRef.current.isActive = false;
     setShowPhotoEditor(true);
     resetPhotoCropState();
   };
 
   const handleClosePhotoEditor = () => {
+    setPhotoEditorTranslateY(0);
+    setIsPhotoEditorDragging(false);
+    photoEditorGestureRef.current.isActive = false;
     setShowPhotoEditor(false);
     setPendingPhotos([]);
     setEditingPhotoIndex(null);
     setIsApplyingPhotoCrop(false);
     setIsSubmittingPhotoEdits(false);
     resetPhotoCropState();
+  };
+
+  const handlePhotoEditorTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (editingPhotoIndex !== null || isSubmittingPhotoEdits || isApplyingPhotoCrop) return;
+    if (event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const now = Date.now();
+    photoEditorGestureRef.current.startX = touch.clientX;
+    photoEditorGestureRef.current.startY = touch.clientY;
+    photoEditorGestureRef.current.startTime = now;
+    photoEditorGestureRef.current.lastTranslateY = 0;
+    photoEditorGestureRef.current.lastMoveTime = now;
+    photoEditorGestureRef.current.velocityY = 0;
+    photoEditorGestureRef.current.isActive = true;
+    setIsPhotoEditorDragging(false);
+  };
+
+  const handlePhotoEditorTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!photoEditorGestureRef.current.isActive || event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - photoEditorGestureRef.current.startX;
+    const deltaY = touch.clientY - photoEditorGestureRef.current.startY;
+    const canStartDrag = (photoEditorScrollRef.current?.scrollTop ?? 0) <= 0;
+
+    if (!canStartDrag) {
+      setPhotoEditorTranslateY(0);
+      setIsPhotoEditorDragging(false);
+      return;
+    }
+
+    if (deltaY <= 0 || Math.abs(deltaY) <= Math.abs(deltaX)) {
+      setPhotoEditorTranslateY(0);
+      setIsPhotoEditorDragging(false);
+      return;
+    }
+
+    event.preventDefault();
+    const now = Date.now();
+    const nextTranslateY = Math.min(deltaY, PHOTO_EDITOR_MAX_DRAG);
+    const deltaTranslate = nextTranslateY - photoEditorGestureRef.current.lastTranslateY;
+    const elapsed = Math.max(1, now - photoEditorGestureRef.current.lastMoveTime);
+    photoEditorGestureRef.current.velocityY = Math.max(0, deltaTranslate / elapsed);
+    photoEditorGestureRef.current.lastTranslateY = nextTranslateY;
+    photoEditorGestureRef.current.lastMoveTime = now;
+
+    setIsPhotoEditorDragging(true);
+    setPhotoEditorTranslateY(nextTranslateY);
+  };
+
+  const handlePhotoEditorTouchEnd = () => {
+    if (!photoEditorGestureRef.current.isActive) return;
+    const now = Date.now();
+    const totalDuration = Math.max(1, now - photoEditorGestureRef.current.startTime);
+    const averageVelocity = photoEditorTranslateY / totalDuration;
+    const swipeVelocity = Math.max(photoEditorGestureRef.current.velocityY, averageVelocity);
+
+    photoEditorGestureRef.current.isActive = false;
+
+    if (
+      photoEditorTranslateY >= PHOTO_EDITOR_CLOSE_SWIPE_THRESHOLD ||
+      swipeVelocity >= PHOTO_EDITOR_CLOSE_FLING_VELOCITY
+    ) {
+      handleClosePhotoEditor();
+      return;
+    }
+
+    setIsPhotoEditorDragging(false);
+    setPhotoEditorTranslateY(0);
   };
 
   const handleOpenSinglePhotoCrop = (index: number) => {
@@ -548,7 +684,94 @@ const NewMemory: React.FC = () => {
     }
   };
 
+  const moveMediaItem = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+
+    setMedia((previous) => {
+      const reordered = reorderMediaItems(previous, fromIndex, toIndex);
+      return reordered;
+    });
+
+    setPreviewMediaIndex((previous) => {
+      if (previous === null) return previous;
+      if (previous === fromIndex) return toIndex;
+      if (fromIndex < toIndex && previous > fromIndex && previous <= toIndex) return previous - 1;
+      if (fromIndex > toIndex && previous >= toIndex && previous < fromIndex) return previous + 1;
+      return previous;
+    });
+  }, [setMedia]);
+
+  const handleMediaPointerDown = (event: React.PointerEvent<HTMLDivElement>, index: number) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    mediaDragGestureRef.current.pointerId = event.pointerId;
+    mediaDragGestureRef.current.startX = event.clientX;
+    mediaDragGestureRef.current.startY = event.clientY;
+    mediaDragGestureRef.current.sourceIndex = index;
+    mediaDragGestureRef.current.currentIndex = index;
+    mediaDragGestureRef.current.isDragging = false;
+  };
+
+  const handleMediaPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = mediaDragGestureRef.current;
+    if (gesture.pointerId === null || event.pointerId !== gesture.pointerId) return;
+
+    if (!gesture.isDragging) {
+      const dx = event.clientX - gesture.startX;
+      const dy = event.clientY - gesture.startY;
+      const distance = Math.hypot(dx, dy);
+      if (distance < 8) return;
+
+      gesture.isDragging = true;
+      suppressMediaClickRef.current = true;
+      setDraggingMediaIndex(gesture.sourceIndex);
+      setMediaDragOverIndex(gesture.sourceIndex);
+    }
+
+    event.preventDefault();
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('[data-media-index]');
+    if (!target) return;
+
+    const targetIndex = Number.parseInt(target.dataset.mediaIndex ?? '', 10);
+    if (Number.isNaN(targetIndex) || targetIndex === gesture.currentIndex) return;
+
+    gesture.currentIndex = targetIndex;
+    setMediaDragOverIndex(targetIndex);
+  };
+
+  const handleMediaPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const activePointerId = mediaDragGestureRef.current.pointerId;
+    if (activePointerId !== null && event.pointerId !== activePointerId) return;
+    if (activePointerId !== null && event.currentTarget.hasPointerCapture(activePointerId)) {
+      event.currentTarget.releasePointerCapture(activePointerId);
+    }
+    const sourceIndex = mediaDragGestureRef.current.sourceIndex;
+    const targetIndex = mediaDragGestureRef.current.currentIndex;
+    const shouldCommitMove = mediaDragGestureRef.current.isDragging && sourceIndex >= 0 && targetIndex >= 0;
+    mediaDragGestureRef.current.pointerId = null;
+    mediaDragGestureRef.current.isDragging = false;
+    mediaDragGestureRef.current.sourceIndex = -1;
+    mediaDragGestureRef.current.currentIndex = -1;
+    setDraggingMediaIndex(null);
+    setMediaDragOverIndex(null);
+
+    if (shouldCommitMove && sourceIndex !== targetIndex) {
+      moveMediaItem(sourceIndex, targetIndex);
+    }
+
+    window.setTimeout(() => {
+      suppressMediaClickRef.current = false;
+    }, 0);
+  };
+
+  const displayMedia = useMemo(() => {
+    if (draggingMediaIndex === null || mediaDragOverIndex === null) return media;
+    return reorderMediaItems(media, draggingMediaIndex, mediaDragOverIndex);
+  }, [media, draggingMediaIndex, mediaDragOverIndex]);
+
   const handleOpenMediaPreview = (index: number) => {
+    if (suppressMediaClickRef.current) return;
     setPreviewMediaIndex(index);
   };
 
@@ -575,6 +798,16 @@ const NewMemory: React.FC = () => {
     previewGestureRef.current.dragStartY = 0;
     previewGestureRef.current.dragOriginX = 0;
     previewGestureRef.current.dragOriginY = 0;
+    previewGestureRef.current.touchStartX = 0;
+    previewGestureRef.current.touchStartY = 0;
+    previewGestureRef.current.hasMoved = false;
+  }, []);
+
+  const clearPreviewTapCloseTimer = useCallback(() => {
+    if (previewTapCloseTimerRef.current) {
+      clearTimeout(previewTapCloseTimerRef.current);
+      previewTapCloseTimerRef.current = null;
+    }
   }, []);
 
   const togglePreviewZoom = useCallback(() => {
@@ -586,18 +819,21 @@ const NewMemory: React.FC = () => {
   }, [previewZoom, resetPreviewTransform]);
 
   const handleCloseMediaPreview = () => {
+    clearPreviewTapCloseTimer();
     resetPreviewTransform();
     setPreviewMediaIndex(null);
   };
 
   const handlePrevPreviewMedia = () => {
     if (previewMediaIndex === null || media.length === 0) return;
+    clearPreviewTapCloseTimer();
     resetPreviewTransform();
     setPreviewMediaIndex((previewMediaIndex - 1 + media.length) % media.length);
   };
 
   const handleNextPreviewMedia = () => {
     if (previewMediaIndex === null || media.length === 0) return;
+    clearPreviewTapCloseTimer();
     resetPreviewTransform();
     setPreviewMediaIndex((previewMediaIndex + 1) % media.length);
   };
@@ -610,17 +846,25 @@ const NewMemory: React.FC = () => {
   };
 
   const handlePreviewTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    clearPreviewTapCloseTimer();
     const touchCount = event.touches.length;
     if (touchCount === 2) {
       const distance = getTouchDistance(event.touches);
       previewGestureRef.current.pinchStartDistance = distance;
       previewGestureRef.current.pinchStartZoom = previewZoom;
+      previewGestureRef.current.hasMoved = true;
       setIsPreviewDragging(false);
       return;
     }
 
-    if (touchCount === 1 && previewZoom > PREVIEW_MIN_ZOOM) {
+    if (touchCount === 1) {
       const touch = event.touches[0];
+      previewGestureRef.current.touchStartX = touch.clientX;
+      previewGestureRef.current.touchStartY = touch.clientY;
+      previewGestureRef.current.hasMoved = false;
+
+      if (previewZoom <= PREVIEW_MIN_ZOOM) return;
+
       previewGestureRef.current.dragStartX = touch.clientX;
       previewGestureRef.current.dragStartY = touch.clientY;
       previewGestureRef.current.dragOriginX = previewOffset.x;
@@ -632,6 +876,7 @@ const NewMemory: React.FC = () => {
   const handlePreviewTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
     if (event.touches.length === 2) {
       event.preventDefault();
+      previewGestureRef.current.hasMoved = true;
       const distance = getTouchDistance(event.touches);
       const startDistance = previewGestureRef.current.pinchStartDistance;
       if (startDistance <= 0) return;
@@ -642,9 +887,19 @@ const NewMemory: React.FC = () => {
       return;
     }
 
-    if (event.touches.length === 1 && previewZoom > PREVIEW_MIN_ZOOM) {
+    if (event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const distanceFromStart = Math.hypot(
+      touch.clientX - previewGestureRef.current.touchStartX,
+      touch.clientY - previewGestureRef.current.touchStartY
+    );
+    if (distanceFromStart > 8) {
+      previewGestureRef.current.hasMoved = true;
+    }
+
+    if (previewZoom > PREVIEW_MIN_ZOOM) {
       event.preventDefault();
-      const touch = event.touches[0];
       const deltaX = touch.clientX - previewGestureRef.current.dragStartX;
       const deltaY = touch.clientY - previewGestureRef.current.dragStartY;
       const nextOffset = {
@@ -658,9 +913,11 @@ const NewMemory: React.FC = () => {
   const handlePreviewTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     if (event.touches.length > 0) return;
     setIsPreviewDragging(false);
+    if (previewGestureRef.current.hasMoved) return;
 
     const now = Date.now();
     if (now - previewGestureRef.current.lastTapAt < 280) {
+      clearPreviewTapCloseTimer();
       togglePreviewZoom();
       previewGestureRef.current.lastTapAt = 0;
       return;
@@ -669,14 +926,26 @@ const NewMemory: React.FC = () => {
 
     if (previewZoom <= PREVIEW_MIN_ZOOM) {
       setPreviewOffset({ x: 0, y: 0 });
+      previewTapCloseTimerRef.current = setTimeout(() => {
+        if (previewMediaIndex !== null && media[previewMediaIndex]?.type !== 'video') {
+          handleCloseMediaPreview();
+        }
+      }, 280);
     }
   };
 
   useEffect(() => {
     if (previewMediaIndex === null) {
+      clearPreviewTapCloseTimer();
       resetPreviewTransform();
     }
-  }, [previewMediaIndex, resetPreviewTransform]);
+  }, [previewMediaIndex, resetPreviewTransform, clearPreviewTapCloseTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearPreviewTapCloseTimer();
+    };
+  }, [clearPreviewTapCloseTimer]);
 
   // 选择 POI 位置
   const handleSelectPOI = (poi: POIResult) => {
@@ -973,10 +1242,14 @@ const NewMemory: React.FC = () => {
   // 要显示的 POI 列表
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
   const wordCount = countWords(content);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   return (
     <div className={`flex-1 flex flex-col bg-paper min-h-screen relative font-sans ${showStickerPicker ? 'overflow-hidden' : ''}`}>
-      <header className="sticky top-0 z-40 flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/80 backdrop-blur-md">
+      <header
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <button
           onClick={() => navigate(-1)}
           className="text-ink/60 text-sm font-medium hover:text-ink transition-colors"
@@ -992,29 +1265,32 @@ const NewMemory: React.FC = () => {
           {isLoading ? 'Saving...' : 'Save'}
         </button>
       </header>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <main className="flex-1 flex flex-col w-full px-6 pb-24 overflow-y-auto no-scrollbar">
-        {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
-            {error}
-          </div>
-        )}
-        <div className="mt-8 mb-4">
-          <div className="flex items-center gap-2 text-accent/60 text-[10px] font-bold uppercase tracking-widest cursor-pointer" onClick={() => setShowDatePicker(true)}>
-            <span>{new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-          </div>
-          {showDatePicker && (
-            <UnifiedDatePicker
-                initialDate={new Date(date)}
-                onConfirm={(newDate) => {
-                  setDate(newDate.toISOString());
-                  setShowDatePicker(false);
-                }}
-                onCancel={() => setShowDatePicker(false)}
-                title="New Memory"
-                subtitle="Select Moment"
-            />
+        <div className="sticky top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 -mx-6 px-6 pt-3 pb-2 bg-paper/90 backdrop-blur-md">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
+              {error}
+            </div>
           )}
+          <div className={error ? 'mt-4 mb-2' : 'mb-2'}>
+            <div className="flex items-center gap-2 text-accent/60 text-[10px] font-bold uppercase tracking-widest cursor-pointer" onClick={() => setShowDatePicker(true)}>
+              <span>{new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+            </div>
+            {showDatePicker && (
+              <UnifiedDatePicker
+                  initialDate={new Date(date)}
+                  onConfirm={(newDate) => {
+                    setDate(newDate.toISOString());
+                    setShowDatePicker(false);
+                  }}
+                  onCancel={() => setShowDatePicker(false)}
+                  title="New Memory"
+                  subtitle="Select Moment"
+              />
+            )}
+          </div>
         </div>
 
         <div className="flex-1">
@@ -1029,6 +1305,7 @@ const NewMemory: React.FC = () => {
 
         <div className="py-8">
           <p className="text-[10px] uppercase tracking-widest text-ink/40 font-bold mb-4">Attach Moments</p>
+          <p className="text-[11px] text-ink/35 mb-4">Drag photos to rearrange</p>
           {/* Hidden file inputs */}
           <input
             ref={fileInputRef}
@@ -1051,13 +1328,29 @@ const NewMemory: React.FC = () => {
             <div className="mb-4 text-sm text-accent font-medium">{uploadProgress}</div>
           )}
 
-          <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 no-scrollbar">
+          <div className="grid grid-cols-3 gap-3 pb-2">
             {/* Uploaded Media (photos, GIFs, videos) */}
-            {media.map((item, index) => (
-              <div key={index} className="flex-shrink-0 w-32">
-                <div className="bg-white p-2 pb-6 rounded-sm shadow-sm transition-transform active:scale-95" style={{ transform: `rotate(${(index % 3 - 1) * 2}deg)` }}>
+            {displayMedia.map((item, index) => (
+              <div
+                key={`${item.url}-${item.type}`}
+                data-media-index={index}
+                className={`w-full ${
+                  draggingMediaIndex !== null && mediaDragOverIndex === index ? 'z-10' : ''
+                }`}
+                onPointerDown={(event) => handleMediaPointerDown(event, index)}
+                onPointerMove={handleMediaPointerMove}
+                onPointerUp={handleMediaPointerEnd}
+                onPointerCancel={handleMediaPointerEnd}
+              >
+                <div
+                  className={`bg-white p-2 pb-4 rounded-sm shadow-sm transition-transform will-change-transform ${
+                    draggingMediaIndex !== null && mediaDragOverIndex === index
+                      ? 'scale-[1.03] shadow-md'
+                      : 'active:scale-95'
+                  }`}
+                >
                   <div
-                    className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group cursor-zoom-in"
+                    className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group cursor-zoom-in touch-none"
                     onClick={() => handleOpenMediaPreview(index)}
                   >
                     {item.type === 'video' ? (
@@ -1084,6 +1377,7 @@ const NewMemory: React.FC = () => {
                         event.stopPropagation();
                         void handleRemoveMedia(index);
                       }}
+                      onPointerDown={(event) => event.stopPropagation()}
                       className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     >
                       <span className="material-symbols-outlined text-sm">close</span>
@@ -1093,11 +1387,11 @@ const NewMemory: React.FC = () => {
               </div>
             ))}
             {/* Add Photo/GIF Button */}
-            <div className="flex-shrink-0 w-32">
+            <div className="w-full">
               <button
                 onClick={handleAddPhotos}
                 disabled={isUploading}
-                className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[1deg] w-full flex flex-col items-center transition-transform active:scale-95 disabled:opacity-50"
+                className="bg-white p-2 pb-4 rounded-sm shadow-sm w-full flex flex-col items-center transition-transform active:scale-95 disabled:opacity-50"
               >
                 <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center hover:bg-gray-50 gap-1">
                   {isUploading ? (
@@ -1112,11 +1406,11 @@ const NewMemory: React.FC = () => {
               </button>
             </div>
             {/* Video upload shortcut */}
-            <div className="flex-shrink-0 w-32">
+            <div className="w-full">
               <button
                 onClick={() => videoInputRef.current?.click()}
                 disabled={isUploading}
-                className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[-1deg] w-full flex flex-col items-center opacity-80 transition-transform active:scale-95 disabled:opacity-50"
+                className="bg-white p-2 pb-4 rounded-sm shadow-sm w-full flex flex-col items-center opacity-80 transition-transform active:scale-95 disabled:opacity-50"
               >
                 <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center gap-1">
                   <span className="material-symbols-outlined text-ink/30 text-2xl">videocam</span>
@@ -1511,7 +1805,18 @@ const NewMemory: React.FC = () => {
       {/* Native Multi-photo Editor */}
       {showPhotoEditor && (
         <div className="fixed inset-0 z-[65] bg-black/55 backdrop-blur-[2px] flex items-end">
-          <div className="w-full h-[82vh] bg-paper rounded-t-3xl shadow-2xl flex flex-col">
+          <div
+            className="w-full h-[82vh] bg-paper rounded-t-3xl shadow-2xl flex flex-col"
+            onTouchStart={handlePhotoEditorTouchStart}
+            onTouchMove={handlePhotoEditorTouchMove}
+            onTouchEnd={handlePhotoEditorTouchEnd}
+            onTouchCancel={handlePhotoEditorTouchEnd}
+            style={{
+              transform: `translate3d(0, ${photoEditorTranslateY}px, 0)`,
+              transition: isPhotoEditorDragging ? 'none' : 'transform 180ms ease-out',
+              touchAction: 'pan-y',
+            }}
+          >
             <div className="w-12 h-1.5 bg-ink/10 rounded-full mx-auto mt-3 mb-4"></div>
             <div className="px-5 pb-3 flex items-center justify-between border-b border-ink/5">
               <button
@@ -1535,7 +1840,7 @@ const NewMemory: React.FC = () => {
               Select a photo below to crop before upload.
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 pb-6">
+            <div ref={photoEditorScrollRef} className="flex-1 overflow-y-auto px-4 pb-6">
               <div className="grid grid-cols-3 gap-3">
                 {pendingPhotos.map((photo, index) => (
                   <button
@@ -1615,17 +1920,10 @@ const NewMemory: React.FC = () => {
       {/* Media Preview Overlay */}
       {previewMediaIndex !== null && media[previewMediaIndex] && (
         <div className="fixed inset-0 z-[70] bg-black/90 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 text-white/90">
-            <button
-              onClick={handleCloseMediaPreview}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center"
-            >
-              <span className="material-symbols-outlined text-base">close</span>
-            </button>
+          <div className="flex items-center justify-center px-4 py-3 text-white/90">
             <span className="text-sm font-medium">
               {previewMediaIndex + 1} / {media.length}
             </span>
-            <div className="w-9 h-9"></div>
           </div>
 
           <div

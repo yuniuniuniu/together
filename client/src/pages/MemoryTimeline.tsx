@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { memoriesApi, reactionsApi } from '../shared/api/client';
@@ -24,6 +24,8 @@ const MemoryTimeline: React.FC = () => {
   const [reactions, setReactions] = useState<ReactionState>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const navRef = useRef<HTMLElement | null>(null);
+  const [navHeight, setNavHeight] = useState(0);
 
   useEffect(() => {
     setLastMemoryPath('/memory/timeline');
@@ -54,6 +56,26 @@ const MemoryTimeline: React.FC = () => {
 
     fetchReactions();
   }, [memories]);
+
+  useEffect(() => {
+    const navElement = navRef.current;
+    if (!navElement) return;
+
+    const updateHeight = () => {
+      setNavHeight(navElement.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(navElement);
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [showSearch]);
 
   const handleToggleLike = async (memoryId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -132,7 +154,10 @@ const MemoryTimeline: React.FC = () => {
   return (
     <div className="bg-background-light dark:bg-background-dark font-sans text-[#4A2B2B] dark:text-gray-100 selection:bg-dusty-rose/30 min-h-screen pb-32 flex flex-col">
       {/* Navbar */}
-      <nav className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none w-full pt-safe">
+      <nav
+        ref={navRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 shadow-sm transition-all duration-300 flex-none pt-safe-offset-4"
+      >
         <div className="max-w-3xl mx-auto w-full">
           {/* Header Title Area */}
           <div className="pt-6 pb-2 text-center">
@@ -189,6 +214,7 @@ const MemoryTimeline: React.FC = () => {
           )}
         </div>
       </nav>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: navHeight }} />
 
       {error ? (
         <main className="max-w-xl mx-auto flex-1 flex items-center justify-center px-4 w-full">

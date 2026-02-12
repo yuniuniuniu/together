@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../shared/context/AuthContext';
 import { uploadApi } from '../shared/api/client';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 const ProfileSetup: React.FC = () => {
@@ -16,6 +17,7 @@ const ProfileSetup: React.FC = () => {
   const [hasInitialized, setHasInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarUrl = resolveMediaUrl(avatar);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   useEffect(() => {
     if (!hasInitialized && user) {
@@ -66,7 +68,21 @@ const ProfileSetup: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background-light relative pt-safe">
+    <div className="flex-1 flex flex-col bg-background-light relative">
+      <div
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-4 pb-4 pt-safe-offset-4 bg-background-light/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
+        <button
+          onClick={() => navigate(-1)}
+          className="text-ink flex size-12 shrink-0 items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+        >
+          <span className="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h2 className="text-xs font-bold tracking-[0.15em] uppercase text-soft-gray text-center">Profile Setup</h2>
+        <div className="size-12"></div>
+      </div>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
       <div className="flex-1 flex flex-col items-center justify-center px-8 pb-32">
         <div className="w-full max-w-[320px]">
           <div className="text-center mb-10">

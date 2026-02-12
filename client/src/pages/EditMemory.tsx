@@ -16,6 +16,7 @@ import { getPermissionDeniedMessage } from '../shared/utils/permissions';
 import { Platform } from '../shared/utils/platform';
 import { photoResultToFile } from '../shared/utils/photoFile';
 import { countWords } from '../shared/utils/wordCount';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -645,6 +646,7 @@ const EditMemory: React.FC = () => {
   // 要显示的 POI 列表
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
   const wordCount = countWords(content);
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   if (isFetching && !error) {
     return null;
@@ -652,7 +654,10 @@ const EditMemory: React.FC = () => {
 
   return (
     <div className={`flex-1 flex flex-col bg-paper min-h-screen relative font-sans ${showStickerPicker ? 'overflow-hidden' : ''}`}>
-      <header className="sticky top-0 z-40 flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/80 backdrop-blur-md">
+      <header
+        ref={topBarRef}
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/90 backdrop-blur-md border-b border-black/[0.03]"
+      >
         <button
           onClick={() => navigate(-1)}
           className="text-ink/60 text-sm font-medium hover:text-ink transition-colors"
@@ -668,21 +673,24 @@ const EditMemory: React.FC = () => {
           {isLoading ? 'Saving...' : 'Save'}
         </button>
       </header>
+      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <main className="flex-1 flex flex-col w-full px-6 pb-24 overflow-y-auto no-scrollbar">
-        {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
-            {error}
-          </div>
-        )}
-        <div className="mt-8 mb-4">
-          <div
-            className="flex items-center gap-2 text-accent/60 text-[10px] font-bold uppercase tracking-widest cursor-pointer hover:text-accent transition-colors"
-            onClick={() => setShowDatePicker(true)}
-          >
-            <span className="material-symbols-outlined text-sm">calendar_today</span>
-            <span>{customDate ? new Date(customDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}</span>
-            <span className="material-symbols-outlined text-xs">edit</span>
+        <div className="sticky top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 -mx-6 px-6 pt-3 pb-2 bg-paper/90 backdrop-blur-md">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
+              {error}
+            </div>
+          )}
+          <div className={error ? 'mt-4 mb-2' : 'mb-2'}>
+            <div
+              className="flex items-center gap-2 text-accent/60 text-[10px] font-bold uppercase tracking-widest cursor-pointer hover:text-accent transition-colors"
+              onClick={() => setShowDatePicker(true)}
+            >
+              <span className="material-symbols-outlined text-sm">calendar_today</span>
+              <span>{customDate ? new Date(customDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}</span>
+              <span className="material-symbols-outlined text-xs">edit</span>
+            </div>
           </div>
         </div>
 

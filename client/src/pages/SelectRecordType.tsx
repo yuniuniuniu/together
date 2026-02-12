@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 
 const SelectRecordType: React.FC = () => {
   const navigate = useNavigate();
+  const { topBarRef, topBarHeight } = useFixedTopBar();
 
   return (
     <div className="font-display bg-milestone-light dark:bg-milestone-dark text-milestone-primary dark:text-gray-100 min-h-screen flex flex-col antialiased selection:bg-milestone-primary selection:text-white relative">
@@ -14,7 +16,22 @@ const SelectRecordType: React.FC = () => {
             <div className="absolute inset-0 bg-milestone-light/80 dark:bg-milestone-dark/80 backdrop-blur-sm"></div>
         </div>
 
-        <main className="relative z-10 flex-grow flex flex-col items-center justify-center p-6 pt-safe w-full max-w-md mx-auto h-screen">
+        <div
+          ref={topBarRef}
+          className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-5 pb-4 pt-safe-offset-4 bg-milestone-light/90 dark:bg-milestone-dark/90 backdrop-blur-md border-b border-black/[0.03] dark:border-zinc-800/80"
+        >
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+                <span className="material-symbols-outlined text-milestone-primary dark:text-white">arrow_back</span>
+            </button>
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-milestone-primary/70 dark:text-gray-300">Create Story</span>
+            <div className="w-10"></div>
+        </div>
+        <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
+
+        <main className="relative z-10 flex-grow flex flex-col items-center justify-center p-6 pt-6 w-full max-w-md mx-auto min-h-screen">
             <header className="w-full text-center mb-10 animate-fade-in-down">
                 <h1 className="text-[#131616] dark:text-white text-[32px] font-bold leading-tight tracking-tight">
                     Create Story
