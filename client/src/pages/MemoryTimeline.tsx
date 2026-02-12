@@ -22,6 +22,7 @@ const MemoryTimeline: React.FC = () => {
   const { data: memories = [], error } = useMemoriesQuery();
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
   const [reactions, setReactions] = useState<ReactionState>({});
+  const [reactionPending, setReactionPending] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
@@ -77,21 +78,33 @@ const MemoryTimeline: React.FC = () => {
     };
   }, [showSearch]);
 
-  const handleToggleLike = async (memoryId: string, e: React.MouseEvent) => {
+  const handleToggleLike = async (memoryId: string, createdBy: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (createdBy === user?.id) {
+      return;
+    }
+    if (reactionPending[memoryId]) return;
+
+    setReactionPending((prev) => ({ ...prev, [memoryId]: true }));
     try {
       const result = await reactionsApi.toggle(memoryId);
+      const action = result.action;
+      if (action === 'blocked') {
+        return;
+      }
       setReactions((prev) => ({
         ...prev,
         [memoryId]: {
-          liked: result.action === 'added',
-          count: result.action === 'added'
+          liked: action === 'added',
+          count: action === 'added'
             ? (prev[memoryId]?.count || 0) + 1
             : Math.max((prev[memoryId]?.count || 1) - 1, 0),
         },
       }));
-      } catch {
+    } catch {
       showToast('Failed to update reaction', 'error');
+    } finally {
+      setReactionPending((prev) => ({ ...prev, [memoryId]: false }));
     }
   };
 
@@ -233,6 +246,7 @@ const MemoryTimeline: React.FC = () => {
             <div className="space-y-8">
               {filteredMemories.map((memory) => {
                 const dateInfo = formatDate(memory.createdAt);
+                const isOwnMemory = memory.createdBy === user?.id;
                 return (
                   <section key={memory.id} className="relative z-10">
                     <div className="flex items-center justify-between mb-3 px-1">
@@ -310,11 +324,9 @@ const MemoryTimeline: React.FC = () => {
                                     src={mediaUrl}
                                     className="w-full h-full object-cover"
                                     iconSize="sm"
-                                    enableFullscreen={true}
+                                    enableFullscreen={false}
+                                    enableInlinePlayback={true}
                                   />
-                                  <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
-                                    VIDEO
-                                  </div>
                                 </div>
                               );
                             }
@@ -346,12 +358,13 @@ const MemoryTimeline: React.FC = () => {
                         <div className="flex items-center gap-3">
                            <div className="flex items-center">
                              <button
-                               onClick={(e) => handleToggleLike(memory.id, e)}
+                               onClick={(e) => handleToggleLike(memory.id, memory.createdBy, e)}
+                               disabled={reactionPending[memory.id] || isOwnMemory}
                                className={`flex items-center justify-center size-8 rounded-full transition-all ${
                                  reactions[memory.id]?.liked
                                    ? 'bg-red-50 text-wine'
                                    : 'bg-stone-50 text-stone-400 hover:bg-stone-100'
-                               }`}
+                               } ${(reactionPending[memory.id] || isOwnMemory) ? 'opacity-60 cursor-not-allowed' : ''}`}
                              >
                                <span
                                  className={`material-symbols-outlined text-lg transition-transform ${

@@ -26,13 +26,18 @@ export async function toggleReaction(
   memoryId: string,
   userId: string,
   type: string = 'love'
-): Promise<{ action: 'added' | 'removed'; reaction?: Reaction }> {
+): Promise<{ action: 'added' | 'removed' | 'blocked'; reaction?: Reaction }> {
   const db = getDatabase();
 
   // Check memory exists and user has access
   const memory = await getMemoryById(memoryId, userId);
   if (!memory) {
     throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
+  }
+
+  // Silently ignore self-reaction operations (add/remove) to avoid surfacing errors to clients.
+  if (memory.createdBy === userId) {
+    return { action: 'blocked' };
   }
 
   // Check if reaction already exists
@@ -87,6 +92,13 @@ export async function getReactionsByMemory(memoryId: string, userId: string): Pr
 
 export async function getUserReaction(memoryId: string, userId: string): Promise<Reaction | null> {
   const db = getDatabase();
+
+  // Keep access checks consistent with list/toggle.
+  const memory = await getMemoryById(memoryId, userId);
+  if (!memory) {
+    throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
+  }
+
   const reaction = await db.getReactionByMemoryAndUser(memoryId, userId);
   if (!reaction) return null;
   return formatReaction(reaction);

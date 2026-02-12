@@ -42,6 +42,7 @@ const MemoryDetail: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [reactionPending, setReactionPending] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
@@ -110,13 +111,22 @@ const MemoryDetail: React.FC = () => {
   }, []);
 
   const handleToggleLike = async () => {
-    if (!id) return;
+    if (!id || reactionPending) return;
+    if (memory?.createdBy === user?.id) {
+      return;
+    }
+    setReactionPending(true);
     try {
       const result = await reactionsApi.toggle(id);
+      if (result.action === 'blocked') {
+        return;
+      }
       setIsLiked(result.action === 'added');
       setLikeCount(prev => result.action === 'added' ? prev + 1 : Math.max(prev - 1, 0));
     } catch {
       showToast('Failed to update reaction', 'error');
+    } finally {
+      setReactionPending(false);
     }
   };
 
@@ -237,6 +247,8 @@ const MemoryDetail: React.FC = () => {
 
   const dayNumber = calculateDayNumber(memory.createdAt);
   const isOwnMemory = memory.createdBy === user?.id;
+  const authorAvatarUrl = isOwnMemory ? user?.avatar : partner?.user?.avatar;
+  const authorName = isOwnMemory ? (user?.nickname || 'You') : (partner?.user?.nickname || 'Partner');
   const mediaUrls = memory.photos || [];
   const imageUrls = mediaUrls.filter((url) => !url.match(/\.(mp4|webm|mov|avi|m4v)$/i));
   const computedWordCount = memory.content ? countWords(memory.content) : 0;
@@ -291,13 +303,32 @@ const MemoryDetail: React.FC = () => {
           <div className="px-6 py-6">
              {/* Header Info */}
              <div className="flex justify-between items-start mb-6">
-                <div className="flex flex-col">
-                   <div className="flex items-center gap-2 mb-2">
-                     <span className="text-xs font-bold text-accent uppercase tracking-wider">
-                       {isOwnMemory ? 'Your Memory' : `${partner?.nickname || 'Partner'}'s Memory`}
-                     </span>
-                   </div>
-                   <div className="flex items-center gap-2 text-soft-gray/80 text-[11px] font-bold uppercase tracking-widest">
+                <div className="flex items-start gap-3">
+                  {authorAvatarUrl ? (
+                    <div className="size-10 rounded-full ring-2 ring-white shadow-sm overflow-hidden bg-stone-100">
+                      <div
+                        className="w-full h-full bg-cover bg-center"
+                        style={{ backgroundImage: `url("${authorAvatarUrl}")` }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="size-10 rounded-full bg-stone-100 flex items-center justify-center">
+                      {authorName ? (
+                        <span className="text-xs font-bold text-stone-500">
+                          {authorName.slice(0, 1).toUpperCase()}
+                        </span>
+                      ) : (
+                        <span className="material-symbols-outlined text-stone-300 text-lg">person</span>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-accent uppercase tracking-wider">
+                        {isOwnMemory ? 'Your Memory' : `${authorName}'s Memory`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-soft-gray/80 text-[11px] font-bold uppercase tracking-widest">
                       <span>{formatDate(memory.createdAt)}</span>
                       {dayNumber && (
                         <>
@@ -305,7 +336,8 @@ const MemoryDetail: React.FC = () => {
                           <span>Day {dayNumber}</span>
                         </>
                       )}
-                   </div>
+                    </div>
+                  </div>
                 </div>
                 {memory.mood && (
                   <div className="w-10 h-10 rounded-full bg-paper flex items-center justify-center text-accent shadow-sm border border-primary/20">
@@ -338,9 +370,6 @@ const MemoryDetail: React.FC = () => {
                             iconSize="sm"
                             enableFullscreen={true}
                           />
-                          <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
-                            VIDEO
-                          </div>
                         </div>
                       );
                     }
@@ -447,11 +476,12 @@ const MemoryDetail: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <button
                     onClick={handleToggleLike}
+                    disabled={reactionPending || isOwnMemory}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
                       isLiked
                         ? 'bg-accent/10 text-accent'
                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
+                    } ${(reactionPending || isOwnMemory) ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`material-symbols-outlined text-xl transition-transform ${isLiked ? 'scale-110' : ''}`}

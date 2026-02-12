@@ -1332,7 +1332,7 @@ const NewMemory: React.FC = () => {
       </header>
       <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
-      <main className="flex-1 flex flex-col w-full px-6 pb-24 overflow-y-auto no-scrollbar">
+      <main className="flex-1 flex flex-col w-full px-6 pb-[calc(8.5rem+env(safe-area-inset-bottom))] overflow-y-auto no-scrollbar">
         <div className="sticky top-0 z-30 -mx-6 px-6 pt-3 pb-2 bg-paper/90 backdrop-blur-md">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 text-xs px-4 py-2 rounded-lg whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
@@ -1505,7 +1505,7 @@ const NewMemory: React.FC = () => {
 
       {/* Attachment Badges (location / voice note) */}
       {(location || (voiceNote && !showVoiceRecorder)) && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 w-full max-w-[430px] px-6">
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 w-full max-w-[430px] px-6">
           <div className="flex items-center justify-center gap-2 flex-wrap">
             {location && (
               <div className="bg-white/90 backdrop-blur-lg rounded-full px-4 py-2 flex items-center gap-2 shadow-lg border border-primary/20 max-w-full min-w-0">
@@ -1540,7 +1540,7 @@ const NewMemory: React.FC = () => {
       )}
 
       {/* Floating Action Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-fit bg-ink/5 backdrop-blur-lg rounded-full px-6 py-3 flex items-center gap-6 shadow-xl border border-white/20 z-40">
+      <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-fit bg-ink/5 backdrop-blur-lg rounded-full px-6 py-3 flex items-center gap-6 shadow-xl border border-white/20 z-40">
         <button
           className={`${location ? 'text-accent' : 'text-ink/60 hover:text-accent'} transition-colors`}
           onClick={() => setShowLocationPicker(true)}

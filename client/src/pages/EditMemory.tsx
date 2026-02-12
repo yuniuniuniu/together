@@ -16,8 +16,8 @@ import { getPermissionDeniedMessage } from '../shared/utils/permissions';
 import { Platform } from '../shared/utils/platform';
 import { photoResultToFile } from '../shared/utils/photoFile';
 import { countWords } from '../shared/utils/wordCount';
-import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { mapWithConcurrency } from '../shared/utils/concurrency';
+import { VideoPreview } from '../shared/components/display/VideoPreview';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -71,6 +71,7 @@ const EditMemory: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
@@ -661,6 +662,7 @@ const EditMemory: React.FC = () => {
   };
 
   const [stickerCategory, setStickerCategory] = useState<keyof typeof stickerCategories>('Love');
+  const isVideoUrl = (url: string) => /\.(mp4|webm|mov|avi|m4v)$/i.test(url);
 
   const handleStickerSelect = (sticker: string) => {
     if (stickers.includes(sticker)) {
@@ -673,37 +675,48 @@ const EditMemory: React.FC = () => {
   // 要显示的 POI 列表
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
   const wordCount = countWords(content);
-  const { topBarRef, topBarHeight } = useFixedTopBar();
+
+  const syncTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = '0px';
+    const nextHeight = Math.max(120, textarea.scrollHeight);
+    textarea.style.height = `${nextHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    syncTextareaHeight();
+  }, [content, syncTextareaHeight]);
 
   if (isFetching && !error) {
     return null;
   }
 
   return (
-    <div className={`flex-1 flex flex-col bg-paper min-h-screen relative font-sans ${showStickerPicker ? 'overflow-hidden' : ''}`}>
-      <header
-        ref={topBarRef}
-        className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/90 backdrop-blur-md border-b border-black/[0.03]"
+    <div className="flex-1 flex flex-col bg-paper h-[100dvh] min-h-[100dvh] overflow-hidden relative font-sans">
+      <main
+        className="flex-1 min-h-0 flex flex-col w-full overflow-y-auto no-scrollbar"
       >
-        <button
-          onClick={() => navigate(-1)}
-          className="text-ink/60 text-sm font-medium hover:text-ink transition-colors"
+        <header
+          className="sticky top-0 z-50 w-full flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-paper/90 backdrop-blur-md border-b border-black/[0.03]"
         >
-          Cancel
-        </button>
-        <h1 className="text-ink text-sm font-bold uppercase tracking-widest opacity-80">Edit Memory</h1>
-        <button
-          onClick={handleSave}
-          disabled={isLoading || !content.trim()}
-          className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded-full text-sm font-bold transition-all shadow-sm disabled:opacity-50"
-        >
-          {isLoading ? 'Saving...' : 'Save'}
-        </button>
-      </header>
-      <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
-
-      <main className="flex-1 flex flex-col w-full px-6 pb-24 overflow-y-auto no-scrollbar">
-        <div className="sticky top-0 z-30 -mx-6 px-6 pt-3 pb-2 bg-paper/90 backdrop-blur-md">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-ink/60 text-sm font-medium hover:text-ink transition-colors"
+          >
+            Cancel
+          </button>
+          <h1 className="text-ink text-sm font-bold uppercase tracking-widest opacity-80">Edit Memory</h1>
+          <button
+            onClick={handleSave}
+            disabled={isLoading || !content.trim()}
+            className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded-full text-sm font-bold transition-all shadow-sm disabled:opacity-50"
+          >
+            {isLoading ? 'Saving...' : 'Save'}
+          </button>
+        </header>
+        <div className="flex-1 flex flex-col px-6 pb-[calc(8.5rem+env(safe-area-inset-bottom))]">
+        <div className="-mx-6 px-6 pt-3 pb-2 bg-paper/90">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
               {error}
@@ -721,13 +734,14 @@ const EditMemory: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="mb-2">
           <textarea
-            className="w-full bg-transparent border-none focus:ring-0 text-ink text-xl leading-relaxed placeholder:text-ink/20 resize-none min-h-[120px] p-0 font-serif"
+            ref={textareaRef}
+            className="w-full bg-transparent border-none focus:ring-0 text-ink text-xl leading-relaxed placeholder:text-ink/20 resize-none overflow-hidden min-h-[120px] p-0 font-serif"
             placeholder="Dear You... what's on your mind today?"
-            autoFocus
             value={content}
             onChange={(e) => setContent(e.target.value)}
+            onInput={syncTextareaHeight}
           ></textarea>
         </div>
 
@@ -736,7 +750,7 @@ const EditMemory: React.FC = () => {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,image/gif,video/*"
             multiple
             onChange={handlePhotoUpload}
             className="hidden"
@@ -749,12 +763,21 @@ const EditMemory: React.FC = () => {
               <div key={index} className="flex-shrink-0 w-32">
                 <div className="bg-white p-2 pb-6 rounded-sm shadow-sm transition-transform active:scale-95" style={{ transform: `rotate(${(index % 3 - 1) * 2}deg)` }}>
                   <div className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group">
-                    <div
-                      role="img"
-                      aria-label={`Memory ${index + 1}`}
-                      className="w-full h-full bg-cover bg-center grayscale-[20%] sepia-[10%]"
-                      style={{ backgroundImage: `url("${photo}")` }}
-                    />
+                    {isVideoUrl(photo) ? (
+                      <VideoPreview
+                        src={photo}
+                        className="w-full h-full object-cover"
+                        iconSize="sm"
+                        enableFullscreen={false}
+                      />
+                    ) : (
+                      <div
+                        role="img"
+                        aria-label={`Memory ${index + 1}`}
+                        className="w-full h-full bg-cover bg-center grayscale-[20%] sepia-[10%]"
+                        style={{ backgroundImage: `url("${photo}")` }}
+                      />
+                    )}
                     <button
                       onClick={() => handleRemovePhoto(index)}
                       className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
@@ -810,11 +833,12 @@ const EditMemory: React.FC = () => {
             <span>Only visible to you and your partner</span>
           </div>
         </div>
+        </div>
       </main>
 
       {/* Attachment Badges (location / voice note) */}
       {(location || (voiceNote && !showVoiceRecorder)) && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 w-full max-w-[430px] px-6">
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 w-full max-w-[430px] px-6">
           <div className="flex items-center justify-center gap-2 flex-wrap">
             {location && (
               <div className="bg-white/90 backdrop-blur-lg rounded-full px-4 py-2 flex items-center gap-2 shadow-lg border border-primary/20 max-w-full min-w-0">
@@ -849,7 +873,7 @@ const EditMemory: React.FC = () => {
       )}
 
       {/* Floating Action Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-fit bg-ink/5 backdrop-blur-lg rounded-full px-6 py-3 flex items-center gap-6 shadow-xl border border-white/20 z-40">
+      <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-fit bg-ink/5 backdrop-blur-lg rounded-full px-6 py-3 flex items-center gap-6 shadow-xl border border-white/20 z-40">
         <button
           className={`${location ? 'text-accent' : 'text-ink/60 hover:text-accent'} transition-colors`}
           onClick={() => setShowLocationPicker(true)}

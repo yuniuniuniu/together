@@ -397,20 +397,29 @@ export const notificationsApi = {
 
 // Reactions API
 export const reactionsApi = {
-  toggle: (memoryId: string, type: string = 'love') =>
-    apiClient<{
-      action: 'added' | 'removed';
-      data: {
-        id: string;
-        memoryId: string;
-        userId: string;
-        type: string;
-        createdAt: string;
-      } | null;
-    }>(`/reactions/${memoryId}`, {
+  toggle: async (memoryId: string, type: string = 'love') => {
+    const response = await apiClient<{
+      id: string;
+      memoryId: string;
+      userId: string;
+      type: string;
+      createdAt: string;
+    } | null>(`/reactions/${memoryId}`, {
       method: 'POST',
       body: JSON.stringify({ type }),
-    }),
+    });
+
+    // Backend returns action at top-level and reaction in data.
+    const action = (response as unknown as { action?: 'added' | 'removed' | 'blocked' }).action;
+    if (action !== 'added' && action !== 'removed' && action !== 'blocked') {
+      throw new Error('Invalid reaction toggle response');
+    }
+
+    return {
+      action,
+      data: response.data,
+    };
+  },
 
   list: (memoryId: string) =>
     apiClient<

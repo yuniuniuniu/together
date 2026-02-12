@@ -315,6 +315,12 @@ body {
   display: none !important;
 }
 
+/* Hide AMap logo and copyright */
+.amap-logo,
+.amap-copyright {
+  display: none !important;
+}
+
 /* Custom zoom controls if needed */
 .leaflet-control-zoom {
   border: none !important;

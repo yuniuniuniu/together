@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 
 interface VideoPreviewProps {
   src: string;
@@ -6,6 +6,7 @@ interface VideoPreviewProps {
   overlayClassName?: string;
   iconSize?: 'sm' | 'md' | 'lg';
   enableFullscreen?: boolean;
+  enableInlinePlayback?: boolean;
 }
 
 /**
@@ -18,11 +19,13 @@ export function VideoPreview({
   className = 'w-full h-full object-cover',
   overlayClassName = '',
   iconSize = 'lg',
-  enableFullscreen = false
+  enableFullscreen = false,
+  enableInlinePlayback = false
 }: VideoPreviewProps) {
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const fullscreenVideoRef = useRef<HTMLVideoElement>(null);
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
+  const [isInlinePlaying, setIsInlinePlaying] = useState(false);
   const [duration, setDuration] = useState<number | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
   const [hasTriedWarmupPlay, setHasTriedWarmupPlay] = useState(false);
@@ -41,11 +44,36 @@ export function VideoPreview({
     return `${String(minutes).padStart(2, '0')}:${String(remainSeconds).padStart(2, '0')}`;
   };
 
-  const handleOpenFullscreen = (e: React.MouseEvent) => {
-    if (!enableFullscreen) return;
+  const handlePreviewClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (enableFullscreen) {
+      e.stopPropagation();
+      e.preventDefault();
+      setIsFullscreenOpen(true);
+      return;
+    }
+
+    if (!enableInlinePlayback) return;
     e.stopPropagation();
     e.preventDefault();
-    setIsFullscreenOpen(true);
+
+    const video = previewVideoRef.current;
+    if (!video) return;
+
+    if (isInlinePlaying) {
+      video.pause();
+      setIsInlinePlaying(false);
+      return;
+    }
+
+    video.muted = true;
+    video.loop = true;
+    void video.play()
+      .then(() => {
+        setIsInlinePlaying(true);
+      })
+      .catch(() => {
+        setIsInlinePlaying(false);
+      });
   };
 
   const handleCloseFullscreen = () => {
@@ -113,6 +141,11 @@ export function VideoPreview({
   }, [isFullscreenOpen]);
 
   useEffect(() => {
+    const previewVideo = previewVideoRef.current;
+    if (previewVideo) {
+      previewVideo.pause();
+    }
+    setIsInlinePlaying(false);
     setPreviewReady(false);
     setHasTriedWarmupPlay(false);
   }, [src]);
@@ -132,7 +165,7 @@ export function VideoPreview({
 
   return (
     <>
-      <div className="relative w-full h-full" onClick={handleOpenFullscreen}>
+      <div className="relative w-full h-full" onClick={handlePreviewClick}>
         <video
           ref={previewVideoRef}
           src={src}
@@ -159,7 +192,7 @@ export function VideoPreview({
         />
         <div className={`absolute inset-0 flex items-center justify-center bg-black/15 pointer-events-none ${overlayClassName}`}>
           <span className={`material-symbols-outlined text-white ${iconSizeClass} drop-shadow-lg`}>
-            play_circle
+            {isInlinePlaying ? 'pause_circle' : 'play_circle'}
           </span>
         </div>
         {duration !== null && (

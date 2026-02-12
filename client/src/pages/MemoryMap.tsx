@@ -15,10 +15,20 @@ interface Location {
   createdAt: string;
 }
 
+declare global {
+  interface Window {
+    _AMapSecurityConfig?: {
+      securityJsCode: string;
+    };
+  }
+}
+
 // 高德地图安全配置
-window._AMapSecurityConfig = {
-  securityJsCode: import.meta.env.VITE_AMAP_SECURITY_CODE || '',
-};
+if (typeof window !== 'undefined') {
+  window._AMapSecurityConfig = {
+    securityJsCode: import.meta.env.VITE_AMAP_SECURITY_CODE || '',
+  };
+}
 
 const MemoryMap: React.FC = () => {
   const navigate = useNavigate();
@@ -66,7 +76,6 @@ const MemoryMap: React.FC = () => {
         }
       })
       .catch((e) => {
-        console.error('地图加载失败:', e);
         // Map failed to load; keep UX responsive
         console.error('地图加载失败:', e);
       });
@@ -188,8 +197,12 @@ const MemoryMap: React.FC = () => {
 
     // 多个标记时自动适应视野
     if (locations.length > 1) {
-      const bounds = locations.map((loc) => [loc.longitude, loc.latitude]);
-      map.setBounds(new AMap.Bounds(...bounds), false, [60, 60, 60, 60]);
+      try {
+        // Use overlays to fit view; avoids invalid Bounds construction with dynamic points.
+        map.setFitView(markersRef.current, false, [60, 60, 60, 60]);
+      } catch (error) {
+        console.error('地图视野调整失败:', error);
+      }
     }
   }, [mapReady, locations, selectedLocation]);
 
@@ -244,7 +257,7 @@ const MemoryMap: React.FC = () => {
       <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       {/* Map Container */}
-      <main className="flex-1 relative w-full overflow-hidden pb-32">
+      <main className="flex-1 relative w-full overflow-hidden">
         {/* 高德地图容器 */}
         <div ref={mapContainerRef} className="w-full h-full" style={{ display: mapReady ? 'block' : 'none', touchAction: 'none' }} />
 
@@ -276,7 +289,7 @@ const MemoryMap: React.FC = () => {
             </div>
 
             {/* Controls */}
-            <div className="absolute bottom-6 right-4 z-[1000] flex flex-col gap-3">
+            <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-[1000] flex flex-col gap-3">
               <button
                 onClick={handleLocateMe}
                 className="w-12 h-12 bg-white rounded-2xl shadow-soft flex items-center justify-center text-stone-600 hover:text-primary transition-colors border border-white/50 active:scale-95"
@@ -330,7 +343,7 @@ const MemoryMap: React.FC = () => {
       </main>
 
       {/* Fixed Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-8 pt-4 z-[2001] flex justify-center pointer-events-auto">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-safe pt-4 z-[2001] flex justify-center pointer-events-auto">
         <div className="flex items-center justify-around max-w-3xl w-full px-4">
           <button
             className="flex flex-col items-center gap-1 group w-16"
