@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { getDatabase, NotificationData } from '../db/database.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { sendPushNotification } from './pushService.js';
 
 interface Notification {
   id: string;
@@ -75,6 +76,15 @@ export async function createNotification(
     created_at: new Date().toISOString(),
     read: 0,
     action_url: actionUrl || null,
+  });
+
+  // Send push notification asynchronously (don't block the main flow)
+  sendPushNotification(userId, title, message, {
+    type,
+    notificationId: id,
+    actionUrl: actionUrl || '',
+  }).catch((err) => {
+    console.error('[Notification] Push notification failed:', err);
   });
 
   return formatNotification(notification);

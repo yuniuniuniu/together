@@ -105,12 +105,16 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     });
   }, [isAuthenticated, registerPush]);
 
+  // Register device token with backend when acquired
   useEffect(() => {
-    if (pushToken) {
-      console.log('[Push] device token acquired');
-      // TODO: send token to backend when API endpoint is available.
+    if (pushToken && isAuthenticated) {
+      console.log('[Push] Registering device token with backend');
+      notificationsApi
+        .registerDeviceToken(pushToken, 'android')
+        .then(() => console.log('[Push] Device token registered successfully'))
+        .catch((err) => console.error('[Push] Failed to register device token:', err));
     }
-  }, [pushToken]);
+  }, [pushToken, isAuthenticated]);
 
   useEffect(() => {
     if (!pushError) return;
