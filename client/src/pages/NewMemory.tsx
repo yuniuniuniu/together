@@ -23,6 +23,8 @@ import { VideoPreview } from '../shared/components/display/VideoPreview';
 import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { Haptics } from '../shared/utils/haptics';
 import { mapWithConcurrency } from '../shared/utils/concurrency';
+import { compressImage } from '../shared/utils/imageCompress';
+import { compressVideo } from '../shared/utils/videoCompress';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -432,14 +434,19 @@ const NewMemory: React.FC = () => {
         const folder = isVideo ? 'videos' : 'images';
         const maxAttempts = 2;
 
-        const debug = `File: ${file.name}, Size: ${formatFileSize(file.size)}, Type: ${file.type || 'unknown'}`;
+        // Compress media before upload
+        const fileToUpload = isVideo
+          ? await compressVideo(file)
+          : await compressImage(file);
+
+        const debug = `File: ${file.name}, Size: ${formatFileSize(fileToUpload.size)}, Type: ${fileToUpload.type || 'unknown'}`;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
             perFileProgress[index] = 0;
             updateProgressUi();
 
-            const result = await uploadApi.uploadDirect(file, folder, (progress) => {
+            const result = await uploadApi.uploadDirect(fileToUpload, folder, (progress) => {
               perFileProgress[index] = progress;
               updateProgressUi();
             });

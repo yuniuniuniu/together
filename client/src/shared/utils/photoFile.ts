@@ -37,12 +37,25 @@ function resolveFetchableSource(source: string): string {
   return source;
 }
 
-export async function photoResultToFile(photo: PhotoResult, baseName: string): Promise<File> {
+/** Extract native path (content:// or file://) from source if present */
+function extractNativePath(source: string): string | undefined {
+  if (/^(content|file):\/\//i.test(source)) {
+    return source;
+  }
+  return undefined;
+}
+
+/** Extended File type with optional native path for video compression */
+export interface FileWithNativePath extends File {
+  _nativePath?: string;
+}
+
+export async function photoResultToFile(photo: PhotoResult, baseName: string): Promise<FileWithNativePath> {
   const fallbackMimeType = normalizeImageMimeType(photo.format);
   const extension = (photo.format || 'jpeg').toLowerCase();
   const filename = `${baseName}.${extension}`;
 
-  console.log('[PhotoFile Debug] Converting photo to file:', {
+  if (import.meta.env.DEV) console.log('[PhotoFile Debug] Converting photo to file:', {
     sourceType: photo.sourceType,
     sourcePrefix: photo.source.substring(0, 100),
     format: photo.format,
@@ -50,24 +63,29 @@ export async function photoResultToFile(photo: PhotoResult, baseName: string): P
   });
 
   if (photo.source.startsWith('data:')) {
-    console.log('[PhotoFile Debug] Using data URL decode');
     const parsed = decodeDataUrl(photo.source);
-    const file = new File([parsed.blob], filename, { type: parsed.mimeType || fallbackMimeType });
-    console.log('[PhotoFile Debug] Created file from data URL:', { size: file.size, type: file.type });
+    const file: FileWithNativePath = new File([parsed.blob], filename, { type: parsed.mimeType || fallbackMimeType });
+    if (import.meta.env.DEV) console.log('[PhotoFile Debug] Created file from data URL:', { size: file.size, type: file.type });
     return file;
   }
 
-  const source = resolveFetchableSource(photo.source);
-  console.log('[PhotoFile Debug] Fetching from source:', source);
+  // Preserve native path for video compression on Android
+  const nativePath = extractNativePath(photo.source);
 
+  const source = resolveFetchableSource(photo.source);
   const response = await fetch(source);
-  console.log('[PhotoFile Debug] Fetch response:', { ok: response.ok, status: response.status });
 
   if (!response.ok) {
     throw new Error(`Failed to read selected photo (${response.status})`);
   }
   const blob = await response.blob();
-  const file = new File([blob], filename, { type: blob.type || fallbackMimeType });
-  console.log('[PhotoFile Debug] Created file from fetch:', { size: file.size, type: file.type });
+  const file: FileWithNativePath = new File([blob], filename, { type: blob.type || fallbackMimeType });
+
+  // Attach native path for video compression
+  if (nativePath) {
+    file._nativePath = nativePath;
+  }
+
+  if (import.meta.env.DEV) console.log('[PhotoFile Debug] Created file from fetch:', { size: file.size, type: file.type, nativePath });
   return file;
 }

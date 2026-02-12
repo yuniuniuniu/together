@@ -17,6 +17,8 @@ import { Platform } from '../shared/utils/platform';
 import { photoResultToFile } from '../shared/utils/photoFile';
 import { countWords } from '../shared/utils/wordCount';
 import { mapWithConcurrency } from '../shared/utils/concurrency';
+import { compressImage } from '../shared/utils/imageCompress';
+import { compressVideo } from '../shared/utils/videoCompress';
 import { VideoPreview } from '../shared/components/display/VideoPreview';
 
 // 高德地图安全配置
@@ -294,12 +296,17 @@ const EditMemory: React.FC = () => {
 
       const outcomes = await mapWithConcurrency(files, concurrency, async (file, index): Promise<UploadOutcome> => {
         const maxAttempts = 2;
+        const isVideo = file.type.startsWith('video/');
+        // Compress media before upload
+        const fileToUpload = isVideo
+          ? await compressVideo(file)
+          : await compressImage(file);
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
             perFileProgress[index] = 0;
             updateProgressUi();
-            const folder = file.type.startsWith('video/') ? 'videos' : 'images';
-            const result = await uploadApi.uploadDirect(file, folder, (progress) => {
+            const folder = isVideo ? 'videos' : 'images';
+            const result = await uploadApi.uploadDirect(fileToUpload, folder, (progress) => {
               perFileProgress[index] = progress;
               updateProgressUi();
             });

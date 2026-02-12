@@ -207,7 +207,7 @@ export function SpaceProvider({ children }: SpaceProviderProps) {
     return response.data;
   }, [state.space]);
 
-  const value: SpaceContextValue = {
+  const value = useMemo<SpaceContextValue>(() => ({
     ...state,
     daysCount,
     anniversaryDate,
@@ -221,7 +221,7 @@ export function SpaceProvider({ children }: SpaceProviderProps) {
     cancelUnbind,
     getUnbindStatus,
     refreshSpace,
-  };
+  }), [state, daysCount, anniversaryDate, setSpace, setPartner, updateSpace, createSpace, joinSpace, unbind, requestUnbind, cancelUnbind, getUnbindStatus, refreshSpace]);
 
   return (
     <SpaceContext.Provider value={value}>

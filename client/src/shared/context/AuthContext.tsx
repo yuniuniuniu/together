@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import type { User } from '../types';
 import { authApi } from '../api/client';
 
@@ -105,14 +105,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }));
   }, []);
 
-  const value: AuthContextValue = {
+  const value = useMemo<AuthContextValue>(() => ({
     ...state,
     sendCode,
     login,
     logout,
     updateProfile,
     setUser,
-  };
+  }), [state, sendCode, login, logout, updateProfile, setUser]);
 
   return (
     <AuthContext.Provider value={value}>

@@ -42,21 +42,27 @@ const MemoryTimeline: React.FC = () => {
         return;
       }
 
+      const results = await Promise.all(
+        memories.map(async (memory) => {
+          try {
+            const [reactionsRes, myReactionRes] = await Promise.all([
+              reactionsApi.list(memory.id),
+              reactionsApi.getMine(memory.id),
+            ]);
+            const state = {
+              liked: myReactionRes.data !== null,
+              count: reactionsRes.data.length,
+            };
+            // Seed the React Query cache so MemoryDetail won't re-fetch
+            queryClient.setQueryData(['reactions', memory.id], state);
+            return { id: memory.id, state };
+          } catch {
+            return { id: memory.id, state: { liked: false, count: 0 } };
+          }
+        })
+      );
       const reactionStates: ReactionState = {};
-      for (const memory of memories) {
-        try {
-          const [reactionsRes, myReactionRes] = await Promise.all([
-            reactionsApi.list(memory.id),
-            reactionsApi.getMine(memory.id),
-          ]);
-          reactionStates[memory.id] = {
-            liked: myReactionRes.data !== null,
-            count: reactionsRes.data.length,
-          };
-        } catch {
-          reactionStates[memory.id] = { liked: false, count: 0 };
-        }
-      }
+      for (const r of results) reactionStates[r.id] = r.state;
       setReactions(reactionStates);
     };
 
@@ -66,15 +72,18 @@ const MemoryTimeline: React.FC = () => {
         return;
       }
 
+      const results = await Promise.all(
+        memories.map(async (memory) => {
+          try {
+            const res = await commentsApi.count(memory.id);
+            return { id: memory.id, count: res.data.count };
+          } catch {
+            return { id: memory.id, count: 0 };
+          }
+        })
+      );
       const counts: CommentCountState = {};
-      for (const memory of memories) {
-        try {
-          const res = await commentsApi.count(memory.id);
-          counts[memory.id] = res.data.count;
-        } catch {
-          counts[memory.id] = 0;
-        }
-      }
+      for (const r of results) counts[r.id] = r.count;
       setCommentCounts(counts);
     };
 
@@ -116,15 +125,15 @@ const MemoryTimeline: React.FC = () => {
       if (action === 'blocked') {
         return;
       }
-      setReactions((prev) => ({
-        ...prev,
-        [memoryId]: {
-          liked: action === 'added',
-          count: action === 'added'
-            ? (prev[memoryId]?.count || 0) + 1
-            : Math.max((prev[memoryId]?.count || 1) - 1, 0),
-        },
-      }));
+      const newState = {
+        liked: action === 'added',
+        count: action === 'added'
+          ? (reactions[memoryId]?.count || 0) + 1
+          : Math.max((reactions[memoryId]?.count || 1) - 1, 0),
+      };
+      setReactions((prev) => ({ ...prev, [memoryId]: newState }));
+      // Keep query cache in sync for MemoryDetail
+      queryClient.setQueryData(['reactions', memoryId], newState);
     } catch {
       showToast('Failed to update reaction', 'error');
     } finally {
@@ -360,11 +369,12 @@ const MemoryTimeline: React.FC = () => {
                                 key={`${memory.id}-${index}`}
                                 className="aspect-square relative overflow-hidden rounded-xl bg-stone-50 dark:bg-zinc-950/50"
                               >
-                                <div
-                                  className="w-full h-full bg-cover bg-center"
-                                  role="img"
-                                  aria-label={`Memory ${index + 1}`}
-                                  style={{ backgroundImage: `url("${mediaUrl}")` }}
+                                <img
+                                  src={mediaUrl}
+                                  alt={`Memory ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  decoding="async"
                                 />
                                 {isGif && (
                                   <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold tracking-wider">
@@ -495,7 +505,7 @@ const MemoryTimeline: React.FC = () => {
 
       {/* Fixed Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-100 dark:border-zinc-800 pb-8 pt-4 z-50">
-        <div className="flex items-center justify-around max-w-3xl mx-auto px-4">
+        <div className="flex items-center justify-around max-w-md mx-auto px-6">
           <button
             className="flex flex-col items-center gap-1 group w-16"
             onClick={() => navigate('/dashboard')}

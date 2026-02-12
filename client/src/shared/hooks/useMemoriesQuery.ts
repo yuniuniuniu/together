@@ -40,10 +40,10 @@ export function useMemoriesQuery() {
     queryKey: QUERY_KEY,
     queryFn: fetchMemories,
     // Refresh periodically so new memories from self/partner appear without reload
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    staleTime: 5_000,
+    staleTime: 15_000,
   });
 }
 

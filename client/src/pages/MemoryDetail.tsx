@@ -40,8 +40,6 @@ const MemoryDetail: React.FC = () => {
   const initialMemory = routeState?.memory && routeState.memory.id === id ? routeState.memory : null;
   const [actionError, setActionError] = useState('');
   const [isVisible, setIsVisible] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
   const [reactionPending, setReactionPending] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -52,6 +50,8 @@ const MemoryDetail: React.FC = () => {
   const [replyingTo, setReplyingTo] = useState<{ id: string; authorName: string } | null>(null);
   const [commentSending, setCommentSending] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [longPressCommentId, setLongPressCommentId] = useState<string | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { topBarRef, topBarHeight } = useFixedTopBar();
@@ -67,10 +67,31 @@ const MemoryDetail: React.FC = () => {
       return response.data as Memory;
     },
     enabled: Boolean(id),
-    staleTime: 15_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
     initialData: initialMemory ?? undefined,
   });
   const memory = memoryQuery.data ?? null;
+
+  const reactionsQuery = useQuery({
+    queryKey: ['reactions', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Memory id is required');
+      const [reactionsRes, myReactionRes] = await Promise.all([
+        reactionsApi.list(id),
+        reactionsApi.getMine(id),
+      ]);
+      return {
+        count: reactionsRes.data.length,
+        liked: myReactionRes.data !== null,
+      };
+    },
+    enabled: Boolean(id),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+  });
+  const isLiked = reactionsQuery.data?.liked ?? false;
+  const likeCount = reactionsQuery.data?.count ?? 0;
 
   const commentsQuery = useQuery({
     queryKey: ['comments', id],
@@ -80,7 +101,8 @@ const MemoryDetail: React.FC = () => {
       return response.data as CommentItem[];
     },
     enabled: Boolean(id),
-    staleTime: 10_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
   const comments = commentsQuery.data ?? [];
   const totalCommentCount = comments.reduce(
@@ -103,24 +125,6 @@ const MemoryDetail: React.FC = () => {
     };
   }, [id]);
 
-  useEffect(() => {
-    const fetchReactions = async () => {
-      if (!id) return;
-      try {
-        const [reactionsRes, myReactionRes] = await Promise.all([
-          reactionsApi.list(id),
-          reactionsApi.getMine(id),
-        ]);
-        setLikeCount(reactionsRes.data.length);
-        setIsLiked(myReactionRes.data !== null);
-      } catch {
-        setLikeCount(0);
-        setIsLiked(false);
-      }
-    };
-
-    fetchReactions();
-  }, [id]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -139,14 +143,31 @@ const MemoryDetail: React.FC = () => {
       return;
     }
     setReactionPending(true);
+
+    // Optimistic update
+    const prev = reactionsQuery.data;
+    const optimistic = prev
+      ? { count: prev.liked ? Math.max(prev.count - 1, 0) : prev.count + 1, liked: !prev.liked }
+      : { count: 1, liked: true };
+    queryClient.setQueryData(['reactions', id], optimistic);
+
     try {
       const result = await reactionsApi.toggle(id);
       if (result.action === 'blocked') {
+        // Revert on blocked
+        if (prev) queryClient.setQueryData(['reactions', id], prev);
         return;
       }
-      setIsLiked(result.action === 'added');
-      setLikeCount(prev => result.action === 'added' ? prev + 1 : Math.max(prev - 1, 0));
+      // Reconcile with server truth
+      queryClient.setQueryData(['reactions', id], {
+        count: result.action === 'added'
+          ? (prev ? prev.count + 1 : 1)
+          : Math.max((prev?.count ?? 1) - 1, 0),
+        liked: result.action === 'added',
+      });
     } catch {
+      // Revert on error
+      if (prev) queryClient.setQueryData(['reactions', id], prev);
       showToast('Failed to update reaction', 'error');
     } finally {
       setReactionPending(false);
@@ -228,7 +249,34 @@ const MemoryDetail: React.FC = () => {
 
   const handleReply = (comment: CommentItem) => {
     setReplyingTo({ id: comment.id, authorName: comment.user.nickname });
+    setLongPressCommentId(null);
     commentInputRef.current?.focus();
+  };
+
+  // Long press handlers for touch devices (Android)
+  const startLongPress = (commentId: string, isOwn: boolean) => {
+    if (!isOwn) return;
+    longPressTimerRef.current = setTimeout(() => {
+      setLongPressCommentId(commentId);
+    }, 500);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleCommentTap = (comment: CommentItem, isReply: boolean, parentComment?: CommentItem) => {
+    // If long press menu is open, close it instead
+    if (longPressCommentId) {
+      setLongPressCommentId(null);
+      return;
+    }
+    // Tap on any comment/reply triggers reply to the top-level comment
+    const targetComment = isReply && parentComment ? parentComment : comment;
+    handleReply(targetComment);
   };
 
   const formatCommentTime = (dateStr: string) => {
@@ -588,8 +636,18 @@ const MemoryDetail: React.FC = () => {
                  <div className="space-y-4">
                    {comments.map((comment) => (
                      <div key={comment.id}>
-                       {/* Top-level comment */}
-                       <div className="flex gap-2.5 group">
+                       {/* Top-level comment — tap to reply, long press to delete (own) */}
+                       <div
+                         className="flex gap-2.5 py-1.5 -mx-1 px-1 rounded-xl transition-colors active:bg-stone-50 cursor-pointer select-none"
+                         onClick={() => handleCommentTap(comment, false)}
+                         onTouchStart={() => startLongPress(comment.id, comment.userId === user?.id)}
+                         onTouchEnd={cancelLongPress}
+                         onTouchMove={cancelLongPress}
+                         onContextMenu={(e) => {
+                           e.preventDefault();
+                           if (comment.userId === user?.id) setLongPressCommentId(comment.id);
+                         }}
+                       >
                          {comment.user.avatar ? (
                            <div className="size-8 rounded-full overflow-hidden bg-stone-100 shrink-0">
                              <div
@@ -612,31 +670,25 @@ const MemoryDetail: React.FC = () => {
                              <span className="text-[10px] text-soft-gray/60">{formatCommentTime(comment.createdAt)}</span>
                            </div>
                            <p className="text-sm text-ink/70 mt-0.5 break-words">{comment.content}</p>
-                           <div className="flex items-center gap-3 mt-1.5">
-                             <button
-                               onClick={() => handleReply(comment)}
-                               className="text-[10px] font-bold text-soft-gray/60 hover:text-accent uppercase tracking-wider transition-colors"
-                             >
-                               Reply
-                             </button>
-                             {comment.userId === user?.id && (
-                               <button
-                                 onClick={() => handleDeleteComment(comment.id)}
-                                 disabled={deletingCommentId === comment.id}
-                                 className="text-[10px] font-bold text-soft-gray/40 hover:text-red-400 uppercase tracking-wider transition-colors opacity-0 group-hover:opacity-100"
-                               >
-                                 {deletingCommentId === comment.id ? 'Deleting...' : 'Delete'}
-                               </button>
-                             )}
-                           </div>
                          </div>
                        </div>
 
                        {/* Replies */}
                        {comment.replies && comment.replies.length > 0 && (
-                         <div className="ml-10 mt-2 space-y-3 border-l-2 border-stone-100 pl-3">
+                         <div className="ml-10 mt-1 space-y-1 border-l-2 border-stone-100 pl-3">
                            {comment.replies.map((reply) => (
-                             <div key={reply.id} className="flex gap-2.5 group">
+                             <div
+                               key={reply.id}
+                               className="flex gap-2.5 py-1.5 -mx-1 px-1 rounded-xl transition-colors active:bg-stone-50 cursor-pointer select-none"
+                               onClick={() => handleCommentTap(reply, true, comment)}
+                               onTouchStart={() => startLongPress(reply.id, reply.userId === user?.id)}
+                               onTouchEnd={cancelLongPress}
+                               onTouchMove={cancelLongPress}
+                               onContextMenu={(e) => {
+                                 e.preventDefault();
+                                 if (reply.userId === user?.id) setLongPressCommentId(reply.id);
+                               }}
+                             >
                                {reply.user.avatar ? (
                                  <div className="size-6 rounded-full overflow-hidden bg-stone-100 shrink-0">
                                    <div
@@ -659,23 +711,6 @@ const MemoryDetail: React.FC = () => {
                                    <span className="text-[10px] text-soft-gray/60">{formatCommentTime(reply.createdAt)}</span>
                                  </div>
                                  <p className="text-[13px] text-ink/70 mt-0.5 break-words">{reply.content}</p>
-                                 <div className="flex items-center gap-3 mt-1">
-                                   <button
-                                     onClick={() => handleReply(comment)}
-                                     className="text-[10px] font-bold text-soft-gray/60 hover:text-accent uppercase tracking-wider transition-colors"
-                                   >
-                                     Reply
-                                   </button>
-                                   {reply.userId === user?.id && (
-                                     <button
-                                       onClick={() => handleDeleteComment(reply.id)}
-                                       disabled={deletingCommentId === reply.id}
-                                       className="text-[10px] font-bold text-soft-gray/40 hover:text-red-400 uppercase tracking-wider transition-colors opacity-0 group-hover:opacity-100"
-                                     >
-                                       {deletingCommentId === reply.id ? 'Deleting...' : 'Delete'}
-                                     </button>
-                                   )}
-                                 </div>
                                </div>
                              </div>
                            ))}
@@ -754,6 +789,46 @@ const MemoryDetail: React.FC = () => {
           isOpen={viewerOpen}
           onClose={() => setViewerOpen(false)}
         />
+      )}
+
+      {/* Delete Comment ActionSheet */}
+      {longPressCommentId && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center"
+          onClick={() => setLongPressCommentId(null)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40 animate-in fade-in duration-200" />
+          {/* Sheet */}
+          <div
+            className="relative w-full max-w-[430px] bg-white dark:bg-zinc-900 rounded-t-2xl overflow-hidden animate-in slide-in-from-bottom duration-200 pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="py-2">
+              <button
+                onClick={() => {
+                  const targetId = longPressCommentId;
+                  setLongPressCommentId(null);
+                  void handleDeleteComment(targetId);
+                }}
+                disabled={!!deletingCommentId}
+                className="w-full flex items-center justify-center gap-2 py-4 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-xl">delete</span>
+                <span className="text-base font-medium">
+                  {deletingCommentId === longPressCommentId ? 'Deleting...' : 'Delete Comment'}
+                </span>
+              </button>
+              <div className="h-px bg-stone-100 dark:bg-zinc-800 mx-4" />
+              <button
+                onClick={() => setLongPressCommentId(null)}
+                className="w-full py-4 text-center text-base font-medium text-ink/70 hover:bg-stone-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

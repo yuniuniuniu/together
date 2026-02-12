@@ -1,9 +1,9 @@
 import type { ApiResponse } from '../types';
-import { Platform } from '../utils/platform';
 
 
 const DEFAULT_API_BASE = `${window.location.protocol}//${window.location.hostname}:3005/api`;
 const API_BASE = import.meta.env.VITE_API_URL || DEFAULT_API_BASE;
+const __DEV__ = import.meta.env.DEV;
 
 export async function apiClient<T>(
   endpoint: string,
@@ -12,7 +12,7 @@ export async function apiClient<T>(
   const token = localStorage.getItem('auth_token');
   const url = `${API_BASE}${endpoint}`;
   
-  console.log('[API Debug] Fetching:', url);
+  if (__DEV__) console.log('[API Debug] Fetching:', url);
 
   try {
     const response = await fetch(url, {
@@ -24,7 +24,7 @@ export async function apiClient<T>(
       },
     });
     
-    console.log('[API Debug] Response status:', response.status);
+    if (__DEV__) console.log('[API Debug] Response status:', response.status);
 
     // Handle sliding expiration: check for new token in response header
     const newToken = response.headers.get('X-New-Token');
@@ -40,8 +40,10 @@ export async function apiClient<T>(
 
     return json;
   } catch (error) {
-    console.error('[API Debug] Fetch error:', error);
-    console.error('[API Debug] Error message:', error instanceof Error ? error.message : String(error));
+    if (__DEV__) {
+      console.error('[API Debug] Fetch error:', error);
+      console.error('[API Debug] Error message:', error instanceof Error ? error.message : String(error));
+    }
     throw error;
   }
 }
@@ -507,7 +509,7 @@ export const uploadApi = {
     const token = localStorage.getItem('auth_token');
     const uploadUrl = `${UPLOAD_API_BASE}/upload`;
 
-    console.log('[Upload Debug] Starting upload with fetch:', {
+    if (__DEV__) console.log('[Upload Debug] Starting upload with fetch:', {
       url: uploadUrl,
       fileName: file.name,
       fileSize: file.size,
@@ -534,7 +536,7 @@ export const uploadApi = {
       body: formData,
     });
 
-    console.log('[Upload Debug] Response received:', {
+    if (__DEV__) console.log('[Upload Debug] Response received:', {
       ok: response.ok,
       status: response.status,
       statusText: response.statusText,
@@ -549,7 +551,7 @@ export const uploadApi = {
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
       const text = await response.text();
-      console.error('[Upload Debug] Non-JSON response:', { status: response.status, contentType, body: text.substring(0, 500) });
+      if (__DEV__) console.error('[Upload Debug] Non-JSON response:', { status: response.status, contentType, body: text.substring(0, 500) });
       throw new Error(`Upload failed: server returned ${response.status} (expected JSON, got ${contentType || 'unknown'})\nURL: ${uploadUrl}`);
     }
 
@@ -557,13 +559,13 @@ export const uploadApi = {
     try {
       payload = await response.json();
     } catch (parseError) {
-      console.error('[Upload Debug] JSON parse error:', parseError);
+      if (__DEV__) console.error('[Upload Debug] JSON parse error:', parseError);
       throw new Error(`Upload failed: invalid JSON response (status ${response.status})`);
     }
 
     if (!response.ok || !payload?.success) {
       const message = payload?.error?.message || payload?.message || `Upload failed with status ${response.status}`;
-      console.error('[Upload Debug] Upload failed:', { status: response.status, payload, message });
+      if (__DEV__) console.error('[Upload Debug] Upload failed:', { status: response.status, payload, message });
       throw new Error(message);
     }
 
@@ -584,14 +586,6 @@ export const uploadApi = {
       type: blob.type || 'audio/webm',
       lastModified: Date.now(),
     });
-
-    if (Platform.isNative()) {
-      const result = await uploadApi.uploadViaServer(file, 'audio');
-      return {
-        url: result.url,
-        filename: result.filename,
-      };
-    }
 
     const { uploadUrl, publicUrl, contentType } = await uploadApi.getPresignedUrl(
       file.name,
@@ -656,16 +650,12 @@ export const uploadApi = {
     return json.data;
   },
 
-  // Direct upload to R2 using presigned URL
+  // Direct upload to R2 using presigned URL (works on both web and native)
   uploadDirect: async (
     file: File,
     folder: string = 'uploads',
     onProgress?: (progress: number) => void
   ): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> => {
-    if (Platform.isNative()) {
-      return uploadApi.uploadViaServer(file, folder, onProgress);
-    }
-
     // Get presigned URL from server
     const { uploadUrl, publicUrl, contentType } = await uploadApi.getPresignedUrl(
       file.name,

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { notificationsApi } from '../api/client';
 import { useAuth } from './AuthContext';
 import { useSpace } from './SpaceContext';
@@ -138,9 +138,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     };
   }, [isAuthenticated, refresh, fetchNotifications]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
 
-  const value: NotificationContextValue = {
+  const value = useMemo<NotificationContextValue>(() => ({
     notifications,
     unreadCount,
     isLoading,
@@ -148,7 +148,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     refresh,
     markAsRead,
     markAllAsRead,
-  };
+  }), [notifications, unreadCount, isLoading, error, refresh, markAsRead, markAllAsRead]);
 
   return (
     <NotificationContext.Provider value={value}>

@@ -6,6 +6,7 @@ import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
 import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { Platform } from '../shared/utils/platform';
 import { mapWithConcurrency } from '../shared/utils/concurrency';
+import { compressImage } from '../shared/utils/imageCompress';
 
 interface Milestone {
   id: string;
@@ -81,9 +82,11 @@ const EditMilestone: React.FC = () => {
         | { ok: false; error: Error };
 
       const outcomes = await mapWithConcurrency(Array.from(files), concurrency, async (file): Promise<UploadOutcome> => {
+        // Compress images before upload
+        const fileToUpload = await compressImage(file);
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
-            const result = await uploadApi.uploadDirect(file, 'images');
+            const result = await uploadApi.uploadDirect(fileToUpload, 'images');
             return { ok: true, url: result.url };
           } catch (err) {
             const error = err instanceof Error ? err : new Error('Failed to upload photos');
