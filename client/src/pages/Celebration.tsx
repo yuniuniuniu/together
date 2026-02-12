@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
+import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 const Celebration: React.FC = () => {
   const navigate = useNavigate();
   const { anniversaryDate, partner } = useSpace();
   const { user } = useAuth();
+  const myAvatarUrl = resolveMediaUrl(user?.avatar);
+  const partnerAvatarUrl = resolveMediaUrl(partner?.user?.avatar);
 
   const formatDate = (date: Date | null) => {
     if (!date) return 'Your Special Day';
@@ -65,10 +68,10 @@ const Celebration: React.FC = () => {
           <div className="flex items-center gap-16 relative">
             <div className="flex flex-col items-center gap-3">
               <div className="size-16 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white/50">
-                {user?.avatar ? (
+                {myAvatarUrl ? (
                   <div
                     className="w-full h-full bg-center bg-no-repeat bg-cover"
-                    style={{backgroundImage: `url("${user.avatar}")`}}
+                    style={{backgroundImage: `url("${myAvatarUrl}")`}}
                   ></div>
                 ) : (
                   <div className="w-full h-full bg-primary/20 flex items-center justify-center">
@@ -80,10 +83,10 @@ const Celebration: React.FC = () => {
             </div>
             <div className="flex flex-col items-center gap-3">
               <div className="size-16 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white/50">
-                {partner?.user?.avatar ? (
+                {partnerAvatarUrl ? (
                   <div
                     className="w-full h-full bg-center bg-no-repeat bg-cover"
-                    style={{backgroundImage: `url("${partner.user.avatar}")`}}
+                    style={{backgroundImage: `url("${partnerAvatarUrl}")`}}
                   ></div>
                 ) : (
                   <div className="w-full h-full bg-primary/20 flex items-center justify-center">

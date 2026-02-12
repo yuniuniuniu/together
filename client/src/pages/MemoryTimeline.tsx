@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { reactionsApi } from '../shared/api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { memoriesApi, reactionsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
@@ -14,6 +15,7 @@ interface ReactionState {
 
 const MemoryTimeline: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { partner, space } = useSpace();
   const { showToast } = useToast();
@@ -110,6 +112,23 @@ const MemoryTimeline: React.FC = () => {
     );
   });
 
+  const handleOpenMemory = (memory: Memory) => {
+    const firstMedia = memory.photos?.[0];
+    if (firstMedia && !firstMedia.match(/\.(mp4|webm|mov|avi|m4v)$/i)) {
+      const img = new Image();
+      img.src = firstMedia;
+      void img.decode?.().catch(() => {});
+    }
+
+    void queryClient.prefetchQuery({
+      queryKey: ['memory', memory.id],
+      queryFn: async () => (await memoriesApi.getById(memory.id)).data,
+      staleTime: 15_000,
+    });
+
+    navigate(`/memory/${memory.id}`, { state: { memory } });
+  };
+
   return (
     <div className="bg-background-light dark:bg-background-dark font-sans text-[#4A2B2B] dark:text-gray-100 selection:bg-dusty-rose/30 min-h-screen pb-32 flex flex-col">
       {/* Navbar */}
@@ -201,7 +220,7 @@ const MemoryTimeline: React.FC = () => {
                     
                     <div
                       className="bg-white dark:bg-zinc-900 rounded-[2rem] shadow-soft p-6 cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99] border border-white/50 dark:border-zinc-800"
-                      onClick={() => navigate(`/memory/${memory.id}`)}
+                      onClick={() => handleOpenMemory(memory)}
                     >
                       {/* Header */}
                       <div className="flex items-start justify-between mb-5">
@@ -272,7 +291,12 @@ const MemoryTimeline: React.FC = () => {
 
                             return (
                               <>
-                                <img className="w-full h-full object-cover" alt="Memory" src={firstMedia} />
+                                <div
+                                  className="w-full h-full bg-cover bg-center"
+                                  role="img"
+                                  aria-label="Memory"
+                                  style={{ backgroundImage: `url("${firstMedia}")` }}
+                                />
                                 {isGif && (
                                   <div className="absolute bottom-2 left-2 bg-black/50 text-white text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wider">
                                     GIF
@@ -319,12 +343,17 @@ const MemoryTimeline: React.FC = () => {
                            )}
                         </div>
 
-                        <div className="flex items-center gap-2 text-stone-300">
+                        <div className="flex items-center gap-2 text-stone-300 min-w-0">
                           {memory.voiceNote && (
                             <span className="material-symbols-outlined text-lg" title="Voice note">mic</span>
                           )}
                           {memory.location && (
-                            <span className="material-symbols-outlined text-lg" title={memory.location.name}>location_on</span>
+                            <div className="flex items-center gap-1.5 min-w-0 text-stone-400">
+                              <span className="material-symbols-outlined text-lg shrink-0" title={memory.location.name}>location_on</span>
+                              <span className="text-[11px] leading-none truncate max-w-[160px]" title={memory.location.address || memory.location.name}>
+                                {memory.location.address || memory.location.name}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>

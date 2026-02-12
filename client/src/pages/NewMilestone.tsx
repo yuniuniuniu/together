@@ -6,6 +6,11 @@ import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
 import { useFormDraft } from '../shared/hooks';
 import UnifiedDatePicker from '../components/UnifiedDatePicker';
+import { useNativeGeolocation } from '../shared/hooks/useNativeGeolocation';
+import { usePhotoPicker } from '../shared/hooks/usePhotoPicker';
+import { getPermissionDeniedMessage } from '../shared/utils/permissions';
+import { Platform } from '../shared/utils/platform';
+import { photoResultToFile } from '../shared/utils/photoFile';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -58,7 +63,10 @@ const NewMilestone: React.FC = () => {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCustomCategoryModal, setShowCustomCategoryModal] = useState(false);
+  const [showPhotoActions, setShowPhotoActions] = useState(false);
   const [customCategory, setCustomCategory] = useState('');
+  const { getCurrentPosition, checkPermissions } = useNativeGeolocation();
+  const { pickMultiple, takePhoto, checkPhotosPermission, checkCameraPermission } = usePhotoPicker();
 
   // Use draft hook for form persistence
   const { state: draft, updateField, clearDraft } = useFormDraft<MilestoneDraft>(
@@ -94,6 +102,7 @@ const NewMilestone: React.FC = () => {
   const [error, setError] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 高德地图 POI 搜索相关
@@ -131,28 +140,6 @@ const NewMilestone: React.FC = () => {
       });
   }, []);
 
-  // 获取当前位置和附近 POI
-  useEffect(() => {
-    if (showLocationPicker && AMapRef.current && !currentPosition) {
-      setIsLoadingNearby(true);
-      const AMap = AMapRef.current;
-      const geolocation = new AMap.Geolocation({
-        enableHighAccuracy: true,
-        timeout: 10000,
-      });
-
-      geolocation.getCurrentPosition((status: string, result: any) => {
-        if (status === 'complete') {
-          const pos = { lng: result.position.lng, lat: result.position.lat };
-          setCurrentPosition(pos);
-          searchNearbyPOIs(pos);
-        } else {
-          setIsLoadingNearby(false);
-        }
-      });
-    }
-  }, [showLocationPicker]);
-
   // 搜索附近 POI
   const searchNearbyPOIs = useCallback((position: { lng: number; lat: number }) => {
     if (!placeSearchRef.current) return;
@@ -180,6 +167,32 @@ const NewMilestone: React.FC = () => {
       }
     );
   }, []);
+
+  // 获取当前位置和附近 POI
+  useEffect(() => {
+    if (!(showLocationPicker && AMapRef.current && !currentPosition)) return;
+
+    setIsLoadingNearby(true);
+    void (async () => {
+      const hasPermission = await checkPermissions();
+      if (!hasPermission) {
+        setIsLoadingNearby(false);
+        return;
+      }
+
+      const pos = await getCurrentPosition();
+      if (pos) {
+        const nextPos = { lng: pos.longitude, lat: pos.latitude };
+        setCurrentPosition(nextPos);
+        searchNearbyPOIs(nextPos);
+      } else {
+        setIsLoadingNearby(false);
+      }
+    })();
+    return () => {
+      setIsLoadingNearby(false);
+    }
+  }, [showLocationPicker, currentPosition, checkPermissions, getCurrentPosition, searchNearbyPOIs]);
 
   // 关键词搜索 POI（带防抖）
   useEffect(() => {
@@ -271,39 +284,43 @@ const NewMilestone: React.FC = () => {
   };
 
   // 使用当前位置
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
     if (!AMapRef.current) return;
 
-    const AMap = AMapRef.current;
-    const geolocation = new AMap.Geolocation({
-      enableHighAccuracy: true,
-      timeout: 10000,
-    });
+    const hasPermission = await checkPermissions();
+    if (!hasPermission) {
+      setError(getPermissionDeniedMessage('location'));
+      return;
+    }
 
-    geolocation.getCurrentPosition((status: string, result: any) => {
-      if (status === 'complete') {
-        const { lng, lat } = result.position;
-        const geocoder = new AMap.Geocoder();
-        geocoder.getAddress([lng, lat], (geoStatus: string, geoResult: any) => {
-          if (geoStatus === 'complete' && geoResult.regeocode) {
-            const address = geoResult.regeocode.formattedAddress;
-            const poi = geoResult.regeocode.pois?.[0];
-            setLocation({
-              name: poi?.name || 'Current Location',
-              address: address,
-              latitude: lat,
-              longitude: lng,
-            });
-          } else {
-            setLocation({
-              name: 'Current Location',
-              latitude: lat,
-              longitude: lng,
-            });
-          }
-          setShowLocationPicker(false);
+    const nativePos = await getCurrentPosition();
+    if (!nativePos) {
+      setError('Unable to get your location');
+      return;
+    }
+
+    const AMap = AMapRef.current;
+    const lng = nativePos.longitude;
+    const lat = nativePos.latitude;
+    const geocoder = new AMap.Geocoder();
+    geocoder.getAddress([lng, lat], (geoStatus: string, geoResult: any) => {
+      if (geoStatus === 'complete' && geoResult.regeocode) {
+        const address = geoResult.regeocode.formattedAddress;
+        const poi = geoResult.regeocode.pois?.[0];
+        setLocation({
+          name: poi?.name || 'Current Location',
+          address: address,
+          latitude: lat,
+          longitude: lng,
+        });
+      } else {
+        setLocation({
+          name: 'Current Location',
+          latitude: lat,
+          longitude: lng,
         });
       }
+      setShowLocationPicker(false);
     });
   };
 
@@ -327,22 +344,115 @@ const NewMilestone: React.FC = () => {
   // 要显示的 POI 列表
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const uploadPhotosWithRetry = async (files: File[]) => {
+    if (files.length === 0) return;
 
     setIsUploading(true);
+    setError('');
+    setUploadProgress('');
+
     try {
-      const uploadPromises = Array.from<File>(files).map((file) => uploadApi.uploadFile(file));
-      const results = await Promise.all(uploadPromises);
-      setPhotos(prev => [...prev, ...results.map(r => r.url)]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload photos');
+      const uploadedUrls: string[] = [];
+      let failedCount = 0;
+
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i];
+        const maxAttempts = 2;
+        let uploaded = false;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            setUploadProgress(`Uploading ${i + 1}/${files.length} (try ${attempt}/${maxAttempts})...`);
+            const result = await uploadApi.uploadDirect(file, 'images');
+            uploadedUrls.push(result.url);
+            uploaded = true;
+            break;
+          } catch {
+            if (attempt < maxAttempts) {
+              await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+          }
+        }
+
+        if (!uploaded) {
+          failedCount += 1;
+        }
+      }
+
+      if (uploadedUrls.length > 0) {
+        setPhotos((prev) => [...prev, ...uploadedUrls]);
+      }
+
+      if (failedCount > 0) {
+        setError(`${failedCount} photo(s) failed to upload. Please retry.`);
+      }
     } finally {
       setIsUploading(false);
+      setUploadProgress('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const filesArray = Array.from(files) as File[];
+    await uploadPhotosWithRetry(filesArray);
+  };
+
+  const handleAddPhotos = async () => {
+    if (!Platform.isNative()) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    setShowPhotoActions(true);
+  };
+
+  const handlePickPhotosNative = async () => {
+    setShowPhotoActions(false);
+
+    try {
+      const hasPermission = await checkPhotosPermission();
+      if (!hasPermission) {
+        setError(getPermissionDeniedMessage('photo'));
+        return;
+      }
+
+      const photosFromNative = await pickMultiple(10);
+      if (photosFromNative.length === 0) return;
+
+      const baseName = `milestone-${Date.now()}`;
+      const files = await Promise.all(
+        photosFromNative.map((photo, index) => photoResultToFile(photo, `${baseName}-${index + 1}`))
+      );
+      await uploadPhotosWithRetry(files);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to pick photos');
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleTakePhotoNative = async () => {
+    setShowPhotoActions(false);
+
+    try {
+      const hasPermission = await checkCameraPermission();
+      if (!hasPermission) {
+        setError(getPermissionDeniedMessage('camera'));
+        return;
+      }
+
+      const photo = await takePhoto();
+      if (!photo) return;
+
+      const file = await photoResultToFile(photo, `milestone-camera-${Date.now()}`);
+      await uploadPhotosWithRetry([file]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to take photo');
+      fileInputRef.current?.click();
     }
   };
 
@@ -442,14 +552,18 @@ const NewMilestone: React.FC = () => {
             onChange={handlePhotoUpload}
             className="hidden"
           />
+          {uploadProgress && (
+            <div className="text-sm text-milestone-pink font-medium">{uploadProgress}</div>
+          )}
           <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden group cursor-pointer transition-all">
             {photos.length > 0 ? (
               /* Show uploaded photos */
               <div className="absolute inset-0">
-                <img
-                  src={photos[0]}
-                  alt="Cover"
-                  className="w-full h-full object-cover"
+                <div
+                  role="img"
+                  aria-label="Cover"
+                  className="w-full h-full bg-cover bg-center"
+                  style={{ backgroundImage: `url("${photos[0]}")` }}
                 />
                 {/* Overlay with photo count and actions */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent">
@@ -460,7 +574,7 @@ const NewMilestone: React.FC = () => {
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={handleAddPhotos}
                         disabled={isUploading}
                         className="px-3 py-1.5 bg-white/20 backdrop-blur-sm text-white text-sm font-medium rounded-full hover:bg-white/30 transition-colors"
                       >
@@ -481,7 +595,12 @@ const NewMilestone: React.FC = () => {
                   <div className="absolute top-4 right-4 flex gap-2">
                     {photos.slice(1, 4).map((photo, index) => (
                       <div key={index} className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-white shadow-md">
-                        <img src={photo} alt="" className="w-full h-full object-cover" />
+                        <div
+                          role="img"
+                          aria-label={`Photo ${index + 2}`}
+                          className="w-full h-full bg-cover bg-center"
+                          style={{ backgroundImage: `url("${photo}")` }}
+                        />
                         <button
                           type="button"
                           onClick={(e) => {
@@ -507,7 +626,7 @@ const NewMilestone: React.FC = () => {
               <>
                 <div className="absolute inset-0 border-[1.5px] border-dashed border-gold/40 rounded-2xl group-hover:border-gold/70 transition-colors"></div>
                 <div
-                  onClick={() => !isUploading && fileInputRef.current?.click()}
+                  onClick={() => !isUploading && handleAddPhotos()}
                   className="absolute inset-0 bg-gold/5 dark:bg-gold/10 flex flex-col items-center justify-center gap-4 p-6 transition-colors group-hover:bg-gold/10 dark:group-hover:bg-gold/20"
                 >
                   {isUploading ? (
@@ -802,6 +921,39 @@ const NewMilestone: React.FC = () => {
 
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* Native Photo Actions */}
+      {Platform.isNative() && showPhotoActions && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/25 backdrop-blur-[1px]" onClick={() => setShowPhotoActions(false)}></div>
+          <div className="relative w-full bg-white rounded-t-3xl shadow-2xl p-6 pb-8">
+            <div className="w-10 h-1 bg-ink/10 rounded-full mx-auto mb-5"></div>
+            <h3 className="text-center text-ink font-bold mb-4">Add Photo</h3>
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={handleTakePhotoNative}
+                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">photo_camera</span>
+                Take Photo
+              </button>
+              <button
+                onClick={handlePickPhotosNative}
+                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">photo_library</span>
+                Choose from Gallery
+              </button>
+              <button
+                onClick={() => setShowPhotoActions(false)}
+                className="w-full py-3 rounded-xl bg-ink/5 text-ink/70 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

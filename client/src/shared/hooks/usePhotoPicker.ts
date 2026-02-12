@@ -7,6 +7,12 @@ export interface PhotoResult {
   format: string;
 }
 
+type PermissionState = 'prompt' | 'prompt-with-rationale' | 'granted' | 'denied' | 'limited';
+
+function isGranted(state?: PermissionState): boolean {
+  return state === 'granted' || state === 'limited';
+}
+
 /**
  * Cross-platform photo picker hook.
  * Uses native Capacitor Camera on Android, falls back to file input on web.
@@ -20,7 +26,8 @@ export function usePhotoPicker() {
       if (Platform.isNative()) {
         const photo = await Camera.getPhoto({
           quality: 90,
-          allowEditing: false,
+          // Enable native crop/edit sheet for single-photo flow.
+          allowEditing: true,
           resultType: CameraResultType.DataUrl,
           source: CameraSource.Photos
         });
@@ -71,7 +78,8 @@ export function usePhotoPicker() {
       if (Platform.isNative()) {
         const photo = await Camera.getPhoto({
           quality: 90,
-          allowEditing: false,
+          // Keep behavior close to WeChat: capture then edit/crop before confirm.
+          allowEditing: true,
           resultType: CameraResultType.DataUrl,
           source: CameraSource.Camera
         });
@@ -170,23 +178,52 @@ export function usePhotoPicker() {
   }, []);
 
   /**
-   * Check and request camera permissions
+   * Check and request gallery/photos permission.
    */
-  const checkPermissions = useCallback(async (): Promise<boolean> => {
+  const checkPhotosPermission = useCallback(async (): Promise<boolean> => {
     if (!Platform.isNative()) return true;
 
     try {
       const status = await Camera.checkPermissions();
-      if (status.camera === 'granted' && status.photos === 'granted') {
+      if (isGranted(status.photos as PermissionState)) {
         return true;
       }
 
-      const requested = await Camera.requestPermissions();
-      return requested.camera === 'granted' || requested.photos === 'granted';
+      const requested = await Camera.requestPermissions({ permissions: ['photos'] });
+      return isGranted(requested.photos as PermissionState);
     } catch {
       return false;
     }
   }, []);
 
-  return { pickFromGallery, takePhoto, pickMultiple, checkPermissions };
+  /**
+   * Check and request camera capture permission.
+   */
+  const checkCameraPermission = useCallback(async (): Promise<boolean> => {
+    if (!Platform.isNative()) return true;
+
+    try {
+      const status = await Camera.checkPermissions();
+      if (isGranted(status.camera as PermissionState)) {
+        return true;
+      }
+
+      const requested = await Camera.requestPermissions({ permissions: ['camera'] });
+      return isGranted(requested.camera as PermissionState);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Backward-compatible alias.
+  const checkPermissions = checkPhotosPermission;
+
+  return {
+    pickFromGallery,
+    takePhoto,
+    pickMultiple,
+    checkPermissions,
+    checkPhotosPermission,
+    checkCameraPermission,
+  };
 }

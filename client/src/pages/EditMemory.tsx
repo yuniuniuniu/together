@@ -5,6 +5,17 @@ import AMapLoader from '@amap/amap-jsapi-loader';
 import { memoriesApi, uploadApi } from '../shared/api/client';
 import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
 import UnifiedDatePicker from '../components/UnifiedDatePicker';
+import { useNativeGeolocation } from '../shared/hooks/useNativeGeolocation';
+import { usePhotoPicker } from '../shared/hooks/usePhotoPicker';
+import {
+  buildAudioFilename,
+  getMicrophoneErrorMessage,
+  getSupportedAudioMimeType,
+} from '../shared/utils/audioRecorder';
+import { getPermissionDeniedMessage } from '../shared/utils/permissions';
+import { Platform } from '../shared/utils/platform';
+import { photoResultToFile } from '../shared/utils/photoFile';
+import { countWords } from '../shared/utils/wordCount';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -38,6 +49,9 @@ const EditMemory: React.FC = () => {
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showPhotoActions, setShowPhotoActions] = useState(false);
+  const { getCurrentPosition, checkPermissions } = useNativeGeolocation();
+  const { pickMultiple, takePhoto, checkPhotosPermission, checkCameraPermission } = usePhotoPicker();
 
   const [content, setContent] = useState('');
   const [mood, setMood] = useState('Happy');
@@ -53,18 +67,21 @@ const EditMemory: React.FC = () => {
   // Photo upload states
   const [photos, setPhotos] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
   const audioChunksRef = React.useRef<Blob[]>([]);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
   const shouldSaveRef = React.useRef<boolean>(true);
   const streamRef = React.useRef<MediaStream | null>(null);
+  const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
   // 高德地图 POI 搜索相关
   const [poiResults, setPOIResults] = useState<POIResult[]>([]);
@@ -100,25 +117,29 @@ const EditMemory: React.FC = () => {
 
   // 获取当前位置和附近 POI
   useEffect(() => {
-    if (showLocationPicker && AMapRef.current && !currentPosition) {
-      setIsLoadingNearby(true);
-      const AMap = AMapRef.current;
-      const geolocation = new AMap.Geolocation({
-        enableHighAccuracy: true,
-        timeout: 10000,
-      });
+    if (!(showLocationPicker && AMapRef.current && !currentPosition)) return;
 
-      geolocation.getCurrentPosition((status: string, result: any) => {
-        if (status === 'complete') {
-          const pos = { lng: result.position.lng, lat: result.position.lat };
-          setCurrentPosition(pos);
-          searchNearbyPOIs(pos);
-        } else {
-          setIsLoadingNearby(false);
-        }
-      });
+    setIsLoadingNearby(true);
+    void (async () => {
+      const hasPermission = await checkPermissions();
+      if (!hasPermission) {
+        setIsLoadingNearby(false);
+        return;
+      }
+
+      const pos = await getCurrentPosition();
+      if (pos) {
+        const nextPos = { lng: pos.longitude, lat: pos.latitude };
+        setCurrentPosition(nextPos);
+        searchNearbyPOIs(nextPos);
+      } else {
+        setIsLoadingNearby(false);
+      }
+    })();
+    return () => {
+      setIsLoadingNearby(false);
     }
-  }, [showLocationPicker]);
+  }, [showLocationPicker, currentPosition, checkPermissions, getCurrentPosition]);
 
   // 搜索附近 POI
   const searchNearbyPOIs = useCallback((position: { lng: number; lat: number }) => {
@@ -240,25 +261,115 @@ const EditMemory: React.FC = () => {
     }
   };
 
-  // Photo upload handler
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
+  // Photo upload handler with retry and progress feedback
+  const uploadPhotosWithRetry = async (files: File[]) => {
+    if (files.length === 0) return;
     setIsUploading(true);
     setError('');
+    setUploadProgress('');
 
     try {
-      const uploadPromises = Array.from(files).map(file => uploadApi.uploadFile(file));
-      const results = await Promise.all(uploadPromises);
-      setPhotos(prev => [...prev, ...results.map(r => r.url)]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload photos');
+      const uploadedUrls: string[] = [];
+      let failedCount = 0;
+
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i];
+        const maxAttempts = 2;
+        let uploaded = false;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            setUploadProgress(`Uploading ${i + 1}/${files.length} (try ${attempt}/${maxAttempts})...`);
+            const result = await uploadApi.uploadDirect(file, 'images');
+            uploadedUrls.push(result.url);
+            uploaded = true;
+            break;
+          } catch {
+            if (attempt < maxAttempts) {
+              await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+          }
+        }
+
+        if (!uploaded) {
+          failedCount += 1;
+        }
+      }
+
+      if (uploadedUrls.length > 0) {
+        setPhotos((prev) => [...prev, ...uploadedUrls]);
+      }
+
+      if (failedCount > 0) {
+        setError(`${failedCount} photo(s) failed to upload. Please retry.`);
+      }
     } finally {
       setIsUploading(false);
+      setUploadProgress('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const filesArray = Array.from(files) as File[];
+    await uploadPhotosWithRetry(filesArray);
+  };
+
+  const handleAddPhotos = async () => {
+    if (!Platform.isNative()) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    setShowPhotoActions(true);
+  };
+
+  const handlePickPhotosNative = async () => {
+    setShowPhotoActions(false);
+
+    try {
+      const hasPermission = await checkPhotosPermission();
+      if (!hasPermission) {
+        setError(getPermissionDeniedMessage('photo'));
+        return;
+      }
+
+      const photos = await pickMultiple(10);
+      if (photos.length === 0) return;
+
+      const baseName = `memory-edit-${Date.now()}`;
+      const files = await Promise.all(
+        photos.map((photo, index) => photoResultToFile(photo, `${baseName}-${index + 1}`))
+      );
+      await uploadPhotosWithRetry(files);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to pick photos');
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleTakePhotoNative = async () => {
+    setShowPhotoActions(false);
+
+    try {
+      const hasPermission = await checkCameraPermission();
+      if (!hasPermission) {
+        setError(getPermissionDeniedMessage('camera'));
+        return;
+      }
+
+      const photo = await takePhoto();
+      if (!photo) return;
+
+      const file = await photoResultToFile(photo, `memory-edit-camera-${Date.now()}`);
+      await uploadPhotosWithRetry([file]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to take photo');
+      fileInputRef.current?.click();
     }
   };
 
@@ -300,54 +411,71 @@ const EditMemory: React.FC = () => {
   };
 
   // 使用当前位置（带反向地理编码）
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
     if (!AMapRef.current) {
       setError('Map service not ready');
       return;
     }
 
+    const hasPermission = await checkPermissions();
+    if (!hasPermission) {
+      setError(getPermissionDeniedMessage('location'));
+      return;
+    }
+
+    const nativePos = await getCurrentPosition();
+    if (!nativePos) {
+      setError('Unable to get your location');
+      return;
+    }
+
     const AMap = AMapRef.current;
-    const geolocation = new AMap.Geolocation({
-      enableHighAccuracy: true,
-      timeout: 10000,
-    });
+    const lng = nativePos.longitude;
+    const lat = nativePos.latitude;
 
-    geolocation.getCurrentPosition((status: string, result: any) => {
-      if (status === 'complete') {
-        const { lng, lat } = result.position;
-
-        const geocoder = new AMap.Geocoder();
-        geocoder.getAddress([lng, lat], (geoStatus: string, geoResult: any) => {
-          if (geoStatus === 'complete' && geoResult.regeocode) {
-            const address = geoResult.regeocode.formattedAddress;
-            const poi = geoResult.regeocode.pois?.[0];
-            setLocation({
-              name: poi?.name || 'Current Location',
-              address: address,
-              latitude: lat,
-              longitude: lng,
-            });
-          } else {
-            setLocation({
-              name: 'Current Location',
-              latitude: lat,
-              longitude: lng,
-            });
-          }
-          setShowLocationPicker(false);
+    const geocoder = new AMap.Geocoder();
+    geocoder.getAddress([lng, lat], (geoStatus: string, geoResult: any) => {
+      if (geoStatus === 'complete' && geoResult.regeocode) {
+        const address = geoResult.regeocode.formattedAddress;
+        const poi = geoResult.regeocode.pois?.[0];
+        setLocation({
+          name: poi?.name || 'Current Location',
+          address: address,
+          latitude: lat,
+          longitude: lng,
         });
       } else {
-        setError('Unable to get your location');
+        setLocation({
+          name: 'Current Location',
+          latitude: lat,
+          longitude: lng,
+        });
       }
+      setShowLocationPicker(false);
     });
   };
 
   // Voice recording handlers
   const startRecording = async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError('This device does not support audio recording');
+        return;
+      }
+
+      if (typeof MediaRecorder === 'undefined') {
+        setError('Audio recording is not supported on this device');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = getSupportedAudioMimeType();
+      const options: MediaRecorderOptions = {};
+      if (mimeType) {
+        options.mimeType = mimeType;
+      }
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       shouldSaveRef.current = true;
@@ -361,10 +489,12 @@ const EditMemory: React.FC = () => {
       mediaRecorder.onstop = async () => {
         // Only save if shouldSaveRef is true (not cancelled)
         if (shouldSaveRef.current && audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const resolvedMimeType = mimeType || mediaRecorder.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: resolvedMimeType });
           setIsUploadingVoice(true);
           try {
-            const result = await uploadApi.uploadAudio(audioBlob);
+            const filename = buildAudioFilename(resolvedMimeType);
+            const result = await uploadApi.uploadAudio(audioBlob, filename);
             setVoiceNote(result.url);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to upload voice note');
@@ -384,8 +514,8 @@ const EditMemory: React.FC = () => {
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
-    } catch {
-      setError('Unable to access microphone');
+    } catch (err) {
+      setError(getMicrophoneErrorMessage(err));
     }
   };
 
@@ -422,6 +552,41 @@ const EditMemory: React.FC = () => {
 
     setShowVoiceRecorder(false);
   };
+
+  const togglePreviewPlayback = () => {
+    if (!voiceNote) return;
+
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+
+    if (isPlayingPreview) {
+      audio.pause();
+      audio.currentTime = 0;
+      setIsPlayingPreview(false);
+      return;
+    }
+
+    audio.preload = 'auto';
+    audio.volume = 1;
+    audio.muted = false;
+    audio.currentTime = 0;
+    void audio.play()
+      .then(() => {
+        setIsPlayingPreview(true);
+      })
+      .catch(() => {
+        setIsPlayingPreview(false);
+        setError('Unable to play voice note preview on this device');
+      });
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+    };
+  }, []);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -479,6 +644,7 @@ const EditMemory: React.FC = () => {
 
   // 要显示的 POI 列表
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
+  const wordCount = countWords(content);
 
   if (isFetching && !error) {
     return null;
@@ -540,19 +706,23 @@ const EditMemory: React.FC = () => {
             onChange={handlePhotoUpload}
             className="hidden"
           />
+          {uploadProgress && (
+            <div className="mb-3 text-sm text-accent font-medium">{uploadProgress}</div>
+          )}
           <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 no-scrollbar">
             {photos.map((photo, index) => (
               <div key={index} className="flex-shrink-0 w-32">
                 <div className="bg-white p-2 pb-6 rounded-sm shadow-sm transition-transform active:scale-95" style={{ transform: `rotate(${(index % 3 - 1) * 2}deg)` }}>
                   <div className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group">
-                    <img
-                      alt={`Memory ${index + 1}`}
-                      className="w-full h-full object-cover grayscale-[20%] sepia-[10%]"
-                      src={photo}
+                    <div
+                      role="img"
+                      aria-label={`Memory ${index + 1}`}
+                      className="w-full h-full bg-cover bg-center grayscale-[20%] sepia-[10%]"
+                      style={{ backgroundImage: `url("${photo}")` }}
                     />
                     <button
                       onClick={() => handleRemovePhoto(index)}
-                      className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     >
                       <span className="material-symbols-outlined text-sm">close</span>
                     </button>
@@ -562,7 +732,7 @@ const EditMemory: React.FC = () => {
             ))}
             <div className="flex-shrink-0 w-32">
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={handleAddPhotos}
                 disabled={isUploading}
                 className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[1deg] w-full flex flex-col items-center transition-transform active:scale-95 disabled:opacity-50"
               >
@@ -669,19 +839,28 @@ const EditMemory: React.FC = () => {
           <span className="material-symbols-outlined">mic</span>
         </button>
         <div className="w-px h-4 bg-ink/10"></div>
-        <span className="text-[10px] font-bold text-ink/40">{content.trim().split(/\s+/).filter(Boolean).length} words</span>
+        <span className="text-[10px] font-bold text-ink/40">{wordCount} words</span>
       </div>
 
       {/* Voice Recorder Overlay */}
       {showVoiceRecorder && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-auto bg-ink/5 backdrop-blur-[2px]">
+          {voiceNote && (
+            <audio
+              ref={previewAudioRef}
+              src={voiceNote}
+              preload="auto"
+              onEnded={() => setIsPlayingPreview(false)}
+              className="hidden"
+            />
+          )}
           <div className="absolute inset-0 z-0" onClick={() => !isRecording && !isUploadingVoice && setShowVoiceRecorder(false)}></div>
           <div className="relative w-full bg-paper/95 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] border-t border-white/40 pb-12 pt-8 px-6 transition-all duration-300 transform translate-y-0">
             <div className="w-12 h-1.5 bg-ink/10 rounded-full mx-auto mb-8"></div>
 
             {/* Title */}
             <h3 className="text-center text-ink font-bold text-lg mb-6">
-              {isUploadingVoice ? 'Uploading...' : voiceNote && !isRecording ? 'Voice Note Ready' : isRecording ? 'Recording...' : 'Voice Note'}
+              {isUploadingVoice ? 'Uploading...' : voiceNote && !isRecording ? 'Preview Recording' : isRecording ? 'Recording...' : 'Voice Note'}
             </h3>
 
             <div className="flex items-center justify-center gap-[3px] h-16 mb-8 px-8">
@@ -735,10 +914,36 @@ const EditMemory: React.FC = () => {
               <span className="font-sans font-bold text-3xl text-ink tracking-widest tabular-nums drop-shadow-sm">{formatTime(recordingTime)}</span>
             </div>
 
+            {voiceNote && !isRecording && (
+              <div className="flex items-center justify-center mb-8">
+                <button
+                  onClick={togglePreviewPlayback}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
+                    isPlayingPreview
+                      ? 'bg-green-500 text-white'
+                      : 'bg-ink/5 text-ink hover:bg-ink/10'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-xl">
+                    {isPlayingPreview ? 'pause' : 'play_arrow'}
+                  </span>
+                  <span className="text-sm font-medium">
+                    {isPlayingPreview ? 'Pause' : 'Play'}
+                  </span>
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between max-w-xs mx-auto px-4">
               <button
                 className="text-ink/40 font-bold text-xs uppercase tracking-widest hover:text-ink transition-colors py-4"
-                onClick={cancelRecording}
+                onClick={() => {
+                  if (previewAudioRef.current) {
+                    previewAudioRef.current.pause();
+                  }
+                  setIsPlayingPreview(false);
+                  cancelRecording();
+                }}
                 disabled={isUploadingVoice}
               >
                 Cancel
@@ -771,6 +976,10 @@ const EditMemory: React.FC = () => {
                 className="text-accent font-bold text-xs uppercase tracking-widest hover:text-accent/80 transition-colors py-4 disabled:opacity-30 disabled:text-ink/40"
                 onClick={() => {
                   if (isRecording) stopRecording();
+                  if (previewAudioRef.current) {
+                    previewAudioRef.current.pause();
+                  }
+                  setIsPlayingPreview(false);
                   setShowVoiceRecorder(false);
                 }}
                 disabled={(!voiceNote && !isRecording) || isUploadingVoice}
@@ -888,6 +1097,39 @@ const EditMemory: React.FC = () => {
                   <span>Use current location</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Native Photo Actions */}
+      {Platform.isNative() && showPhotoActions && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/25 backdrop-blur-[1px]" onClick={() => setShowPhotoActions(false)}></div>
+          <div className="relative w-full bg-white rounded-t-3xl shadow-2xl p-6 pb-8">
+            <div className="w-10 h-1 bg-ink/10 rounded-full mx-auto mb-5"></div>
+            <h3 className="text-center text-ink font-bold mb-4">Add Photo</h3>
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={handleTakePhotoNative}
+                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">photo_camera</span>
+                Take Photo
+              </button>
+              <button
+                onClick={handlePickPhotosNative}
+                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">photo_library</span>
+                Choose from Gallery
+              </button>
+              <button
+                onClick={() => setShowPhotoActions(false)}
+                className="w-full py-3 rounded-xl bg-ink/5 text-ink/70 font-medium"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

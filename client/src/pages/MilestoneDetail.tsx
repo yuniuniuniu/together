@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { milestonesApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
@@ -20,31 +20,53 @@ interface Milestone {
   createdBy: string;
 }
 
+interface MilestoneRouteState {
+  milestone?: Milestone;
+}
+
 const MilestoneDetail: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { partner, anniversaryDate } = useSpace();
 
-  const [milestone, setMilestone] = useState<Milestone | null>(null);
-  const [error, setError] = useState('');
+  const routeState = location.state as MilestoneRouteState | null;
+  const initialMilestone = routeState?.milestone && routeState.milestone.id === id ? routeState.milestone : null;
+  const [actionError, setActionError] = useState('');
+  const [isVisible, setIsVisible] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
+  const milestoneQuery = useQuery({
+    queryKey: ['milestone', id],
+    queryFn: async () => {
+      if (!id) {
+        throw new Error('Milestone id is required');
+      }
+      const response = await milestonesApi.getById(id);
+      return response.data as Milestone;
+    },
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    initialData: initialMilestone ?? undefined,
+  });
+  const milestone = milestoneQuery.data ?? null;
+  const errorMessage =
+    actionError ||
+    (milestoneQuery.error instanceof Error
+      ? milestoneQuery.error.message
+      : milestoneQuery.error
+        ? String(milestoneQuery.error)
+        : '');
 
   useEffect(() => {
-    const fetchMilestone = async () => {
-      if (!id) return;
-      try {
-        const response = await milestonesApi.getById(id);
-        setMilestone(response.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load milestone');
-      }
+    const frame = requestAnimationFrame(() => setIsVisible(true));
+    return () => {
+      cancelAnimationFrame(frame);
     };
-    fetchMilestone();
   }, [id]);
 
   // Close menu when clicking outside
@@ -68,7 +90,7 @@ const MilestoneDetail: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: MILESTONES_QUERY_KEY });
       navigate('/milestones');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete milestone');
+      setActionError(err instanceof Error ? err.message : 'Failed to delete milestone');
       setIsDeleting(false);
     }
   };
@@ -105,15 +127,29 @@ const MilestoneDetail: React.FC = () => {
     }
   };
 
-  if (!milestone && !error) {
-    return null;
+  if (milestoneQuery.isLoading && !milestone && !errorMessage) {
+    return (
+      <div className="flex-1 flex flex-col bg-milestone-cream dark:bg-milestone-zinc-dark min-h-screen font-manrope">
+        <div className="h-72 bg-zinc-200/60 dark:bg-zinc-800 animate-pulse" />
+        <main className="flex-1 px-6 py-8 -mt-4 bg-milestone-cream dark:bg-milestone-zinc-dark rounded-t-3xl relative z-10 space-y-6">
+          <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+          <div className="h-5 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+          <div className="h-24 w-full rounded-2xl bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+          <div className="grid grid-cols-3 gap-2">
+            <div className="aspect-square rounded-xl bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+            <div className="aspect-square rounded-xl bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+            <div className="aspect-square rounded-xl bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+          </div>
+        </main>
+      </div>
+    );
   }
 
-  if (error || !milestone) {
+  if (errorMessage || !milestone) {
     return (
       <div className="flex-1 flex flex-col bg-milestone-cream dark:bg-milestone-zinc-dark min-h-screen items-center justify-center px-6">
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">
-          {error || 'Milestone not found'}
+          {errorMessage || 'Milestone not found'}
         </div>
         <button
           onClick={() => navigate(-1)}
@@ -129,16 +165,21 @@ const MilestoneDetail: React.FC = () => {
   const isOwnMilestone = milestone.createdBy === user?.id;
 
   return (
-    <div className="flex-1 flex flex-col bg-milestone-cream dark:bg-milestone-zinc-dark min-h-screen font-manrope">
+    <div
+      className={`flex-1 flex flex-col bg-milestone-cream dark:bg-milestone-zinc-dark min-h-screen font-manrope transition-opacity duration-200 ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
       {/* Header with Hero Image */}
       <div className="relative">
         {/* Cover Photo or Gradient */}
         {milestone.photos && milestone.photos.length > 0 ? (
           <div className="relative h-72 overflow-hidden">
-            <img
-              src={milestone.photos[currentPhotoIndex]}
-              alt={milestone.title}
-              className="w-full h-full object-cover"
+            <div
+              role="img"
+              aria-label={milestone.title}
+              className="w-full h-full bg-cover bg-center"
+              style={{ backgroundImage: `url("${milestone.photos[currentPhotoIndex]}")` }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
 
@@ -274,10 +315,11 @@ const MilestoneDetail: React.FC = () => {
                     index === currentPhotoIndex ? 'ring-2 ring-milestone-pink ring-offset-2' : ''
                   }`}
                 >
-                  <img
-                    src={photo}
-                    alt={`Photo ${index + 1}`}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform"
+                  <div
+                    role="img"
+                    aria-label={`Photo ${index + 1}`}
+                    className="w-full h-full bg-cover bg-center hover:scale-105 transition-transform"
+                    style={{ backgroundImage: `url("${photo}")` }}
                   />
                 </button>
               ))}

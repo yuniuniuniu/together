@@ -5,6 +5,9 @@ import { getUserSpace } from './spaceService.js';
 import { createNotification } from './notificationService.js';
 import { deleteMemoryFiles, deleteUploadedFiles } from './fileService.js';
 
+const CJK_CHAR_REGEX = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
+const NON_CJK_WORD_REGEX = /[\p{L}\p{N}]+(?:['-][\p{L}\p{N}]+)*/gu;
+
 interface Memory {
   id: string;
   spaceId: string;
@@ -55,6 +58,19 @@ function formatMemory(row: MemoryData): Memory {
   };
 }
 
+function countWords(text: string): number {
+  const normalizedText = text.trim();
+  if (!normalizedText) {
+    return 0;
+  }
+
+  const cjkCount = normalizedText.match(CJK_CHAR_REGEX)?.length ?? 0;
+  const nonCjkText = normalizedText.replace(CJK_CHAR_REGEX, ' ');
+  const nonCjkCount = nonCjkText.match(NON_CJK_WORD_REGEX)?.length ?? 0;
+
+  return cjkCount + nonCjkCount;
+}
+
 export async function createMemory(userId: string, input: CreateMemoryInput): Promise<Memory> {
   const db = getDatabase();
 
@@ -65,7 +81,7 @@ export async function createMemory(userId: string, input: CreateMemoryInput): Pr
   }
 
   const id = uuid();
-  const wordCount = input.content.split(/\s+/).filter(Boolean).length;
+  const wordCount = countWords(input.content);
 
   const memory = await db.createMemory({
     id,
@@ -163,7 +179,7 @@ export async function updateMemory(
 
   if (updates.content !== undefined) {
     updateData.content = updates.content;
-    updateData.word_count = updates.content.split(/\s+/).filter(Boolean).length;
+    updateData.word_count = countWords(updates.content);
   }
   if (updates.mood !== undefined) {
     updateData.mood = updates.mood;

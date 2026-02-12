@@ -85,14 +85,15 @@ function getContentType(filename: string): string {
 export async function uploadToR2(
   buffer: Buffer,
   originalFilename: string,
-  folder: string = 'uploads'
+  folder: string = 'uploads',
+  mimeType?: string
 ): Promise<{ url: string; key: string }> {
   const client = getR2Client();
   const { bucket } = getConfig();
 
   const ext = path.extname(originalFilename);
   const key = `${folder}/${uuidv4()}${ext}`;
-  const contentType = getContentType(originalFilename);
+  const contentType = mimeType || getContentType(originalFilename);
 
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -132,14 +133,15 @@ export const deleteFromCos = deleteFromR2;
 export async function getPresignedUploadUrl(
   filename: string,
   folder: string = 'uploads',
-  expiresIn: number = 3600
-): Promise<{ uploadUrl: string; key: string; publicUrl: string }> {
+  expiresIn: number = 3600,
+  requestedContentType?: string
+): Promise<{ uploadUrl: string; key: string; publicUrl: string; contentType: string }> {
   const client = getR2Client();
   const { bucket } = getConfig();
 
   const ext = path.extname(filename);
   const key = `${folder}/${uuidv4()}${ext}`;
-  const contentType = getContentType(filename);
+  const contentType = requestedContentType?.trim() || getContentType(filename);
 
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -151,7 +153,7 @@ export async function getPresignedUploadUrl(
 
   const publicUrl = `${getPublicUrl()}/${key}`;
 
-  return { uploadUrl, key, publicUrl };
+  return { uploadUrl, key, publicUrl, contentType };
 }
 
 // Extract key from R2 URL (supports both custom domain and r2.dev URLs)

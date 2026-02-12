@@ -4,6 +4,7 @@ import { Button } from '../components/Button';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
 import { spacesApi } from '../shared/api/client';
+import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 interface SpaceData {
   id: string;
@@ -21,6 +22,7 @@ const ConfirmPartner: React.FC = () => {
   const [spaceData, setSpaceData] = useState<SpaceData | null>(null);
   const [partner, setPartner] = useState<{ nickname: string; avatar?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const partnerAvatarUrl = resolveMediaUrl(partner?.avatar);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('pendingSpace');
@@ -97,10 +99,10 @@ const ConfirmPartner: React.FC = () => {
         <div className="w-full bg-white rounded-xl p-8 shadow-soft border border-gray-50 flex flex-col items-center animate-fade-in">
           <div className="relative group">
             <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
-            {partner.avatar ? (
+            {partnerAvatarUrl ? (
               <div
                 className="relative bg-center bg-no-repeat aspect-square bg-cover rounded-full h-40 w-40 border-4 border-white shadow-sm"
-                style={{ backgroundImage: `url("${partner.avatar}")` }}
+                style={{ backgroundImage: `url("${partnerAvatarUrl}")` }}
               ></div>
             ) : (
               <div className="relative rounded-full h-40 w-40 border-4 border-white shadow-sm bg-primary/20 flex items-center justify-center">

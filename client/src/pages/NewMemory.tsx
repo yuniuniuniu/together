@@ -2,10 +2,23 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import AMapLoader from '@amap/amap-jsapi-loader';
+import Cropper, { type Area } from 'react-easy-crop';
 import { memoriesApi, uploadApi } from '../shared/api/client';
 import { MEMORIES_QUERY_KEY } from '../shared/hooks/useMemoriesQuery';
 import UnifiedDatePicker from '../components/UnifiedDatePicker';
 import { useFormDraft } from '../shared/hooks';
+import { useNativeGeolocation } from '../shared/hooks/useNativeGeolocation';
+import { usePhotoPicker, type PhotoResult } from '../shared/hooks/usePhotoPicker';
+import {
+  buildAudioFilename,
+  getMicrophoneErrorMessage,
+  getSupportedAudioMimeType,
+} from '../shared/utils/audioRecorder';
+import { getPermissionDeniedMessage } from '../shared/utils/permissions';
+import { Platform } from '../shared/utils/platform';
+import { photoResultToFile } from '../shared/utils/photoFile';
+import { cropImageToDataUrl } from '../shared/utils/imageCrop';
+import { countWords } from '../shared/utils/wordCount';
 import { VideoPreview } from '../shared/components/display/VideoPreview';
 
 // 高德地图安全配置
@@ -37,9 +50,6 @@ interface MediaItem {
   type: 'image' | 'gif' | 'video';
 }
 
-// Size threshold for using direct upload (files larger than this use presigned URL)
-const DIRECT_UPLOAD_THRESHOLD = 10 * 1024 * 1024; // 10MB
-
 // Draft state interface for persistence
 interface MemoryDraft {
   content: string;
@@ -65,8 +75,12 @@ const NewMemory: React.FC = () => {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [showPhotoActions, setShowPhotoActions] = useState(false);
+  const [previewMediaIndex, setPreviewMediaIndex] = useState<number | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [date, setDate] = useState(new Date().toISOString());
+  const { getCurrentPosition, checkPermissions } = useNativeGeolocation();
+  const { pickFromGallery, pickMultiple, takePhoto, checkPhotosPermission, checkCameraPermission } = usePhotoPicker();
 
   // Use draft hook for form persistence
   const { state: draft, updateField, clearDraft } = useFormDraft<MemoryDraft>(
@@ -102,8 +116,37 @@ const NewMemory: React.FC = () => {
   const [locationSearch, setLocationSearch] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
+  const [isPreviewDragging, setIsPreviewDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const previewGestureRef = useRef<{
+    pinchStartDistance: number;
+    pinchStartZoom: number;
+    dragStartX: number;
+    dragStartY: number;
+    dragOriginX: number;
+    dragOriginY: number;
+    lastTapAt: number;
+  }>({
+    pinchStartDistance: 0,
+    pinchStartZoom: 1,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragOriginX: 0,
+    dragOriginY: 0,
+    lastTapAt: 0,
+  });
+  const [showPhotoEditor, setShowPhotoEditor] = useState(false);
+  const [pendingPhotos, setPendingPhotos] = useState<PhotoResult[]>([]);
+  const [editingPhotoIndex, setEditingPhotoIndex] = useState<number | null>(null);
+  const [photoCrop, setPhotoCrop] = useState({ x: 0, y: 0 });
+  const [photoZoom, setPhotoZoom] = useState(1);
+  const [photoCroppedAreaPixels, setPhotoCroppedAreaPixels] = useState<Area | null>(null);
+  const [isApplyingPhotoCrop, setIsApplyingPhotoCrop] = useState(false);
+  const [isSubmittingPhotoEdits, setIsSubmittingPhotoEdits] = useState(false);
 
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
@@ -119,6 +162,10 @@ const NewMemory: React.FC = () => {
 
   // Maximum recording duration in seconds (60 seconds)
   const MAX_RECORDING_DURATION = 60;
+  const PREVIEW_MIN_ZOOM = 1;
+  const PREVIEW_MAX_ZOOM = 4;
+  const PHOTO_EDITOR_MIN_ZOOM = 1;
+  const PHOTO_EDITOR_MAX_ZOOM = 4;
 
   // 高德地图 POI 搜索相关
   const [poiResults, setPOIResults] = useState<POIResult[]>([]);
@@ -158,26 +205,29 @@ const NewMemory: React.FC = () => {
 
   // 获取当前位置和附近 POI
   useEffect(() => {
-    if (showLocationPicker && AMapRef.current && !currentPosition) {
-      setIsLoadingNearby(true);
-      const AMap = AMapRef.current;
-      const geolocation = new AMap.Geolocation({
-        enableHighAccuracy: true,
-        timeout: 10000,
-      });
+    if (!(showLocationPicker && AMapRef.current && !currentPosition)) return;
 
-      geolocation.getCurrentPosition((status: string, result: any) => {
-        if (status === 'complete') {
-          const pos = { lng: result.position.lng, lat: result.position.lat };
-          setCurrentPosition(pos);
-          // 搜索附近 POI
-          searchNearbyPOIs(pos);
-        } else {
-          setIsLoadingNearby(false);
-        }
-      });
+    setIsLoadingNearby(true);
+    void (async () => {
+      const hasPermission = await checkPermissions();
+      if (!hasPermission) {
+        setIsLoadingNearby(false);
+        return;
+      }
+
+      const pos = await getCurrentPosition();
+      if (pos) {
+        const nextPos = { lng: pos.longitude, lat: pos.latitude };
+        setCurrentPosition(nextPos);
+        searchNearbyPOIs(nextPos);
+      } else {
+        setIsLoadingNearby(false);
+      }
+    })();
+    return () => {
+      setIsLoadingNearby(false);
     }
-  }, [showLocationPicker]);
+  }, [showLocationPicker, currentPosition, checkPermissions, getCurrentPosition]);
 
   // 搜索附近 POI
   const searchNearbyPOIs = useCallback((position: { lng: number; lat: number }) => {
@@ -287,10 +337,8 @@ const NewMemory: React.FC = () => {
   };
 
   // Media upload handler (images, GIFs, videos) - uses direct upload for large files
-  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
+  const uploadMediaFiles = async (files: File[]): Promise<boolean> => {
+    if (files.length === 0) return true;
     setIsUploading(true);
     setError('');
     setUploadProgress('');
@@ -302,34 +350,39 @@ const NewMemory: React.FC = () => {
         const file = files[i];
         const isVideo = file.type.startsWith('video/');
         const folder = isVideo ? 'videos' : 'images';
+        const maxAttempts = 2;
+        let lastError: Error | null = null;
 
-        // Use direct upload for large files (> 10MB)
-        if (file.size > DIRECT_UPLOAD_THRESHOLD) {
-          setUploadProgress(`Uploading ${i + 1}/${files.length} (${formatFileSize(file.size)}) - 0%`);
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            setUploadProgress(`Uploading ${i + 1}/${files.length} (${formatFileSize(file.size)}) - 0% (try ${attempt}/${maxAttempts})`);
+            const result = await uploadApi.uploadDirect(file, folder, (progress) => {
+              setUploadProgress(`Uploading ${i + 1}/${files.length} (${formatFileSize(file.size)}) - ${progress}% (try ${attempt}/${maxAttempts})`);
+            });
+            uploadResults.push({
+              url: result.url,
+              type: result.type,
+            });
+            lastError = null;
+            break;
+          } catch (err) {
+            lastError = err instanceof Error ? err : new Error('Upload failed');
+            if (attempt < maxAttempts) {
+              await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+          }
+        }
 
-          const result = await uploadApi.uploadDirect(file, folder, (progress) => {
-            setUploadProgress(`Uploading ${i + 1}/${files.length} (${formatFileSize(file.size)}) - ${progress}%`);
-          });
-
-          uploadResults.push({
-            url: result.url,
-            type: result.type,
-          });
-        } else {
-          // Use traditional upload for small files
-          setUploadProgress(`Uploading ${i + 1}/${files.length} (${formatFileSize(file.size)})...`);
-
-          const result = await uploadApi.uploadMedia(file);
-          uploadResults.push({
-            url: result.url,
-            type: result.type,
-          });
+        if (lastError) {
+          throw lastError;
         }
       }
 
       setMedia(prev => [...prev, ...uploadResults]);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload media');
+      return false;
     } finally {
       setIsUploading(false);
       setUploadProgress('');
@@ -339,6 +392,166 @@ const NewMemory: React.FC = () => {
       if (videoInputRef.current) {
         videoInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const filesArray = Array.from(files) as File[];
+    await uploadMediaFiles(filesArray);
+  };
+
+  const handleAddPhotos = async () => {
+    if (!Platform.isNative()) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    setShowPhotoActions(true);
+  };
+
+  const resetPhotoCropState = () => {
+    setPhotoCrop({ x: 0, y: 0 });
+    setPhotoZoom(1);
+    setPhotoCroppedAreaPixels(null);
+  };
+
+  const handleOpenPhotoEditor = (photos: PhotoResult[]) => {
+    setPendingPhotos(photos);
+    setEditingPhotoIndex(null);
+    setShowPhotoEditor(true);
+    resetPhotoCropState();
+  };
+
+  const handleClosePhotoEditor = () => {
+    setShowPhotoEditor(false);
+    setPendingPhotos([]);
+    setEditingPhotoIndex(null);
+    setIsApplyingPhotoCrop(false);
+    setIsSubmittingPhotoEdits(false);
+    resetPhotoCropState();
+  };
+
+  const handleOpenSinglePhotoCrop = (index: number) => {
+    setEditingPhotoIndex(index);
+    resetPhotoCropState();
+  };
+
+  const handleCropComplete = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
+    setPhotoCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const handleApplyCurrentPhotoCrop = async () => {
+    if (editingPhotoIndex === null) return;
+    const target = pendingPhotos[editingPhotoIndex];
+    if (!target || !photoCroppedAreaPixels) return;
+
+    setIsApplyingPhotoCrop(true);
+    try {
+      const croppedDataUrl = await cropImageToDataUrl(target.dataUrl, {
+        x: Math.round(photoCroppedAreaPixels.x),
+        y: Math.round(photoCroppedAreaPixels.y),
+        width: Math.round(photoCroppedAreaPixels.width),
+        height: Math.round(photoCroppedAreaPixels.height),
+      });
+
+      setPendingPhotos((previous) =>
+        previous.map((photo, index) =>
+          index === editingPhotoIndex
+            ? {
+                dataUrl: croppedDataUrl,
+                format: 'jpeg',
+              }
+            : photo
+        )
+      );
+      setEditingPhotoIndex(null);
+      resetPhotoCropState();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to crop photo');
+    } finally {
+      setIsApplyingPhotoCrop(false);
+    }
+  };
+
+  const handleSubmitEditedPhotos = async () => {
+    if (pendingPhotos.length === 0) return;
+
+    setIsSubmittingPhotoEdits(true);
+    try {
+      const baseName = `memory-${Date.now()}`;
+      const files = await Promise.all(
+        pendingPhotos.map((photo, index) => photoResultToFile(photo, `${baseName}-${index + 1}`))
+      );
+      const success = await uploadMediaFiles(files);
+      if (success) {
+        handleClosePhotoEditor();
+      }
+    } finally {
+      setIsSubmittingPhotoEdits(false);
+    }
+  };
+
+  const handlePickPhotosNative = async () => {
+    setShowPhotoActions(false);
+
+    try {
+      const hasPermission = await checkPhotosPermission();
+      if (!hasPermission) {
+        setError(getPermissionDeniedMessage('photo'));
+        return;
+      }
+
+      const photos = await pickMultiple(10);
+      if (photos.length === 0) return;
+      handleOpenPhotoEditor(photos);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to pick photos');
+      // Fallback to browser file input for edge devices/webviews.
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleTakePhotoNative = async () => {
+    setShowPhotoActions(false);
+
+    try {
+      const hasPermission = await checkCameraPermission();
+      if (!hasPermission) {
+        setError(getPermissionDeniedMessage('camera'));
+        return;
+      }
+
+      const photo = await takePhoto();
+      if (!photo) return;
+
+      const file = await photoResultToFile(photo, `memory-camera-${Date.now()}`);
+      await uploadMediaFiles([file]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to take photo');
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handlePickAndEditPhotoNative = async () => {
+    setShowPhotoActions(false);
+
+    try {
+      const hasPermission = await checkPhotosPermission();
+      if (!hasPermission) {
+        setError(getPermissionDeniedMessage('photo'));
+        return;
+      }
+
+      const photo = await pickFromGallery();
+      if (!photo) return;
+
+      const file = await photoResultToFile(photo, `memory-gallery-${Date.now()}`);
+      await uploadMediaFiles([file]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to pick and edit photo');
+      fileInputRef.current?.click();
     }
   };
 
@@ -354,6 +567,136 @@ const NewMemory: React.FC = () => {
       // Don't show error to user - file is already removed from UI
     }
   };
+
+  const handleOpenMediaPreview = (index: number) => {
+    setPreviewMediaIndex(index);
+  };
+
+  const clampPreviewOffset = useCallback((nextZoom: number, nextOffset: { x: number; y: number }) => {
+    const bounds = previewContainerRef.current?.getBoundingClientRect();
+    if (!bounds) return nextOffset;
+
+    const maxX = Math.max(0, ((nextZoom - 1) * bounds.width) / 2);
+    const maxY = Math.max(0, ((nextZoom - 1) * bounds.height) / 2);
+
+    return {
+      x: Math.max(-maxX, Math.min(maxX, nextOffset.x)),
+      y: Math.max(-maxY, Math.min(maxY, nextOffset.y)),
+    };
+  }, []);
+
+  const resetPreviewTransform = useCallback(() => {
+    setPreviewZoom(1);
+    setPreviewOffset({ x: 0, y: 0 });
+    setIsPreviewDragging(false);
+    previewGestureRef.current.pinchStartDistance = 0;
+    previewGestureRef.current.pinchStartZoom = 1;
+    previewGestureRef.current.dragStartX = 0;
+    previewGestureRef.current.dragStartY = 0;
+    previewGestureRef.current.dragOriginX = 0;
+    previewGestureRef.current.dragOriginY = 0;
+  }, []);
+
+  const togglePreviewZoom = useCallback(() => {
+    if (previewZoom > PREVIEW_MIN_ZOOM) {
+      resetPreviewTransform();
+      return;
+    }
+    setPreviewZoom(2);
+  }, [previewZoom, resetPreviewTransform]);
+
+  const handleCloseMediaPreview = () => {
+    resetPreviewTransform();
+    setPreviewMediaIndex(null);
+  };
+
+  const handlePrevPreviewMedia = () => {
+    if (previewMediaIndex === null || media.length === 0) return;
+    resetPreviewTransform();
+    setPreviewMediaIndex((previewMediaIndex - 1 + media.length) % media.length);
+  };
+
+  const handleNextPreviewMedia = () => {
+    if (previewMediaIndex === null || media.length === 0) return;
+    resetPreviewTransform();
+    setPreviewMediaIndex((previewMediaIndex + 1) % media.length);
+  };
+
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  const handlePreviewTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touchCount = event.touches.length;
+    if (touchCount === 2) {
+      const distance = getTouchDistance(event.touches);
+      previewGestureRef.current.pinchStartDistance = distance;
+      previewGestureRef.current.pinchStartZoom = previewZoom;
+      setIsPreviewDragging(false);
+      return;
+    }
+
+    if (touchCount === 1 && previewZoom > PREVIEW_MIN_ZOOM) {
+      const touch = event.touches[0];
+      previewGestureRef.current.dragStartX = touch.clientX;
+      previewGestureRef.current.dragStartY = touch.clientY;
+      previewGestureRef.current.dragOriginX = previewOffset.x;
+      previewGestureRef.current.dragOriginY = previewOffset.y;
+      setIsPreviewDragging(true);
+    }
+  };
+
+  const handlePreviewTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 2) {
+      event.preventDefault();
+      const distance = getTouchDistance(event.touches);
+      const startDistance = previewGestureRef.current.pinchStartDistance;
+      if (startDistance <= 0) return;
+      const rawZoom = previewGestureRef.current.pinchStartZoom * (distance / startDistance);
+      const nextZoom = Math.max(PREVIEW_MIN_ZOOM, Math.min(PREVIEW_MAX_ZOOM, rawZoom));
+      setPreviewZoom(nextZoom);
+      setPreviewOffset((previous) => clampPreviewOffset(nextZoom, previous));
+      return;
+    }
+
+    if (event.touches.length === 1 && previewZoom > PREVIEW_MIN_ZOOM) {
+      event.preventDefault();
+      const touch = event.touches[0];
+      const deltaX = touch.clientX - previewGestureRef.current.dragStartX;
+      const deltaY = touch.clientY - previewGestureRef.current.dragStartY;
+      const nextOffset = {
+        x: previewGestureRef.current.dragOriginX + deltaX,
+        y: previewGestureRef.current.dragOriginY + deltaY,
+      };
+      setPreviewOffset(clampPreviewOffset(previewZoom, nextOffset));
+    }
+  };
+
+  const handlePreviewTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length > 0) return;
+    setIsPreviewDragging(false);
+
+    const now = Date.now();
+    if (now - previewGestureRef.current.lastTapAt < 280) {
+      togglePreviewZoom();
+      previewGestureRef.current.lastTapAt = 0;
+      return;
+    }
+    previewGestureRef.current.lastTapAt = now;
+
+    if (previewZoom <= PREVIEW_MIN_ZOOM) {
+      setPreviewOffset({ x: 0, y: 0 });
+    }
+  };
+
+  useEffect(() => {
+    if (previewMediaIndex === null) {
+      resetPreviewTransform();
+    }
+  }, [previewMediaIndex, resetPreviewTransform]);
 
   // 选择 POI 位置
   const handleSelectPOI = (poi: POIResult) => {
@@ -390,55 +733,72 @@ const NewMemory: React.FC = () => {
   };
 
   // 使用当前位置（带反向地理编码）
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
     if (!AMapRef.current) {
       setError('Map service not ready');
       return;
     }
 
+    const hasPermission = await checkPermissions();
+    if (!hasPermission) {
+      setError(getPermissionDeniedMessage('location'));
+      return;
+    }
+
+    const nativePos = await getCurrentPosition();
+    if (!nativePos) {
+      setError('Unable to get your location');
+      return;
+    }
+
     const AMap = AMapRef.current;
-    const geolocation = new AMap.Geolocation({
-      enableHighAccuracy: true,
-      timeout: 10000,
-    });
+    const lng = nativePos.longitude;
+    const lat = nativePos.latitude;
 
-    geolocation.getCurrentPosition((status: string, result: any) => {
-      if (status === 'complete') {
-        const { lng, lat } = result.position;
-
-        // 反向地理编码获取地址
-        const geocoder = new AMap.Geocoder();
-        geocoder.getAddress([lng, lat], (geoStatus: string, geoResult: any) => {
-          if (geoStatus === 'complete' && geoResult.regeocode) {
-            const address = geoResult.regeocode.formattedAddress;
-            const poi = geoResult.regeocode.pois?.[0];
-            setLocation({
-              name: poi?.name || 'Current Location',
-              address: address,
-              latitude: lat,
-              longitude: lng,
-            });
-          } else {
-            setLocation({
-              name: 'Current Location',
-              latitude: lat,
-              longitude: lng,
-            });
-          }
-          setShowLocationPicker(false);
+    // 反向地理编码获取地址
+    const geocoder = new AMap.Geocoder();
+    geocoder.getAddress([lng, lat], (geoStatus: string, geoResult: any) => {
+      if (geoStatus === 'complete' && geoResult.regeocode) {
+        const address = geoResult.regeocode.formattedAddress;
+        const poi = geoResult.regeocode.pois?.[0];
+        setLocation({
+          name: poi?.name || 'Current Location',
+          address: address,
+          latitude: lat,
+          longitude: lng,
         });
       } else {
-        setError('Unable to get your location');
+        setLocation({
+          name: 'Current Location',
+          latitude: lat,
+          longitude: lng,
+        });
       }
+      setShowLocationPicker(false);
     });
   };
 
   // Voice recording handlers
   const startRecording = async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError('This device does not support audio recording');
+        return;
+      }
+
+      if (typeof MediaRecorder === 'undefined') {
+        setError('Audio recording is not supported on this device');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = getSupportedAudioMimeType();
+      const options: MediaRecorderOptions = {};
+      if (mimeType) {
+        options.mimeType = mimeType;
+      }
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       shouldSaveRef.current = true;
@@ -452,10 +812,12 @@ const NewMemory: React.FC = () => {
       mediaRecorder.onstop = async () => {
         // Only save if shouldSaveRef is true (not cancelled)
         if (shouldSaveRef.current && audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const resolvedMimeType = mimeType || mediaRecorder.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: resolvedMimeType });
           setIsUploadingVoice(true);
           try {
-            const result = await uploadApi.uploadAudio(audioBlob);
+            const filename = buildAudioFilename(resolvedMimeType);
+            const result = await uploadApi.uploadAudio(audioBlob, filename);
             setVoiceNote(result.url);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to upload voice note');
@@ -482,8 +844,8 @@ const NewMemory: React.FC = () => {
           return newTime;
         });
       }, 1000);
-    } catch {
-      setError('Unable to access microphone');
+    } catch (err) {
+      setError(getMicrophoneErrorMessage(err));
     }
   };
 
@@ -535,21 +897,28 @@ const NewMemory: React.FC = () => {
   const togglePreviewPlayback = () => {
     if (!voiceNote) return;
 
-    if (isPlayingPreview && previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.currentTime = 0;
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+
+    if (isPlayingPreview) {
+      audio.pause();
+      audio.currentTime = 0;
       setIsPlayingPreview(false);
       return;
     }
 
-    const audio = new Audio(voiceNote);
-    previewAudioRef.current = audio;
-    audio.play();
-    setIsPlayingPreview(true);
-
-    audio.onended = () => {
-      setIsPlayingPreview(false);
-    };
+    audio.preload = 'auto';
+    audio.volume = 1;
+    audio.muted = false;
+    audio.currentTime = 0;
+    void audio.play()
+      .then(() => {
+        setIsPlayingPreview(true);
+      })
+      .catch(() => {
+        setIsPlayingPreview(false);
+        setError('Unable to play voice note preview on this device');
+      });
   };
 
   // Cleanup on unmount
@@ -623,6 +992,7 @@ const NewMemory: React.FC = () => {
 
   // 要显示的 POI 列表
   const displayPOIs = locationSearch.trim() ? poiResults : nearbyPOIs;
+  const wordCount = countWords(content);
 
   return (
     <div className={`flex-1 flex flex-col bg-paper min-h-screen relative font-sans ${showStickerPicker ? 'overflow-hidden' : ''}`}>
@@ -706,7 +1076,10 @@ const NewMemory: React.FC = () => {
             {media.map((item, index) => (
               <div key={index} className="flex-shrink-0 w-32">
                 <div className="bg-white p-2 pb-6 rounded-sm shadow-sm transition-transform active:scale-95" style={{ transform: `rotate(${(index % 3 - 1) * 2}deg)` }}>
-                  <div className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group">
+                  <div
+                    className="aspect-square bg-gray-100 overflow-hidden rounded-sm relative group cursor-zoom-in"
+                    onClick={() => handleOpenMediaPreview(index)}
+                  >
                     {item.type === 'video' ? (
                       <VideoPreview
                         src={item.url}
@@ -714,10 +1087,11 @@ const NewMemory: React.FC = () => {
                         iconSize="sm"
                       />
                     ) : (
-                      <img
-                        alt={`Memory ${index + 1}`}
-                        className="w-full h-full object-cover grayscale-[20%] sepia-[10%]"
-                        src={item.url}
+                      <div
+                        role="img"
+                        aria-label={`Memory ${index + 1}`}
+                        className="w-full h-full bg-cover bg-center grayscale-[20%] sepia-[10%]"
+                        style={{ backgroundImage: `url("${item.url}")` }}
                       />
                     )}
                     {item.type === 'gif' && (
@@ -726,8 +1100,11 @@ const NewMemory: React.FC = () => {
                       </div>
                     )}
                     <button
-                      onClick={() => handleRemoveMedia(index)}
-                      className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleRemoveMedia(index);
+                      }}
+                      className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     >
                       <span className="material-symbols-outlined text-sm">close</span>
                     </button>
@@ -738,7 +1115,7 @@ const NewMemory: React.FC = () => {
             {/* Add Photo/GIF Button */}
             <div className="flex-shrink-0 w-32">
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={handleAddPhotos}
                 disabled={isUploading}
                 className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[1deg] w-full flex flex-col items-center transition-transform active:scale-95 disabled:opacity-50"
               >
@@ -748,23 +1125,25 @@ const NewMemory: React.FC = () => {
                   ) : (
                     <>
                       <span className="material-symbols-outlined text-ink/20 text-2xl">add_a_photo</span>
-                      <span className="text-[8px] text-ink/30 font-bold">PHOTO/GIF/VIDEO</span>
+                      <span className="text-[8px] text-ink/30 font-bold">{Platform.isNative() ? 'PHOTO/GIF' : 'PHOTO/GIF/VIDEO'}</span>
                     </>
                   )}
                 </div>
               </button>
             </div>
-            {/* Video hint */}
-            {media.length === 0 && (
-              <div className="flex-shrink-0 w-32">
-                <div className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[-1deg] w-full flex flex-col items-center opacity-60">
-                  <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center gap-1">
-                    <span className="material-symbols-outlined text-ink/10 text-2xl">videocam</span>
-                    <span className="text-[8px] text-ink/20 font-bold">VIDEO</span>
-                  </div>
+            {/* Video upload shortcut */}
+            <div className="flex-shrink-0 w-32">
+              <button
+                onClick={() => videoInputRef.current?.click()}
+                disabled={isUploading}
+                className="bg-white p-2 pb-6 rounded-sm shadow-sm rotate-[-1deg] w-full flex flex-col items-center opacity-80 transition-transform active:scale-95 disabled:opacity-50"
+              >
+                <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center gap-1">
+                  <span className="material-symbols-outlined text-ink/30 text-2xl">videocam</span>
+                  <span className="text-[8px] text-ink/30 font-bold">VIDEO</span>
                 </div>
-              </div>
-            )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -859,12 +1238,21 @@ const NewMemory: React.FC = () => {
           <span className="material-symbols-outlined">mic</span>
         </button>
         <div className="w-px h-4 bg-ink/10"></div>
-        <span className="text-[10px] font-bold text-ink/40">{content.trim().split(/\s+/).filter(Boolean).length} words</span>
+        <span className="text-[10px] font-bold text-ink/40">{wordCount} words</span>
       </div>
 
       {/* Voice Recorder Overlay */}
       {showVoiceRecorder && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-auto bg-ink/5 backdrop-blur-[2px]">
+          {voiceNote && (
+            <audio
+              ref={previewAudioRef}
+              src={voiceNote}
+              preload="auto"
+              onEnded={() => setIsPlayingPreview(false)}
+              className="hidden"
+            />
+          )}
           <div className="absolute inset-0 z-0" onClick={() => !isRecording && setShowVoiceRecorder(false)}></div>
           <div className="relative w-full bg-paper/95 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] border-t border-white/40 pb-12 pt-8 px-6 transition-all duration-300 transform translate-y-0">
             <div className="w-12 h-1.5 bg-ink/10 rounded-full mx-auto mb-8"></div>
@@ -1137,6 +1525,235 @@ const NewMemory: React.FC = () => {
 
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* Native Multi-photo Editor */}
+      {showPhotoEditor && (
+        <div className="fixed inset-0 z-[65] bg-black/55 backdrop-blur-[2px] flex items-end">
+          <div className="w-full h-[82vh] bg-paper rounded-t-3xl shadow-2xl flex flex-col">
+            <div className="w-12 h-1.5 bg-ink/10 rounded-full mx-auto mt-3 mb-4"></div>
+            <div className="px-5 pb-3 flex items-center justify-between border-b border-ink/5">
+              <button
+                onClick={handleClosePhotoEditor}
+                disabled={isSubmittingPhotoEdits || isApplyingPhotoCrop}
+                className="text-sm font-semibold text-ink/60 hover:text-ink disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <h3 className="text-sm font-bold text-ink">Edit Photos ({pendingPhotos.length})</h3>
+              <button
+                onClick={handleSubmitEditedPhotos}
+                disabled={pendingPhotos.length === 0 || isSubmittingPhotoEdits || isApplyingPhotoCrop}
+                className="text-sm font-bold text-accent disabled:opacity-40"
+              >
+                {isSubmittingPhotoEdits ? 'Uploading...' : 'Use Photos'}
+              </button>
+            </div>
+
+            <div className="px-5 py-3 text-xs text-ink/50">
+              Select a photo below to crop before upload.
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 pb-6">
+              <div className="grid grid-cols-3 gap-3">
+                {pendingPhotos.map((photo, index) => (
+                  <button
+                    key={`${photo.dataUrl}-${index}`}
+                    onClick={() => handleOpenSinglePhotoCrop(index)}
+                    className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 active:scale-[0.98] transition-transform"
+                  >
+                    <img src={photo.dataUrl} alt={`Selected ${index + 1}`} className="w-full h-full object-cover" />
+                    <div className="absolute top-1 right-1 bg-black/45 text-white text-[10px] px-1.5 py-0.5 rounded">
+                      Crop
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {editingPhotoIndex !== null && pendingPhotos[editingPhotoIndex] && (
+            <div className="fixed inset-0 z-[66] bg-black/90 flex flex-col">
+              <div className="px-4 py-3 flex items-center justify-between text-white border-b border-white/10">
+                <button
+                  onClick={() => {
+                    setEditingPhotoIndex(null);
+                    resetPhotoCropState();
+                  }}
+                  disabled={isApplyingPhotoCrop}
+                  className="text-sm font-semibold disabled:opacity-40"
+                >
+                  Back
+                </button>
+                <span className="text-sm font-medium">
+                  Crop {editingPhotoIndex + 1} / {pendingPhotos.length}
+                </span>
+                <button
+                  onClick={handleApplyCurrentPhotoCrop}
+                  disabled={isApplyingPhotoCrop}
+                  className="text-sm font-bold text-green-300 disabled:opacity-40"
+                >
+                  {isApplyingPhotoCrop ? 'Saving...' : 'Done'}
+                </button>
+              </div>
+
+              <div className="relative flex-1 bg-black">
+                <Cropper
+                  image={pendingPhotos[editingPhotoIndex].dataUrl}
+                  crop={photoCrop}
+                  zoom={photoZoom}
+                  aspect={1}
+                  minZoom={PHOTO_EDITOR_MIN_ZOOM}
+                  maxZoom={PHOTO_EDITOR_MAX_ZOOM}
+                  showGrid
+                  onCropChange={setPhotoCrop}
+                  onZoomChange={setPhotoZoom}
+                  onCropComplete={handleCropComplete}
+                />
+              </div>
+
+              <div className="px-5 py-4 border-t border-white/10 bg-black/90">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-white/70 text-sm">zoom_in</span>
+                  <input
+                    type="range"
+                    min={PHOTO_EDITOR_MIN_ZOOM}
+                    max={PHOTO_EDITOR_MAX_ZOOM}
+                    step={0.01}
+                    value={photoZoom}
+                    onChange={(event) => setPhotoZoom(Number(event.target.value))}
+                    className="flex-1 accent-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Media Preview Overlay */}
+      {previewMediaIndex !== null && media[previewMediaIndex] && (
+        <div className="fixed inset-0 z-[70] bg-black/90 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 text-white/90">
+            <button
+              onClick={handleCloseMediaPreview}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+            <span className="text-sm font-medium">
+              {previewMediaIndex + 1} / {media.length}
+            </span>
+            <div className="w-9 h-9"></div>
+          </div>
+
+          <div
+            ref={previewContainerRef}
+            className="flex-1 relative flex items-center justify-center px-4 overflow-hidden"
+            onDoubleClick={togglePreviewZoom}
+            onTouchStart={handlePreviewTouchStart}
+            onTouchMove={handlePreviewTouchMove}
+            onTouchEnd={handlePreviewTouchEnd}
+            style={{ touchAction: previewZoom > PREVIEW_MIN_ZOOM ? 'none' : 'manipulation' }}
+          >
+            {media[previewMediaIndex].type === 'video' ? (
+              <video
+                src={media[previewMediaIndex].url}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-full max-w-full rounded-lg"
+              />
+            ) : (
+              <div
+                className="max-h-full max-w-full flex items-center justify-center select-none"
+                style={{
+                  transform: `translate3d(${previewOffset.x}px, ${previewOffset.y}px, 0) scale(${previewZoom})`,
+                  transition: isPreviewDragging ? 'none' : 'transform 140ms ease-out',
+                  cursor: previewZoom > PREVIEW_MIN_ZOOM ? (isPreviewDragging ? 'grabbing' : 'grab') : 'zoom-in',
+                }}
+              >
+                <img
+                  src={media[previewMediaIndex].url}
+                  alt={`Memory media ${previewMediaIndex + 1}`}
+                  className="max-h-full max-w-full object-contain rounded-lg pointer-events-none select-none"
+                  draggable={false}
+                />
+              </div>
+            )}
+
+            {media.length > 1 && (
+              <>
+                <button
+                  onClick={handlePrevPreviewMedia}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+                  aria-label="Previous media"
+                  disabled={previewZoom > PREVIEW_MIN_ZOOM}
+                >
+                  <span className="material-symbols-outlined">chevron_left</span>
+                </button>
+                <button
+                  onClick={handleNextPreviewMedia}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+                  aria-label="Next media"
+                  disabled={previewZoom > PREVIEW_MIN_ZOOM}
+                >
+                  <span className="material-symbols-outlined">chevron_right</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Native Photo Actions */}
+      {Platform.isNative() && showPhotoActions && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/25 backdrop-blur-[1px]" onClick={() => setShowPhotoActions(false)}></div>
+          <div className="relative w-full bg-white rounded-t-3xl shadow-2xl p-6 pb-8">
+            <div className="w-10 h-1 bg-ink/10 rounded-full mx-auto mb-5"></div>
+            <h3 className="text-center text-ink font-bold mb-4">Add Media</h3>
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={handleTakePhotoNative}
+                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">photo_camera</span>
+                Take Photo
+              </button>
+              <button
+                onClick={handlePickAndEditPhotoNative}
+                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">crop</span>
+                Pick & Crop Photo
+              </button>
+              <button
+                onClick={handlePickPhotosNative}
+                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">photo_library</span>
+                Choose from Gallery (Multiple)
+              </button>
+              <button
+                onClick={() => {
+                  setShowPhotoActions(false);
+                  videoInputRef.current?.click();
+                }}
+                className="w-full py-3 rounded-xl bg-primary/10 text-ink font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">videocam</span>
+                Upload Video
+              </button>
+              <button
+                onClick={() => setShowPhotoActions(false)}
+                className="w-full py-3 rounded-xl bg-ink/5 text-ink/70 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

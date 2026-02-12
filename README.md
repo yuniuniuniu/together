@@ -64,6 +64,15 @@ together/
 | `npm run test:client` | Run frontend tests only |
 | `npm run test:server` | Run backend tests only |
 
+## Android Notes
+
+- Build and sync web assets with Capacitor:
+  - `cd client && npm run build:android`
+- Open Android Studio project:
+  - `cd client && npm run android`
+- Push notifications on Android require `client/android/app/google-services.json`.
+  - Without this file, the app still builds, but native push registration will not work.
+
 ## Tech Stack
 
 - **Frontend:** React 19, Vite, Tailwind CSS v4, React Router

@@ -1,7 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
+import { milestonesApi } from '../shared/api/client';
 import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
 
 interface Milestone {
@@ -19,6 +21,7 @@ interface Milestone {
 
 const MilestoneTimeline: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { anniversaryDate, partner } = useSpace();
   const { data: milestones = [], error } = useMilestonesQuery();
@@ -54,6 +57,23 @@ const MilestoneTimeline: React.FC = () => {
       case 'life event': return 'bg-green-100 text-green-600';
       default: return 'bg-amber-100 text-amber-600';
     }
+  };
+
+  const handleOpenMilestone = (milestone: Milestone) => {
+    const coverPhoto = milestone.photos?.[0];
+    if (coverPhoto) {
+      const img = new Image();
+      img.src = coverPhoto;
+      void img.decode?.().catch(() => {});
+    }
+
+    void queryClient.prefetchQuery({
+      queryKey: ['milestone', milestone.id],
+      queryFn: async () => (await milestonesApi.getById(milestone.id)).data,
+      staleTime: 15_000,
+    });
+
+    navigate(`/milestone/${milestone.id}`, { state: { milestone } });
   };
 
   return (
@@ -109,15 +129,16 @@ const MilestoneTimeline: React.FC = () => {
                   {/* Card */}
                   <div
                     className="bg-white dark:bg-zinc-800 rounded-2xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow"
-                    onClick={() => navigate(`/milestone/${milestone.id}`)}
+                    onClick={() => handleOpenMilestone(milestone)}
                   >
                     {/* Cover photo */}
                     {milestone.photos && milestone.photos.length > 0 ? (
                       <div className="aspect-[16/9] relative overflow-hidden">
-                        <img
-                          src={milestone.photos[0]}
-                          alt={milestone.title}
-                          className="w-full h-full object-cover"
+                        <div
+                          role="img"
+                          aria-label={milestone.title}
+                          className="w-full h-full bg-cover bg-center"
+                          style={{ backgroundImage: `url("${milestone.photos[0]}")` }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                         <div className="absolute bottom-4 left-4 right-4">

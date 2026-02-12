@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { notificationsApi } from '../api/client';
 import { useAuth } from './AuthContext';
 import { useSpace } from './SpaceContext';
+import { Platform } from '../utils/platform';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 interface Notification {
   id: string;
@@ -32,6 +34,8 @@ interface NotificationProviderProps {
   children: ReactNode;
 }
 
+const ENABLE_NATIVE_PUSH = import.meta.env.VITE_ENABLE_NATIVE_PUSH === 'true';
+
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const { isAuthenticated } = useAuth();
   const { refreshSpace } = useSpace();
@@ -40,6 +44,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<number | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const pushRegisteredRef = useRef(false);
+  const { register: registerPush, token: pushToken, error: pushError } = usePushNotifications();
 
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -86,6 +92,30 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       // Silently fail
     }
   }, []);
+
+  // Register native push notifications once per session.
+  // Guarded behind env flag because unconfigured Firebase on Android can crash on native register().
+  useEffect(() => {
+    if (!ENABLE_NATIVE_PUSH || !isAuthenticated || !Platform.isNative() || pushRegisteredRef.current) return;
+
+    pushRegisteredRef.current = true;
+    registerPush().catch((err) => {
+      const message = err instanceof Error ? err.message : 'Failed to register push notifications';
+      console.warn('[Push] registration failed:', message);
+    });
+  }, [isAuthenticated, registerPush]);
+
+  useEffect(() => {
+    if (pushToken) {
+      console.log('[Push] device token acquired');
+      // TODO: send token to backend when API endpoint is available.
+    }
+  }, [pushToken]);
+
+  useEffect(() => {
+    if (!pushError) return;
+    console.warn('[Push] registration error:', pushError);
+  }, [pushError]);
 
   // Initial fetch and polling setup
   useEffect(() => {

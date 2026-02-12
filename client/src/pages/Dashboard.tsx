@@ -5,6 +5,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useNotifications } from '../shared/context/NotificationContext';
 import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
+import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 interface Memory {
   id: string;
@@ -49,6 +50,8 @@ const Dashboard: React.FC = () => {
   const recentMemory = (memories as Memory[])[0] || null;
   const recentMilestone = (milestones as Milestone[])[0] || null;
   const [quote] = useState(() => loveQuotes[Math.floor(Math.random() * loveQuotes.length)]);
+  const myAvatarUrl = resolveMediaUrl(user?.avatar);
+  const partnerAvatarUrl = resolveMediaUrl(partner?.user?.avatar);
 
   const formatAnniversaryDate = () => {
     if (!anniversaryDate) return '';
@@ -87,10 +90,10 @@ const Dashboard: React.FC = () => {
             <div className="absolute top-1/2 left-10 right-10 h-0.5 bg-gradient-to-r from-transparent via-primary/40 to-transparent -z-10"></div>
             {/* User Avatar */}
             <div className="relative group cursor-pointer" onClick={() => navigate('/settings')}>
-              {user?.avatar ? (
+              {myAvatarUrl ? (
                 <div
                   className="size-[88px] rounded-full border-[3px] border-white dark:border-zinc-800 shadow-soft bg-cover bg-center ring-1 ring-primary/20 transition-transform hover:scale-105 duration-300"
-                  style={{ backgroundImage: `url("${user.avatar}")` }}
+                  style={{ backgroundImage: `url("${myAvatarUrl}")` }}
                 ></div>
               ) : (
                 <div className="size-[88px] rounded-full border-[3px] border-white dark:border-zinc-800 shadow-soft ring-1 ring-primary/20 transition-transform hover:scale-105 duration-300 bg-primary/20 flex items-center justify-center">
@@ -106,10 +109,10 @@ const Dashboard: React.FC = () => {
             </div>
             {/* Partner Avatar */}
             <div className="relative group cursor-pointer" onClick={() => navigate('/settings')}>
-              {partner?.user?.avatar ? (
+              {partnerAvatarUrl ? (
                 <div
                   className="size-[88px] rounded-full border-[3px] border-white dark:border-zinc-800 shadow-soft bg-cover bg-center ring-1 ring-primary/20 transition-transform hover:scale-105 duration-300"
-                  style={{ backgroundImage: `url("${partner.user.avatar}")` }}
+                  style={{ backgroundImage: `url("${partnerAvatarUrl}")` }}
                 ></div>
               ) : (
                 <div className="size-[88px] rounded-full border-[3px] border-white dark:border-zinc-800 shadow-soft ring-1 ring-primary/20 transition-transform hover:scale-105 duration-300 bg-primary/20 flex items-center justify-center">
@@ -225,7 +228,7 @@ const Dashboard: React.FC = () => {
              >
                 {(() => {
                    const isOwn = recentMemory.createdBy === user?.id;
-                   const avatarUrl = isOwn ? user?.avatar : partner?.user?.avatar;
+                   const avatarUrl = resolveMediaUrl(isOwn ? user?.avatar : partner?.user?.avatar);
                    return (
                      <div
                         className="size-14 rounded-full bg-cover bg-center shrink-0 border-2 border-white dark:border-zinc-700 shadow-sm bg-soft-sand/20"

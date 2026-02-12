@@ -4,6 +4,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { uploadApi, spacesApi } from '../shared/api/client';
 import { useToast } from '../shared/components/feedback/Toast';
+import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -19,7 +20,11 @@ const Settings: React.FC = () => {
   const [newAnniversaryDate, setNewAnniversaryDate] = useState('');
   const [isSavingDate, setIsSavingDate] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const [partnerAvatarLoadFailed, setPartnerAvatarLoadFailed] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const myAvatarUrl = resolveMediaUrl(user?.avatar);
+  const partnerAvatarUrl = resolveMediaUrl(partner?.user?.avatar);
 
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,7 +33,7 @@ const Settings: React.FC = () => {
 
     setIsUploadingAvatar(true);
     try {
-      const result = await uploadApi.uploadFile(file);
+      const result = await uploadApi.uploadDirect(file, 'images');
       await updateProfile({ avatar: result.url });
       showToast('Avatar updated successfully', 'success');
     } catch {
@@ -91,6 +96,14 @@ const Settings: React.FC = () => {
       setNewNickname(user?.nickname || '');
     }
   }, [isEditingNickname, user?.nickname]);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [myAvatarUrl]);
+
+  useEffect(() => {
+    setPartnerAvatarLoadFailed(false);
+  }, [partnerAvatarUrl]);
 
   return (
     <div className="flex-1 flex flex-col bg-background-light pb-32">
@@ -167,11 +180,13 @@ const Settings: React.FC = () => {
                   className="relative cursor-pointer group"
                   onClick={() => !isUploadingAvatar && avatarInputRef.current?.click()}
                 >
-                  {user?.avatar ? (
-                    <div
-                      className="w-24 h-24 rounded-full border-4 border-white bg-cover bg-center shadow-lg relative z-10 group-hover:opacity-80 transition-opacity"
-                      style={{ backgroundImage: `url("${user.avatar}")` }}
-                    ></div>
+                  {myAvatarUrl && !avatarLoadFailed ? (
+                    <img
+                      src={myAvatarUrl}
+                      alt="My avatar"
+                      className="w-24 h-24 rounded-full border-4 border-white shadow-lg relative z-10 group-hover:opacity-80 transition-opacity object-cover"
+                      onError={() => setAvatarLoadFailed(true)}
+                    />
                   ) : (
                     <div className="w-24 h-24 rounded-full border-4 border-white shadow-lg relative z-10 bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
                       <span className="material-symbols-outlined text-4xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
@@ -194,11 +209,13 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
                 {/* Partner Avatar - Not editable */}
-                {partner?.user?.avatar ? (
-                  <div
-                    className="w-24 h-24 rounded-full border-4 border-white bg-cover bg-center shadow-lg relative z-10"
-                    style={{ backgroundImage: `url("${partner.user.avatar}")` }}
-                  ></div>
+                {partnerAvatarUrl && !partnerAvatarLoadFailed ? (
+                  <img
+                    src={partnerAvatarUrl}
+                    alt="Partner avatar"
+                    className="w-24 h-24 rounded-full border-4 border-white shadow-lg relative z-10 object-cover"
+                    onError={() => setPartnerAvatarLoadFailed(true)}
+                  />
                 ) : (
                   <div className="w-24 h-24 rounded-full border-4 border-white shadow-lg relative z-10 bg-primary/20 flex items-center justify-center">
                     <span className="material-symbols-outlined text-4xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>

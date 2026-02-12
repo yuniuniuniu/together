@@ -69,7 +69,7 @@ const EditMilestone: React.FC = () => {
 
     setIsUploading(true);
     try {
-      const uploadPromises = Array.from(files).map(file => uploadApi.uploadFile(file));
+      const uploadPromises = Array.from(files).map(file => uploadApi.uploadDirect(file, 'images'));
       const results = await Promise.all(uploadPromises);
       setPhotos(prev => [...prev, ...results.map(r => r.url)]);
     } catch (err) {
@@ -178,7 +178,12 @@ const EditMilestone: React.FC = () => {
           <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden group cursor-pointer transition-all">
             {photos.length > 0 ? (
               <div className="absolute inset-0">
-                <img src={photos[0]} alt="Cover" className="w-full h-full object-cover" />
+                <div
+                  role="img"
+                  aria-label="Cover"
+                  className="w-full h-full bg-cover bg-center"
+                  style={{ backgroundImage: `url("${photos[0]}")` }}
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent">
                   <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                     <span className="text-white text-sm font-medium">
@@ -207,7 +212,12 @@ const EditMilestone: React.FC = () => {
                   <div className="absolute top-4 right-4 flex gap-2">
                     {photos.slice(1, 4).map((photo, index) => (
                       <div key={index} className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-white shadow-md">
-                        <img src={photo} alt="" className="w-full h-full object-cover" />
+                        <div
+                          role="img"
+                          aria-label={`Photo ${index + 2}`}
+                          className="w-full h-full bg-cover bg-center"
+                          style={{ backgroundImage: `url("${photo}")` }}
+                        />
                         <button
                           type="button"
                           onClick={(e) => {

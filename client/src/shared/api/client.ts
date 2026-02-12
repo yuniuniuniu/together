@@ -441,142 +441,73 @@ export const reactionsApi = {
 const UPLOAD_BASE =
   import.meta.env.VITE_API_URL?.replace('/api', '') || `${window.location.protocol}//${window.location.hostname}:3005`;
 
+function normalizeUploadUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    throw new Error('Upload response URL is empty');
+  }
+
+  // R2 / CDN / external absolute URLs should be used directly.
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('//')) {
+    return `${window.location.protocol}${trimmed}`;
+  }
+
+  throw new Error(`Upload response URL must be absolute, got: ${trimmed}`);
+}
+
 export const uploadApi = {
-  uploadFile: async (file: File): Promise<{ url: string; filename: string }> => {
-    const token = localStorage.getItem('auth_token');
-    const formData = new FormData();
-    formData.append('file', file);
+  uploadAudio: async (blob: Blob, filename: string = 'voice-note.webm'): Promise<{ url: string; filename: string }> => {
+    const file = new File([blob], filename, {
+      type: blob.type || 'audio/webm',
+      lastModified: Date.now(),
+    });
+    const { uploadUrl, publicUrl, contentType } = await uploadApi.getPresignedUrl(
+      file.name,
+      'audio',
+      file.type || undefined
+    );
 
-    const response = await fetch(`${UPLOAD_BASE}/api/upload`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          reject(new Error(`Audio upload failed with status ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Audio upload failed'));
+      });
+
+      xhr.addEventListener('timeout', () => {
+        reject(new Error('Audio upload timed out, please retry on a stable network'));
+      });
+
+      xhr.open('PUT', uploadUrl);
+      xhr.timeout = 15 * 60 * 1000;
+      xhr.setRequestHeader('Content-Type', contentType || file.type || 'application/octet-stream');
+      xhr.send(file);
     });
 
-    const json = await response.json();
-
-    if (!response.ok) {
-      throw new Error(json.message || 'Upload failed');
-    }
-
-    // Return full URL for the uploaded file
     return {
-      url: `${UPLOAD_BASE}${json.data.url}`,
-      filename: json.data.filename,
+      url: normalizeUploadUrl(publicUrl),
+      filename: file.name,
     };
   },
 
-  uploadMultiple: async (files: File[]): Promise<Array<{ url: string; filename: string }>> => {
-    const token = localStorage.getItem('auth_token');
-    const formData = new FormData();
-    files.forEach((file) => {
-      formData.append('files', file);
-    });
-
-    const response = await fetch(`${UPLOAD_BASE}/api/upload/multiple`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
-
-    const json = await response.json();
-
-    if (!response.ok) {
-      throw new Error(json.message || 'Upload failed');
-    }
-
-    return json.data.map((item: { url: string; filename: string }) => ({
-      url: `${UPLOAD_BASE}${item.url}`,
-      filename: item.filename,
-    }));
-  },
-
-  uploadAudio: async (blob: Blob): Promise<{ url: string; filename: string }> => {
-    const token = localStorage.getItem('auth_token');
-    const formData = new FormData();
-    formData.append('file', blob, 'voice-note.webm');
-
-    const response = await fetch(`${UPLOAD_BASE}/api/upload/audio`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
-
-    const json = await response.json();
-
-    if (!response.ok) {
-      throw new Error(json.message || 'Audio upload failed');
-    }
-
-    return {
-      url: `${UPLOAD_BASE}${json.data.url}`,
-      filename: json.data.filename,
-    };
-  },
-
-  uploadVideo: async (file: File): Promise<{ url: string; filename: string; type: string }> => {
-    const token = localStorage.getItem('auth_token');
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await fetch(`${UPLOAD_BASE}/api/upload/video`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
-
-    const json = await response.json();
-
-    if (!response.ok) {
-      throw new Error(json.message || 'Video upload failed');
-    }
-
-    return {
-      url: `${UPLOAD_BASE}${json.data.url}`,
-      filename: json.data.filename,
-      type: json.data.type,
-    };
-  },
-
-  uploadMedia: async (file: File): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> => {
-    const token = localStorage.getItem('auth_token');
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await fetch(`${UPLOAD_BASE}/api/upload/media`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
-
-    const json = await response.json();
-
-    if (!response.ok) {
-      throw new Error(json.message || 'Media upload failed');
-    }
-
-    return {
-      url: `${UPLOAD_BASE}${json.data.url}`,
-      filename: json.data.filename,
-      type: json.data.type,
-    };
-  },
-
-  // Get presigned URL for direct upload to COS (for large files)
+  // Get presigned URL for direct upload to R2
   getPresignedUrl: async (
     filename: string,
-    folder: string = 'uploads'
-  ): Promise<{ uploadUrl: string; key: string; publicUrl: string }> => {
+    folder: string = 'uploads',
+    contentType?: string
+  ): Promise<{ uploadUrl: string; key: string; publicUrl: string; contentType: string }> => {
     const token = localStorage.getItem('auth_token');
 
     const response = await fetch(`${UPLOAD_BASE}/api/upload/presign`, {
@@ -585,7 +516,7 @@ export const uploadApi = {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
       },
-      body: JSON.stringify({ filename, folder }),
+      body: JSON.stringify({ filename, folder, contentType }),
     });
 
     const json = await response.json();
@@ -597,16 +528,20 @@ export const uploadApi = {
     return json.data;
   },
 
-  // Direct upload to COS using presigned URL (no size limit)
+  // Direct upload to R2 using presigned URL
   uploadDirect: async (
     file: File,
     folder: string = 'uploads',
     onProgress?: (progress: number) => void
   ): Promise<{ url: string; filename: string; type: 'image' | 'gif' | 'video' }> => {
     // Get presigned URL from server
-    const { uploadUrl, publicUrl } = await uploadApi.getPresignedUrl(file.name, folder);
+    const { uploadUrl, publicUrl, contentType } = await uploadApi.getPresignedUrl(
+      file.name,
+      folder,
+      file.type || undefined
+    );
 
-    // Upload directly to COS
+    // Upload directly to R2
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
@@ -629,8 +564,13 @@ export const uploadApi = {
         reject(new Error('Upload failed'));
       });
 
+      xhr.addEventListener('timeout', () => {
+        reject(new Error('Upload timed out, please retry on a stable network'));
+      });
+
       xhr.open('PUT', uploadUrl);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.timeout = 15 * 60 * 1000;
+      xhr.setRequestHeader('Content-Type', contentType || file.type || 'application/octet-stream');
       xhr.send(file);
     });
 
@@ -646,7 +586,7 @@ export const uploadApi = {
     };
   },
 
-  // Delete file from COS
+  // Delete file from R2
   deleteFile: async (url: string): Promise<void> => {
     const token = localStorage.getItem('auth_token');
 

@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { App } from '@capacitor/app';
 import { Platform } from '@/shared/utils/platform';
+import { useToast } from '@/shared/components/feedback/Toast';
 
 /**
  * Android back button handler component.
@@ -10,6 +11,8 @@ import { Platform } from '@/shared/utils/platform';
 export const AndroidBackHandler: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
+  const lastBackPressRef = useRef<number>(0);
 
   useEffect(() => {
     if (!Platform.isAndroid()) return;
@@ -20,8 +23,14 @@ export const AndroidBackHandler: React.FC = () => {
       const isRootScreen = rootPaths.includes(location.pathname);
 
       if (isRootScreen) {
-        // Exit app on root screens
-        App.exitApp();
+        const now = Date.now();
+        const shouldExit = now - lastBackPressRef.current < 2000;
+        if (shouldExit) {
+          App.exitApp();
+          return;
+        }
+        lastBackPressRef.current = now;
+        showToast('Press back again to exit', 'info', 1500);
       } else {
         // Navigate back in history
         navigate(-1);
@@ -29,9 +38,9 @@ export const AndroidBackHandler: React.FC = () => {
     });
 
     return () => {
-      handleBackButton.remove();
+      handleBackButton.then((listener) => listener.remove());
     };
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, showToast]);
 
   return null;
 };

@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { memoriesApi, reactionsApi } from '../shared/api/client';
 import { useAuth } from '../shared/context/AuthContext';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useToast } from '../shared/components/feedback/Toast';
-import { ImageGallery } from '../shared/components/display/ImageGallery';
+import { EnhancedImageViewer } from '../shared/components/display/EnhancedImageViewer';
+import { VideoPreview } from '../shared/components/display/VideoPreview';
+import { countWords } from '../shared/utils/wordCount';
 
 interface Memory {
   id: string;
@@ -20,42 +23,77 @@ interface Memory {
   wordCount?: number;
 }
 
+interface MemoryRouteState {
+  memory?: Memory;
+}
+
 const MemoryDetail: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { partner, daysCount, anniversaryDate } = useSpace();
   const { showToast } = useToast();
 
-  const [memory, setMemory] = useState<Memory | null>(null);
-  const [error, setError] = useState('');
+  const routeState = location.state as MemoryRouteState | null;
+  const initialMemory = routeState?.memory && routeState.memory.id === id ? routeState.memory : null;
+  const [actionError, setActionError] = useState('');
+  const [isVisible, setIsVisible] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const memoryQuery = useQuery({
+    queryKey: ['memory', id],
+    queryFn: async () => {
+      if (!id) {
+        throw new Error('Memory id is required');
+      }
+      const response = await memoriesApi.getById(id);
+      return response.data as Memory;
+    },
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    initialData: initialMemory ?? undefined,
+  });
+  const memory = memoryQuery.data ?? null;
+  const errorMessage =
+    actionError ||
+    (memoryQuery.error instanceof Error
+      ? memoryQuery.error.message
+      : memoryQuery.error
+        ? String(memoryQuery.error)
+        : '');
 
   useEffect(() => {
-    const fetchMemory = async () => {
+    const frame = requestAnimationFrame(() => setIsVisible(true));
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [id]);
+
+  useEffect(() => {
+    const fetchReactions = async () => {
       if (!id) return;
       try {
-        const response = await memoriesApi.getById(id);
-        setMemory(response.data);
-
-        // Fetch reactions
         const [reactionsRes, myReactionRes] = await Promise.all([
           reactionsApi.list(id),
           reactionsApi.getMine(id),
         ]);
         setLikeCount(reactionsRes.data.length);
         setIsLiked(myReactionRes.data !== null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load memory');
+      } catch {
+        setLikeCount(0);
+        setIsLiked(false);
       }
     };
-    fetchMemory();
+
+    fetchReactions();
   }, [id]);
 
   // Close menu when clicking outside
@@ -89,7 +127,7 @@ const MemoryDetail: React.FC = () => {
       await memoriesApi.delete(id);
       navigate('/memories');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete memory');
+      setActionError(err instanceof Error ? err.message : 'Failed to delete memory');
       setIsDeleting(false);
     }
   };
@@ -101,22 +139,28 @@ const MemoryDetail: React.FC = () => {
 
   const handlePlayVoiceNote = () => {
     if (!memory?.voiceNote) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-    if (isPlayingVoice && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    if (isPlayingVoice) {
+      audio.pause();
+      audio.currentTime = 0;
       setIsPlayingVoice(false);
       return;
     }
 
-    const audio = new Audio(memory.voiceNote);
-    audioRef.current = audio;
-    audio.play();
-    setIsPlayingVoice(true);
-
-    audio.onended = () => {
-      setIsPlayingVoice(false);
-    };
+    audio.preload = 'auto';
+    audio.volume = 1;
+    audio.muted = false;
+    audio.currentTime = 0;
+    void audio.play()
+      .then(() => {
+        setIsPlayingVoice(true);
+      })
+      .catch(() => {
+        setIsPlayingVoice(false);
+        showToast('Audio cannot be played in app. Please retry.', 'error');
+      });
   };
 
   const formatDate = (dateStr: string) => {
@@ -144,15 +188,36 @@ const MemoryDetail: React.FC = () => {
     }
   };
 
-  if (!memory && !error) {
-    return null;
+  if (memoryQuery.isLoading && !memory && !errorMessage) {
+    return (
+      <div className="flex-1 flex flex-col bg-background-light min-h-screen">
+        <div className="sticky top-0 z-20 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] flex justify-between items-center bg-background-light/95 backdrop-blur-md border-b border-black/[0.03]">
+          <div className="w-9 h-9 rounded-full bg-black/5 animate-pulse" />
+          <div className="h-3 w-20 rounded bg-black/5 animate-pulse" />
+          <div className="w-9 h-9 rounded-full bg-black/5 animate-pulse" />
+        </div>
+        <main className="flex-1 px-6 py-6 space-y-6">
+          <div className="h-4 w-32 rounded bg-black/5 animate-pulse" />
+          <div className="space-y-3">
+            <div className="h-4 w-full rounded bg-black/5 animate-pulse" />
+            <div className="h-4 w-5/6 rounded bg-black/5 animate-pulse" />
+            <div className="h-4 w-2/3 rounded bg-black/5 animate-pulse" />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="aspect-square rounded-xl bg-black/5 animate-pulse" />
+            <div className="aspect-square rounded-xl bg-black/5 animate-pulse" />
+            <div className="aspect-square rounded-xl bg-black/5 animate-pulse" />
+          </div>
+        </main>
+      </div>
+    );
   }
 
-  if (error || !memory) {
+  if (errorMessage || !memory) {
     return (
       <div className="flex-1 flex flex-col bg-background-light min-h-screen items-center justify-center px-6">
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg text-center">
-          {error || 'Memory not found'}
+          {errorMessage || 'Memory not found'}
         </div>
         <button
           onClick={() => navigate(-1)}
@@ -166,13 +231,17 @@ const MemoryDetail: React.FC = () => {
 
   const dayNumber = calculateDayNumber(memory.createdAt);
   const isOwnMemory = memory.createdBy === user?.id;
-  const computedWordCount = memory.content
-    ? memory.content.trim().split(/\s+/).filter(Boolean).length
-    : 0;
+  const mediaUrls = memory.photos || [];
+  const imageUrls = mediaUrls.filter((url) => !url.match(/\.(mp4|webm|mov|avi|m4v)$/i));
+  const computedWordCount = memory.content ? countWords(memory.content) : 0;
   const wordCount = memory.wordCount ?? computedWordCount;
 
   return (
-    <div className="flex-1 flex flex-col bg-background-light min-h-screen relative">
+    <div
+      className={`flex-1 flex flex-col bg-background-light min-h-screen relative transition-opacity duration-200 ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
        {/* Header */}
        <div className="sticky top-0 z-20 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] flex justify-between items-center bg-background-light/95 backdrop-blur-md border-b border-black/[0.03]">
           <button onClick={() => navigate(-1)} className="p-2 -ml-2 hover:bg-black/5 rounded-full transition-colors">
@@ -242,40 +311,71 @@ const MemoryDetail: React.FC = () => {
                 </p>
              </div>
 
-             {/* Media Grid (Photos, GIFs, Videos) */}
-             {memory.photos && memory.photos.length > 0 && (
+            {/* Media Grid (Photos, GIFs, Videos) */}
+            {mediaUrls.length > 0 && (
                <div className="mb-8">
-                 {/* Images and GIFs - Use new ImageGallery */}
-                 <ImageGallery
-                   images={memory.photos}
-                   className="rounded-2xl overflow-hidden"
-                 />
+                <div className="grid grid-cols-3 gap-2">
+                  {mediaUrls.map((url, index) => {
+                    const isVideo = url.match(/\.(mp4|webm|mov|avi|m4v)$/i);
+                    const isGif = url.match(/\.gif$/i);
 
-                 {/* Videos - Keep separate rendering */}
-                 {memory.photos.filter(url => url.match(/\.(mp4|webm|mov|avi|m4v)$/i)).length > 0 && (
-                   <div className="grid gap-4 mt-4">
-                     {memory.photos
-                       .filter(url => url.match(/\.(mp4|webm|mov|avi|m4v)$/i))
-                       .map((videoUrl, index) => (
-                         <div
-                           key={index}
-                           className="aspect-video relative overflow-hidden bg-gray-100 rounded-2xl"
-                         >
-                           <video
-                             src={videoUrl}
-                             className="w-full h-full object-cover"
-                             controls
-                             playsInline
-                           />
-                         </div>
-                       ))}
-                   </div>
-                 )}
+                    if (isVideo) {
+                      return (
+                        <div key={index} className="aspect-square relative overflow-hidden rounded-xl bg-black">
+                          <VideoPreview
+                            src={url}
+                            className="w-full h-full object-cover"
+                            iconSize="sm"
+                            enableFullscreen={true}
+                          />
+                          <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
+                            VIDEO
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const imageIndex = imageUrls.indexOf(url);
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          if (imageIndex < 0) return;
+                          setViewerIndex(imageIndex);
+                          setViewerOpen(true);
+                        }}
+                        className="aspect-square relative overflow-hidden rounded-xl bg-gray-100 active:scale-[0.98] transition-transform"
+                      >
+                        <img
+                          src={url}
+                          alt={`Memory media ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        {isGif && (
+                          <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 py-0.5 rounded font-bold pointer-events-none">
+                            GIF
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
                </div>
              )}
 
              {/* Meta Tags */}
              <div className="flex gap-2 flex-wrap mb-8">
+                {memory.voiceNote && (
+                  <audio
+                    ref={audioRef}
+                    src={memory.voiceNote}
+                    preload="auto"
+                    onEnded={() => setIsPlayingVoice(false)}
+                    className="hidden"
+                  />
+                )}
                  {memory.location && (
                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg border border-primary/10 shadow-sm">
                       <span className="material-symbols-outlined text-[16px] text-soft-gray">location_on</span>
@@ -373,6 +473,15 @@ const MemoryDetail: React.FC = () => {
             </button>
          </div>
        )}
+
+      {imageUrls.length > 0 && (
+        <EnhancedImageViewer
+          images={imageUrls}
+          initialIndex={viewerIndex}
+          isOpen={viewerOpen}
+          onClose={() => setViewerOpen(false)}
+        />
+      )}
     </div>
   );
 };

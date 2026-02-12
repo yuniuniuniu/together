@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../shared/context/AuthContext';
 import { uploadApi } from '../shared/api/client';
+import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
 
 const ProfileSetup: React.FC = () => {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ const ProfileSetup: React.FC = () => {
   const [error, setError] = useState('');
   const [hasInitialized, setHasInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarUrl = resolveMediaUrl(avatar);
 
   useEffect(() => {
     if (!hasInitialized && user) {
@@ -30,7 +32,7 @@ const ProfileSetup: React.FC = () => {
     setIsUploading(true);
     setError('');
     try {
-      const result = await uploadApi.uploadFile(file);
+      const result = await uploadApi.uploadDirect(file, 'images');
       setAvatar(result.url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload photo');
@@ -89,9 +91,9 @@ const ProfileSetup: React.FC = () => {
               onClick={() => !isUploading && fileInputRef.current?.click()}
             >
               <div className="w-40 h-40 rounded-full bg-white border border-primary/20 shadow-soft flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:scale-[1.02]">
-                {avatar ? (
+                {avatarUrl ? (
                   <img
-                    src={avatar}
+                    src={avatarUrl}
                     alt="Avatar"
                     className="w-full h-full object-cover"
                   />
