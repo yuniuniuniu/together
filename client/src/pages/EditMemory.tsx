@@ -71,6 +71,7 @@ const EditMemory: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Voice recording states
@@ -297,7 +298,8 @@ const EditMemory: React.FC = () => {
           try {
             perFileProgress[index] = 0;
             updateProgressUi();
-            const result = await uploadApi.uploadDirect(file, 'images', (progress) => {
+            const folder = file.type.startsWith('video/') ? 'videos' : 'images';
+            const result = await uploadApi.uploadDirect(file, folder, (progress) => {
               perFileProgress[index] = progress;
               updateProgressUi();
             });
@@ -330,13 +332,16 @@ const EditMemory: React.FC = () => {
       }
 
       if (failedCount > 0) {
-        setError(`${failedCount} photo(s) failed to upload. Please retry.`);
+        setError(`${failedCount} media file(s) failed to upload. Please retry.`);
       }
     } finally {
       setIsUploading(false);
       setUploadProgress('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+      }
+      if (videoInputRef.current) {
+        videoInputRef.current.value = '';
       }
     }
   };
@@ -755,6 +760,13 @@ const EditMemory: React.FC = () => {
             onChange={handlePhotoUpload}
             className="hidden"
           />
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/*"
+            onChange={handlePhotoUpload}
+            className="hidden"
+          />
           {uploadProgress && (
             <div className="mb-3 text-sm text-accent font-medium">{uploadProgress}</div>
           )}
@@ -800,6 +812,18 @@ const EditMemory: React.FC = () => {
                   ) : (
                     <span className="material-symbols-outlined text-ink/20 text-3xl">add_a_photo</span>
                   )}
+                </div>
+              </button>
+            </div>
+            <div className="flex-shrink-0 w-32">
+              <button
+                onClick={() => videoInputRef.current?.click()}
+                disabled={isUploading}
+                className="bg-white p-2 pb-6 rounded-sm shadow-sm -rotate-[1deg] w-full flex flex-col items-center opacity-85 transition-transform active:scale-95 disabled:opacity-50"
+              >
+                <div className="aspect-square w-full bg-[#fdfaf7] border border-dashed border-ink/10 rounded-sm flex flex-col items-center justify-center hover:bg-gray-50 gap-1">
+                  <span className="material-symbols-outlined text-ink/30 text-2xl">videocam</span>
+                  <span className="text-[8px] text-ink/30 font-bold">VIDEO</span>
                 </div>
               </button>
             </div>
