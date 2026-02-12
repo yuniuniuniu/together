@@ -109,16 +109,17 @@ export async function addComment(
       );
     }
   } else {
-    // Top-level comment: notify memory creator (if different user)
-    if (memory.createdBy !== userId) {
-      await createNotification(
-        memory.createdBy,
-        'comment',
-        `${commenterName} commented on your memory`,
-        previewText,
-        `/memory/${memoryId}`
-      );
-    }
+    // Top-level comment: notify memory creator
+    // Always send notification (including self-comments for testing push)
+    await createNotification(
+      memory.createdBy,
+      'comment',
+      memory.createdBy === userId
+        ? 'You commented on your memory'
+        : `${commenterName} commented on your memory`,
+      previewText,
+      `/memory/${memoryId}`
+    );
   }
 
   const userInfo = commenter
