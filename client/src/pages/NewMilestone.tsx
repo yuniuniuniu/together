@@ -12,6 +12,7 @@ import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { getPermissionDeniedMessage } from '../shared/utils/permissions';
 import { Platform } from '../shared/utils/platform';
 import { photoResultToFile } from '../shared/utils/photoFile';
+import { mapWithConcurrency } from '../shared/utils/concurrency';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -354,32 +355,58 @@ const NewMilestone: React.FC = () => {
     setUploadProgress('');
 
     try {
-      const uploadedUrls: string[] = [];
-      let failedCount = 0;
+      const concurrency = Platform.isNative() ? 2 : 4;
+      const perFileProgress: number[] = Array.from({ length: files.length }, () => 0);
+      let completedCount = 0;
+      let lastProgressUiUpdateAt = 0;
 
-      for (let i = 0; i < files.length; i += 1) {
-        const file = files[i];
+      const updateProgressUi = (force: boolean = false) => {
+        const now = Date.now();
+        if (!force && now - lastProgressUiUpdateAt < 120) return;
+        lastProgressUiUpdateAt = now;
+        const avgProgress = Math.round(perFileProgress.reduce((sum, p) => sum + p, 0) / Math.max(1, files.length));
+        setUploadProgress(`Uploading ${completedCount}/${files.length} - ${avgProgress}%`);
+      };
+
+      updateProgressUi(true);
+
+      type UploadOutcome =
+        | { ok: true; url: string }
+        | { ok: false };
+
+      const outcomes = await mapWithConcurrency(files, concurrency, async (file, index): Promise<UploadOutcome> => {
         const maxAttempts = 2;
-        let uploaded = false;
-
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
-            setUploadProgress(`Uploading ${i + 1}/${files.length} (try ${attempt}/${maxAttempts})...`);
-            const result = await uploadApi.uploadDirect(file, 'images');
-            uploadedUrls.push(result.url);
-            uploaded = true;
-            break;
+            perFileProgress[index] = 0;
+            updateProgressUi();
+            const result = await uploadApi.uploadDirect(file, 'images', (progress) => {
+              perFileProgress[index] = progress;
+              updateProgressUi();
+            });
+            perFileProgress[index] = 100;
+            completedCount += 1;
+            updateProgressUi(true);
+            return { ok: true, url: result.url };
           } catch {
             if (attempt < maxAttempts) {
               await new Promise((resolve) => setTimeout(resolve, 300));
+              continue;
             }
+            perFileProgress[index] = 100;
+            completedCount += 1;
+            updateProgressUi(true);
+            return { ok: false };
           }
         }
+        perFileProgress[index] = 100;
+        completedCount += 1;
+        updateProgressUi(true);
+        return { ok: false };
+      });
 
-        if (!uploaded) {
-          failedCount += 1;
-        }
-      }
+      const uploadedUrls = outcomes.filter((o): o is Extract<UploadOutcome, { ok: true }> => o.ok).map((o) => o.url);
+      const failedCount = outcomes.length - uploadedUrls.length;
 
       if (uploadedUrls.length > 0) {
         setPhotos((prev) => [...prev, ...uploadedUrls]);

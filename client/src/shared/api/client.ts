@@ -2,20 +2,8 @@ import type { ApiResponse } from '../types';
 import { Platform } from '../utils/platform';
 
 
-// Production API URL - hardcoded for reliability in native apps
-const PRODUCTION_API_URL = 'https://together1024.top/api';
-
-// For web development, use localhost; for native apps, always use production
 const DEFAULT_API_BASE = `${window.location.protocol}//${window.location.hostname}:3005/api`;
-const API_BASE = import.meta.env.VITE_API_URL ||
-  (window.location.hostname === 'localhost' && window.location.port === ''
-    ? PRODUCTION_API_URL  // Native app (Capacitor serves on localhost without port)
-    : DEFAULT_API_BASE);
-
-// Debug: Log API configuration on load
-console.log('[API Debug] VITE_API_URL:', import.meta.env.VITE_API_URL);
-console.log('[API Debug] DEFAULT_API_BASE:', DEFAULT_API_BASE);
-console.log('[API Debug] Using API_BASE:', API_BASE);
+const API_BASE = import.meta.env.VITE_API_URL || DEFAULT_API_BASE;
 
 export async function apiClient<T>(
   endpoint: string,

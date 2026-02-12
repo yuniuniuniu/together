@@ -4,6 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { milestonesApi, uploadApi } from '../shared/api/client';
 import { MILESTONES_QUERY_KEY } from '../shared/hooks/useMilestonesQuery';
 import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
+import { Platform } from '../shared/utils/platform';
+import { mapWithConcurrency } from '../shared/utils/concurrency';
 
 interface Milestone {
   id: string;
@@ -71,9 +73,40 @@ const EditMilestone: React.FC = () => {
 
     setIsUploading(true);
     try {
-      const uploadPromises = Array.from(files).map(file => uploadApi.uploadDirect(file, 'images'));
-      const results = await Promise.all(uploadPromises);
-      setPhotos(prev => [...prev, ...results.map(r => r.url)]);
+      const concurrency = Platform.isNative() ? 2 : 4;
+      const maxAttempts = 2;
+
+      type UploadOutcome =
+        | { ok: true; url: string }
+        | { ok: false; error: Error };
+
+      const outcomes = await mapWithConcurrency(Array.from(files), concurrency, async (file): Promise<UploadOutcome> => {
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            const result = await uploadApi.uploadDirect(file, 'images');
+            return { ok: true, url: result.url };
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error('Failed to upload photos');
+            if (attempt < maxAttempts) {
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              continue;
+            }
+            return { ok: false, error };
+          }
+        }
+        return { ok: false, error: new Error('Failed to upload photos') };
+      });
+
+      const urls = outcomes.filter((o): o is Extract<UploadOutcome, { ok: true }> => o.ok).map((o) => o.url);
+      const failedCount = outcomes.length - urls.length;
+
+      if (urls.length > 0) {
+        setPhotos((prev) => [...prev, ...urls]);
+      }
+      if (failedCount > 0) {
+        const firstError = outcomes.find((o): o is Extract<UploadOutcome, { ok: false }> => !o.ok)?.error;
+        setError(firstError?.message || `${failedCount} photo(s) failed to upload. Please retry.`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload photos');
     } finally {

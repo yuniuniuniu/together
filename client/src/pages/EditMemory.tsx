@@ -17,6 +17,7 @@ import { Platform } from '../shared/utils/platform';
 import { photoResultToFile } from '../shared/utils/photoFile';
 import { countWords } from '../shared/utils/wordCount';
 import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
+import { mapWithConcurrency } from '../shared/utils/concurrency';
 
 // 高德地图安全配置
 window._AMapSecurityConfig = {
@@ -270,32 +271,58 @@ const EditMemory: React.FC = () => {
     setUploadProgress('');
 
     try {
-      const uploadedUrls: string[] = [];
-      let failedCount = 0;
+      const concurrency = Platform.isNative() ? 2 : 4;
+      const perFileProgress: number[] = Array.from({ length: files.length }, () => 0);
+      let completedCount = 0;
+      let lastProgressUiUpdateAt = 0;
 
-      for (let i = 0; i < files.length; i += 1) {
-        const file = files[i];
+      const updateProgressUi = (force: boolean = false) => {
+        const now = Date.now();
+        if (!force && now - lastProgressUiUpdateAt < 120) return;
+        lastProgressUiUpdateAt = now;
+        const avgProgress = Math.round(perFileProgress.reduce((sum, p) => sum + p, 0) / Math.max(1, files.length));
+        setUploadProgress(`Uploading ${completedCount}/${files.length} - ${avgProgress}%`);
+      };
+
+      updateProgressUi(true);
+
+      type UploadOutcome =
+        | { ok: true; url: string }
+        | { ok: false };
+
+      const outcomes = await mapWithConcurrency(files, concurrency, async (file, index): Promise<UploadOutcome> => {
         const maxAttempts = 2;
-        let uploaded = false;
-
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
-            setUploadProgress(`Uploading ${i + 1}/${files.length} (try ${attempt}/${maxAttempts})...`);
-            const result = await uploadApi.uploadDirect(file, 'images');
-            uploadedUrls.push(result.url);
-            uploaded = true;
-            break;
+            perFileProgress[index] = 0;
+            updateProgressUi();
+            const result = await uploadApi.uploadDirect(file, 'images', (progress) => {
+              perFileProgress[index] = progress;
+              updateProgressUi();
+            });
+            perFileProgress[index] = 100;
+            completedCount += 1;
+            updateProgressUi(true);
+            return { ok: true, url: result.url };
           } catch {
             if (attempt < maxAttempts) {
               await new Promise((resolve) => setTimeout(resolve, 300));
+              continue;
             }
+            perFileProgress[index] = 100;
+            completedCount += 1;
+            updateProgressUi(true);
+            return { ok: false };
           }
         }
+        perFileProgress[index] = 100;
+        completedCount += 1;
+        updateProgressUi(true);
+        return { ok: false };
+      });
 
-        if (!uploaded) {
-          failedCount += 1;
-        }
-      }
+      const uploadedUrls = outcomes.filter((o): o is Extract<UploadOutcome, { ok: true }> => o.ok).map((o) => o.url);
+      const failedCount = outcomes.length - uploadedUrls.length;
 
       if (uploadedUrls.length > 0) {
         setPhotos((prev) => [...prev, ...uploadedUrls]);
@@ -676,7 +703,7 @@ const EditMemory: React.FC = () => {
       <div aria-hidden="true" className="w-full flex-none" style={{ height: topBarHeight }} />
 
       <main className="flex-1 flex flex-col w-full px-6 pb-24 overflow-y-auto no-scrollbar">
-        <div className="sticky top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 -mx-6 px-6 pt-3 pb-2 bg-paper/90 backdrop-blur-md">
+        <div className="sticky top-0 z-30 -mx-6 px-6 pt-3 pb-2 bg-paper/90 backdrop-blur-md">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">
               {error}
@@ -785,34 +812,39 @@ const EditMemory: React.FC = () => {
         </div>
       </main>
 
-      {/* Location Badge */}
-      {location && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-lg rounded-full px-4 py-2 flex items-center gap-2 shadow-lg border border-primary/20 z-40 max-w-[80%]">
-          <span className="material-symbols-outlined text-accent text-sm">location_on</span>
-          <span className="text-sm font-medium text-ink truncate">{location.name}</span>
-          {location.latitude && (
-            <span className="material-symbols-outlined text-green-500 text-xs">check_circle</span>
-          )}
-          <button
-            onClick={() => setLocation(null)}
-            className="ml-1 text-ink/40 hover:text-ink transition-colors flex-shrink-0"
-          >
-            <span className="material-symbols-outlined text-sm">close</span>
-          </button>
-        </div>
-      )}
+      {/* Attachment Badges (location / voice note) */}
+      {(location || (voiceNote && !showVoiceRecorder)) && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 w-full max-w-[430px] px-6">
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {location && (
+              <div className="bg-white/90 backdrop-blur-lg rounded-full px-4 py-2 flex items-center gap-2 shadow-lg border border-primary/20 max-w-full min-w-0">
+                <span className="material-symbols-outlined text-accent text-sm flex-shrink-0">location_on</span>
+                <span className="text-sm font-medium text-ink truncate min-w-0">{location.name}</span>
+                {location.latitude && (
+                  <span className="material-symbols-outlined text-green-500 text-xs flex-shrink-0">check_circle</span>
+                )}
+                <button
+                  onClick={() => setLocation(null)}
+                  className="ml-1 text-ink/40 hover:text-ink transition-colors flex-shrink-0"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
+            )}
 
-      {/* Voice Note Badge */}
-      {voiceNote && !showVoiceRecorder && (
-        <div className="fixed bottom-24 right-6 bg-white/90 backdrop-blur-lg rounded-full px-4 py-2 flex items-center gap-2 shadow-lg border border-accent/20 z-40">
-          <span className="material-symbols-outlined text-accent text-sm">mic</span>
-          <span className="text-sm font-medium text-ink">Voice note attached</span>
-          <button
-            onClick={() => setVoiceNote(null)}
-            className="ml-1 text-ink/40 hover:text-ink transition-colors"
-          >
-            <span className="material-symbols-outlined text-sm">close</span>
-          </button>
+            {voiceNote && !showVoiceRecorder && (
+              <div className="bg-white/90 backdrop-blur-lg rounded-full px-4 py-2 flex items-center gap-2 shadow-lg border border-accent/20 max-w-full min-w-0">
+                <span className="material-symbols-outlined text-accent text-sm flex-shrink-0">mic</span>
+                <span className="text-sm font-medium text-ink truncate min-w-0">Voice note attached</span>
+                <button
+                  onClick={() => setVoiceNote(null)}
+                  className="ml-1 text-ink/40 hover:text-ink transition-colors flex-shrink-0"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

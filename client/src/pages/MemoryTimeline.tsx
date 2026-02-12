@@ -378,8 +378,11 @@ const MemoryTimeline: React.FC = () => {
                           {memory.location && (
                             <div className="flex items-center gap-1.5 min-w-0 text-stone-400">
                               <span className="material-symbols-outlined text-lg shrink-0" title={memory.location.name}>location_on</span>
-                              <span className="text-[11px] leading-none truncate max-w-[160px]" title={memory.location.address || memory.location.name}>
-                                {memory.location.address || memory.location.name}
+                              <span
+                                className="text-[11px] leading-none truncate max-w-[160px]"
+                                title={memory.location.address ?? memory.location.name}
+                              >
+                                {memory.location.name}
                               </span>
                             </div>
                           )}
