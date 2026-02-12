@@ -94,7 +94,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   }, []);
 
   // Register native push notifications once per session.
-  // Guarded behind env flag because unconfigured Firebase on Android can crash on native register().
+  // Guarded behind env flag because unconfigured JPush on Android can crash on native register().
   useEffect(() => {
     if (!ENABLE_NATIVE_PUSH || !isAuthenticated || !Platform.isNative() || pushRegisteredRef.current) return;
 

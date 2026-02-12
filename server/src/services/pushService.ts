@@ -1,61 +1,53 @@
-import admin from 'firebase-admin';
 import { v4 as uuid } from 'uuid';
-import { existsSync, readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import { getDatabase } from '../db/database.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// JPush API response types
+interface JPushSuccessResponse {
+  sendno: string;
+  msg_id: string;
+}
 
-// Firebase initialization state
-let firebaseInitialized = false;
+interface JPushErrorResponse {
+  error: {
+    code: number;
+    message: string;
+  };
+}
+
+type JPushResponse = JPushSuccessResponse | JPushErrorResponse;
+
+// JPush configuration
+const JPUSH_APP_KEY = process.env.JPUSH_APP_KEY || '';
+const JPUSH_MASTER_SECRET = process.env.JPUSH_MASTER_SECRET || '';
+const JPUSH_API_URL = 'https://api.jpush.cn/v3/push';
+
+// JPush initialization state
+let jpushInitialized = false;
 
 /**
- * Initialize Firebase Admin SDK
+ * Initialize JPush
  * Returns true if initialization was successful
  */
-function initializeFirebase(): boolean {
-  if (firebaseInitialized) return true;
+function initializeJPush(): boolean {
+  if (jpushInitialized) return true;
 
-  // Try to load from local file first, then fall back to environment variable
-  const serviceAccountPath = join(__dirname, '../../firebase-service-account.json');
-  let credentials: admin.ServiceAccount | null = null;
-
-  if (existsSync(serviceAccountPath)) {
-    try {
-      const fileContent = readFileSync(serviceAccountPath, 'utf-8');
-      credentials = JSON.parse(fileContent);
-      console.log('[Push] Loaded Firebase credentials from file');
-    } catch (error) {
-      console.error('[Push] Failed to read firebase-service-account.json:', error);
-    }
-  } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    try {
-      credentials = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      console.log('[Push] Loaded Firebase credentials from environment variable');
-    } catch (error) {
-      console.error('[Push] Failed to parse FIREBASE_SERVICE_ACCOUNT:', error);
-    }
-  }
-
-  if (!credentials) {
-    console.warn('[Push] Firebase not configured, push notifications disabled');
-    console.warn('[Push] Place firebase-service-account.json in server/ directory');
+  if (!JPUSH_APP_KEY || !JPUSH_MASTER_SECRET) {
+    console.warn('[Push] JPush not configured, push notifications disabled');
+    console.warn('[Push] Set JPUSH_APP_KEY and JPUSH_MASTER_SECRET in environment');
     return false;
   }
 
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(credentials),
-    });
-    firebaseInitialized = true;
-    console.log('[Push] Firebase Admin SDK initialized');
-    return true;
-  } catch (error) {
-    console.error('[Push] Failed to initialize Firebase:', error);
-    return false;
-  }
+  jpushInitialized = true;
+  console.log('[Push] JPush initialized');
+  return true;
+}
+
+/**
+ * Get JPush authorization header (Basic Auth)
+ */
+function getJPushAuth(): string {
+  const auth = Buffer.from(`${JPUSH_APP_KEY}:${JPUSH_MASTER_SECRET}`).toString('base64');
+  return `Basic ${auth}`;
 }
 
 /**
@@ -100,7 +92,7 @@ export async function unregisterDeviceToken(userId: string, token?: string): Pro
 }
 
 /**
- * Send push notification to a single user
+ * Send push notification to a single user via JPush
  */
 export async function sendPushNotification(
   userId: string,
@@ -108,7 +100,7 @@ export async function sendPushNotification(
   body: string,
   data?: Record<string, string>
 ): Promise<void> {
-  if (!initializeFirebase()) return;
+  if (!initializeJPush()) return;
 
   const db = getDatabase();
   const tokens = await db.getDeviceTokensByUserId(userId);
@@ -118,52 +110,60 @@ export async function sendPushNotification(
     return;
   }
 
-  const message: admin.messaging.MulticastMessage = {
-    tokens: tokens.map((t) => t.token),
-    notification: {
-      title,
-      body,
+  // JPush uses registration_id for targeting specific devices
+  const registrationIds = tokens.map((t) => t.token);
+
+  const payload = {
+    platform: 'all',
+    audience: {
+      registration_id: registrationIds,
     },
-    data: data || {},
-    android: {
-      notification: {
-        icon: 'ic_notification',
-        color: '#FF6B6B',
-        channelId: 'default',
+    notification: {
+      android: {
+        alert: body,
+        title: title,
+        extras: data || {},
       },
+      ios: {
+        alert: {
+          title: title,
+          body: body,
+        },
+        extras: data || {},
+      },
+    },
+    options: {
+      time_to_live: 86400, // 24 hours
+      apns_production: process.env.NODE_ENV === 'production',
     },
   };
 
   try {
-    const response = await admin.messaging().sendEachForMulticast(message);
+    const response = await fetch(JPUSH_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: getJPushAuth(),
+      },
+      body: JSON.stringify(payload),
+    });
 
-    console.log(
-      `[Push] Sent to ${userId}: ${response.successCount} success, ${response.failureCount} failed`
-    );
+    const result = (await response.json()) as JPushResponse;
 
-    // Handle invalid tokens
-    if (response.failureCount > 0) {
-      const failedTokens: string[] = [];
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          const errorCode = resp.error?.code;
-          // Remove invalid/expired tokens
-          if (
-            errorCode === 'messaging/registration-token-not-registered' ||
-            errorCode === 'messaging/invalid-registration-token'
-          ) {
-            failedTokens.push(tokens[idx].token);
-          }
+    if (response.ok) {
+      const successResult = result as JPushSuccessResponse;
+      console.log(`[Push] Sent to ${userId}: msg_id=${successResult.msg_id}`);
+    } else {
+      console.error(`[Push] Failed to send to ${userId}:`, result);
+
+      // Handle invalid registration IDs (error code 1011)
+      const errorResult = result as JPushErrorResponse;
+      if (errorResult.error?.code === 1011) {
+        // Remove all tokens for this user as they may be invalid
+        for (const token of tokens) {
+          await db.deleteDeviceToken(userId, token.token);
         }
-      });
-
-      // Clean up invalid tokens
-      for (const failedToken of failedTokens) {
-        await db.deleteDeviceToken(userId, failedToken);
-      }
-
-      if (failedTokens.length > 0) {
-        console.log(`[Push] Removed ${failedTokens.length} invalid tokens for user ${userId}`);
+        console.log(`[Push] Removed invalid tokens for user ${userId}`);
       }
     }
   } catch (error) {
