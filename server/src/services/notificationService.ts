@@ -119,18 +119,15 @@ export async function sendHeartbeat(userId: string): Promise<void> {
   }
 
   // Send notification to partner(s)
-  // TODO: Remove self-notification after testing
-  const testMode = true; // Set to false for production
   for (const member of members) {
-    if (member.user_id !== userId || testMode) {
+    if (member.user_id !== userId) {
       await createNotification(
-        testMode ? userId : member.user_id,
+        member.user_id,
         'heartbeat',
         `💕 ${sender.nickname}想你了`,
         '',
         '/dashboard'
       );
-      if (testMode) break; // Only send one notification in test mode
     }
   }
 }

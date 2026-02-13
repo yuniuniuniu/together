@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Prevent text selection on interactive elements (mobile) */
+button,
+a,
+[role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 @theme {
   /* Colors */
   --color-primary: #eb6347;
