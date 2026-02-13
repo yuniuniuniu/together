@@ -98,7 +98,8 @@ export async function sendPushNotification(
   userId: string,
   title: string,
   body: string,
-  data?: Record<string, string>
+  data?: Record<string, string>,
+  options?: { vibrate?: boolean }
 ): Promise<void> {
   if (!initializeJPush()) return;
 
@@ -113,6 +114,10 @@ export async function sendPushNotification(
   // JPush uses registration_id for targeting specific devices
   const registrationIds = tokens.map((t) => t.token);
 
+  // Use title as alert if body is empty
+  const alertText = body || title;
+  const shouldVibrate = options?.vibrate ?? false;
+
   const payload = {
     platform: 'all',
     audience: {
@@ -120,16 +125,19 @@ export async function sendPushNotification(
     },
     notification: {
       android: {
-        alert: body,
+        alert: alertText,
         title: title,
         extras: data || {},
+        priority: 2, // HIGH priority
+        channel_id: shouldVibrate ? 'heartbeat_channel' : 'default_channel',
       },
       ios: {
         alert: {
           title: title,
-          body: body,
+          body: alertText,
         },
         extras: data || {},
+        sound: 'default',
       },
     },
     options: {

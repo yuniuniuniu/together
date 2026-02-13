@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpace } from '../shared/context/SpaceContext';
 import { useAuth } from '../shared/context/AuthContext';
@@ -7,6 +7,7 @@ import { useMemoriesQuery } from '../shared/hooks/useMemoriesQuery';
 import { useMilestonesQuery } from '../shared/hooks/useMilestonesQuery';
 import { useFixedTopBar } from '../shared/hooks/useFixedTopBar';
 import { resolveMediaUrl } from '../shared/utils/resolveMediaUrl';
+import { notificationsApi } from '../shared/api/client';
 
 interface Memory {
   id: string;
@@ -54,6 +55,24 @@ const Dashboard: React.FC = () => {
   const myAvatarUrl = resolveMediaUrl(user?.avatar);
   const partnerAvatarUrl = resolveMediaUrl(partner?.user?.avatar);
   const { topBarRef, topBarHeight } = useFixedTopBar();
+  const [heartbeatSending, setHeartbeatSending] = useState(false);
+  const [heartbeatSent, setHeartbeatSent] = useState(false);
+
+  const handleHeartbeat = useCallback(async () => {
+    if (heartbeatSending || heartbeatSent) return;
+
+    setHeartbeatSending(true);
+    try {
+      await notificationsApi.sendHeartbeat();
+      setHeartbeatSent(true);
+      // Reset after 3 seconds so user can send again
+      setTimeout(() => setHeartbeatSent(false), 3000);
+    } catch {
+      // Silently fail - user can try again
+    } finally {
+      setHeartbeatSending(false);
+    }
+  }, [heartbeatSending, heartbeatSent]);
 
   const formatAnniversaryDate = () => {
     if (!anniversaryDate) return '';
@@ -71,7 +90,26 @@ const Dashboard: React.FC = () => {
         className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[430px] flex items-center justify-between px-6 pb-4 pt-safe-offset-4 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-b border-black/[0.03] dark:border-zinc-800/80"
       >
         <div className="size-10 flex items-center justify-start">
-          <span className="material-symbols-outlined text-dusty-rose text-2xl">favorite</span>
+          <button
+            onClick={handleHeartbeat}
+            disabled={heartbeatSending}
+            className={`p-2 rounded-full transition-all duration-300 ${
+              heartbeatSent
+                ? 'bg-accent/20 text-accent scale-110'
+                : heartbeatSending
+                ? 'text-dusty-rose/50'
+                : 'text-dusty-rose hover:bg-primary/10 hover:scale-110 active:scale-95'
+            }`}
+          >
+            <span
+              className={`material-symbols-outlined text-2xl transition-all duration-300 ${
+                heartbeatSent ? 'animate-pulse' : ''
+              }`}
+              style={{ fontVariationSettings: heartbeatSent ? "'FILL' 1" : "'FILL' 0" }}
+            >
+              favorite
+            </span>
+          </button>
         </div>
         <h2 className="text-base font-semibold tracking-wide uppercase text-[#5d3a3a] dark:text-gray-300">Our Space</h2>
         <div className="size-10 flex items-center justify-end">
@@ -145,12 +183,12 @@ const Dashboard: React.FC = () => {
         </section>
 
         <section className="w-full px-2">
-          <button 
+          <button
             onClick={() => navigate('/record-type')}
-            className="group w-full bg-dusty-rose-light hover:bg-[#eccaca] text-[#4a2b2b] py-5 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 transform active:scale-[0.98] shadow-glow border border-white/20 relative overflow-hidden"
+            className="group w-full bg-dusty-rose-light hover:bg-[#e8bfbf] active:bg-[#d4a5a5] text-[#4a2b2b] py-5 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.97] shadow-glow hover:shadow-lg active:shadow-md border border-white/20 active:border-primary/30 relative overflow-hidden"
           >
-            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-            <span className="material-symbols-outlined relative z-10">edit_note</span>
+            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 group-active:bg-primary/10 transition-all duration-300"></div>
+            <span className="material-symbols-outlined relative z-10 group-active:text-primary transition-colors">edit_note</span>
             <span className="text-lg font-bold tracking-tight relative z-10">Record Today's Story</span>
           </button>
         </section>

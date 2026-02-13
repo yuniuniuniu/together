@@ -15,14 +15,6 @@ interface Location {
   createdAt: string;
 }
 
-declare global {
-  interface Window {
-    _AMapSecurityConfig?: {
-      securityJsCode: string;
-    };
-  }
-}
-
 // 高德地图安全配置
 if (typeof window !== 'undefined') {
   window._AMapSecurityConfig = {
@@ -297,7 +289,7 @@ const MemoryMap: React.FC = () => {
         {mapReady && locations.length > 0 && selectedLocation && (
           <>
             {/* Selected Location Card */}
-            <div className="absolute top-4 left-4 right-4 z-[1000]">
+            <div className="absolute top-4 left-4 right-4 z-40">
               <div
                 className="bg-white/95 backdrop-blur-md p-3.5 rounded-2xl shadow-soft flex items-center gap-3.5 border border-white/60 transform hover:scale-[1.02] transition-transform duration-300 cursor-pointer"
                 onClick={() => navigate(`/memory/${selectedLocation.memoryId}`)}
