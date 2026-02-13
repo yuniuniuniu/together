@@ -113,6 +113,9 @@ export async function sendPushNotification(
   // JPush uses registration_id for targeting specific devices
   const registrationIds = tokens.map((t) => t.token);
 
+  // Use title as alert if body is empty
+  const alertText = body || title;
+
   const payload = {
     platform: 'all',
     audience: {
@@ -120,14 +123,14 @@ export async function sendPushNotification(
     },
     notification: {
       android: {
-        alert: body,
+        alert: alertText,
         title: title,
         extras: data || {},
       },
       ios: {
         alert: {
           title: title,
-          body: body,
+          body: alertText,
         },
         extras: data || {},
       },
