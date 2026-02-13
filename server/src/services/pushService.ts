@@ -98,7 +98,8 @@ export async function sendPushNotification(
   userId: string,
   title: string,
   body: string,
-  data?: Record<string, string>
+  data?: Record<string, string>,
+  options?: { vibrate?: boolean }
 ): Promise<void> {
   if (!initializeJPush()) return;
 
@@ -115,6 +116,7 @@ export async function sendPushNotification(
 
   // Use title as alert if body is empty
   const alertText = body || title;
+  const shouldVibrate = options?.vibrate ?? false;
 
   const payload = {
     platform: 'all',
@@ -126,6 +128,10 @@ export async function sendPushNotification(
         alert: alertText,
         title: title,
         extras: data || {},
+        builder_id: 1,
+        priority: 1,
+        style: 0,
+        alert_type: shouldVibrate ? 7 : 1, // 1=sound only, 7=sound+vibrate+lights
       },
       ios: {
         alert: {
@@ -133,6 +139,7 @@ export async function sendPushNotification(
           body: alertText,
         },
         extras: data || {},
+        sound: 'default',
       },
     },
     options: {

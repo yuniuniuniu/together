@@ -79,11 +79,13 @@ export async function createNotification(
   });
 
   // Send push notification asynchronously (don't block the main flow)
+  // Only vibrate for heartbeat notifications
+  const shouldVibrate = type === 'heartbeat';
   sendPushNotification(userId, title, message, {
     type,
     notificationId: id,
     actionUrl: actionUrl || '',
-  }).catch((err) => {
+  }, { vibrate: shouldVibrate }).catch((err) => {
     console.error('[Notification] Push notification failed:', err);
   });
 
