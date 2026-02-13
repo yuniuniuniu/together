@@ -128,10 +128,8 @@ export async function sendPushNotification(
         alert: alertText,
         title: title,
         extras: data || {},
-        builder_id: 1,
-        priority: 1,
-        style: 0,
-        alert_type: shouldVibrate ? 7 : 1, // 1=sound only, 7=sound+vibrate+lights
+        priority: 2, // HIGH priority
+        channel_id: shouldVibrate ? 'heartbeat_channel' : 'default_channel',
       },
       ios: {
         alert: {

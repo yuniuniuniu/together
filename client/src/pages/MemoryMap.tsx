@@ -15,14 +15,6 @@ interface Location {
   createdAt: string;
 }
 
-declare global {
-  interface Window {
-    _AMapSecurityConfig?: {
-      securityJsCode: string;
-    };
-  }
-}
-
 // 高德地图安全配置
 if (typeof window !== 'undefined') {
   window._AMapSecurityConfig = {
