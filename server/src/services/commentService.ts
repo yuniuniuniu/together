@@ -2,7 +2,10 @@ import { v4 as uuid } from 'uuid';
 import { getDatabase, CommentData } from '../db/database.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getMemoryById } from './memoryService.js';
+import { getMilestoneById } from './milestoneService.js';
 import { createNotification } from './notificationService.js';
+
+export type CommentTargetType = 'memory' | 'milestone';
 
 export interface Comment {
   id: string;
@@ -34,11 +37,33 @@ function formatComment(
   };
 }
 
+/** Validate target exists and return its createdBy user ID */
+async function validateTarget(
+  targetId: string,
+  userId: string,
+  targetType: CommentTargetType
+): Promise<{ createdBy: string }> {
+  if (targetType === 'milestone') {
+    const milestone = await getMilestoneById(targetId, userId);
+    if (!milestone) {
+      throw new AppError(404, 'MILESTONE_NOT_FOUND', 'Milestone not found');
+    }
+    return { createdBy: milestone.createdBy };
+  }
+  // default: memory
+  const memory = await getMemoryById(targetId, userId);
+  if (!memory) {
+    throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
+  }
+  return { createdBy: memory.createdBy };
+}
+
 export async function addComment(
-  memoryId: string,
+  targetId: string,
   userId: string,
   content: string,
-  parentId?: string
+  parentId?: string,
+  targetType: CommentTargetType = 'memory'
 ): Promise<Comment> {
   const db = getDatabase();
 
@@ -47,16 +72,13 @@ export async function addComment(
     throw new AppError(400, 'INVALID_CONTENT', 'Comment content cannot be empty');
   }
 
-  // Check memory exists and user has access
-  const memory = await getMemoryById(memoryId, userId);
-  if (!memory) {
-    throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
-  }
+  // Check target exists and user has access
+  const target = await validateTarget(targetId, userId, targetType);
 
-  // If replying, validate parent comment exists and belongs to same memory
+  // If replying, validate parent comment exists and belongs to same target
   if (parentId) {
     const parentComment = await db.getCommentById(parentId);
-    if (!parentComment || parentComment.memory_id !== memoryId) {
+    if (!parentComment || parentComment.memory_id !== targetId) {
       throw new AppError(404, 'COMMENT_NOT_FOUND', 'Parent comment not found');
     }
     // If parent itself is a reply, redirect to the top-level comment
@@ -68,7 +90,7 @@ export async function addComment(
   const id = uuid();
   const comment = await db.createComment({
     id,
-    memory_id: memoryId,
+    memory_id: targetId,
     user_id: userId,
     parent_id: parentId || null,
     content: content.trim(),
@@ -83,6 +105,9 @@ export async function addComment(
   const previewText =
     content.length > 40 ? content.substring(0, 40) + '...' : content;
 
+  const targetLabel = targetType === 'milestone' ? 'milestone' : 'memory';
+  const targetUrl = targetType === 'milestone' ? `/milestone/${targetId}` : `/memory/${targetId}`;
+
   if (parentId) {
     // Reply: notify the parent comment author (if different user)
     const parentComment = await db.getCommentById(parentId);
@@ -92,31 +117,31 @@ export async function addComment(
         'comment_reply',
         `${commenterName} replied to your comment`,
         previewText,
-        `/memory/${memoryId}`
+        targetUrl
       );
     }
-    // Also notify memory creator if they didn't write the parent comment and aren't the replier
+    // Also notify target creator if they didn't write the parent comment and aren't the replier
     if (
-      memory.createdBy !== userId &&
-      memory.createdBy !== parentComment?.user_id
+      target.createdBy !== userId &&
+      target.createdBy !== parentComment?.user_id
     ) {
       await createNotification(
-        memory.createdBy,
+        target.createdBy,
         'comment',
-        `${commenterName} commented on your memory`,
+        `${commenterName} commented on your ${targetLabel}`,
         previewText,
-        `/memory/${memoryId}`
+        targetUrl
       );
     }
   } else {
-    // Top-level comment: notify memory creator (if different user)
-    if (memory.createdBy !== userId) {
+    // Top-level comment: notify target creator (if different user)
+    if (target.createdBy !== userId) {
       await createNotification(
-        memory.createdBy,
+        target.createdBy,
         'comment',
-        `${commenterName} commented on your memory`,
+        `${commenterName} commented on your ${targetLabel}`,
         previewText,
-        `/memory/${memoryId}`
+        targetUrl
       );
     }
   }
@@ -129,18 +154,16 @@ export async function addComment(
 }
 
 export async function listComments(
-  memoryId: string,
-  userId: string
+  targetId: string,
+  userId: string,
+  targetType: CommentTargetType = 'memory'
 ): Promise<Comment[]> {
   const db = getDatabase();
 
-  // Check memory exists and user has access
-  const memory = await getMemoryById(memoryId, userId);
-  if (!memory) {
-    throw new AppError(404, 'MEMORY_NOT_FOUND', 'Memory not found');
-  }
+  // Check target exists and user has access
+  await validateTarget(targetId, userId, targetType);
 
-  const comments = await db.listCommentsByMemoryId(memoryId);
+  const comments = await db.listCommentsByMemoryId(targetId);
 
   // Collect unique user IDs
   const userIds = [...new Set(comments.map((c) => c.user_id))];

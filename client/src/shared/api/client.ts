@@ -477,21 +477,25 @@ export interface CommentItem {
   replies?: CommentItem[];
 }
 
-export const commentsApi = {
-  list: (memoryId: string) =>
-    apiClient<CommentItem[]>(`/comments/${memoryId}`),
+export type CommentTargetType = 'memory' | 'milestone';
 
-  add: (memoryId: string, content: string, parentId?: string) =>
-    apiClient<CommentItem>(`/comments/${memoryId}`, {
+export const commentsApi = {
+  list: (targetId: string, targetType?: CommentTargetType) =>
+    apiClient<CommentItem[]>(
+      `/comments/${targetId}${targetType === 'milestone' ? '?targetType=milestone' : ''}`
+    ),
+
+  add: (targetId: string, content: string, parentId?: string, targetType?: CommentTargetType) =>
+    apiClient<CommentItem>(`/comments/${targetId}`, {
       method: 'POST',
-      body: JSON.stringify({ content, parentId }),
+      body: JSON.stringify({ content, parentId, targetType }),
     }),
 
   delete: (commentId: string) =>
     apiClient<null>(`/comments/item/${commentId}`, { method: 'DELETE' }),
 
-  count: (memoryId: string) =>
-    apiClient<{ count: number }>(`/comments/${memoryId}/count`),
+  count: (targetId: string) =>
+    apiClient<{ count: number }>(`/comments/${targetId}/count`),
 };
 
 // Upload API
