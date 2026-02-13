@@ -13,14 +13,11 @@ const config: CapacitorConfig = {
       launchShowDuration: 2000,
       backgroundColor: '#F6E7D8',
       showSpinner: false
-    }
-  },
-  // JPush configuration - set your AppKey before running npm install
-  // Install with: npm install jpush-phonegap-plugin --variable APP_KEY=your-app-key
-  cordova: {
-    preferences: {
-      // JPush AppKey - replace with your actual key from https://www.jiguang.cn/
-      // APP_KEY: 'your-jpush-app-key'
+    },
+    JPush: {
+      // JPush AppKey from https://www.jiguang.cn/
+      appKey: '6f8e22f75ffb083bf9e141aa',
+      channel: 'developer-default'
     }
   }
 };

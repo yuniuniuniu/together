@@ -1,44 +1,59 @@
 import { useEffect, useCallback, useState } from 'react';
 import { Platform } from '@/shared/utils/platform';
+import type { PluginListenerHandle } from '@capacitor/core';
 
-// JPush Capacitor plugin types
-interface JPushRegistration {
-  registrationId: string;
+// Import types from capacitor-plugin-jpush
+interface ReceiveNotificationData {
+  title: string;
+  content: string;
+  subTitle: string;
+  rawData: {
+    aps?: {
+      alert: {
+        body: string;
+        subTitle: string;
+        title: string;
+      };
+      badge: number;
+      sound: string;
+    };
+    [x: string]: unknown;
+  };
 }
 
-interface JPushNotification {
-  title?: string;
-  content?: string;
-  extras?: Record<string, unknown>;
+interface JPushPluginType {
+  startJPush(): Promise<void>;
+  setDebugMode(isDebug: boolean): Promise<void>;
+  getRegistrationID(): Promise<{ registrationId: string }>;
+  checkPermissions(): Promise<{ permission: string }>;
+  requestPermissions(): Promise<{ permission: string }>;
+  setBadgeNumber(options?: { badge: number }): Promise<void>;
+  addListener(
+    eventName: 'notificationReceived',
+    listenerFunc: (data: ReceiveNotificationData) => void
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'notificationOpened',
+    listenerFunc: (data: ReceiveNotificationData) => void
+  ): Promise<PluginListenerHandle>;
+  removeListeners(): Promise<void>;
 }
 
-// Declare JPush plugin (will be available after installing jpush-phonegap-plugin)
-declare const JPush: {
-  init(): void;
-  setDebugMode(enable: boolean): void;
-  getRegistrationID(callback: (result: JPushRegistration) => void): void;
-  addConnectEventListener(callback: (result: { isConnected: boolean }) => void): void;
-  addNotificationListener(callback: (notification: JPushNotification) => void): void;
-  addCustomMessageListener(callback: (message: JPushNotification) => void): void;
-  addOpenNotificationListener(callback: (notification: JPushNotification) => void): void;
-  requestPermission(): void;
-  setBadge(badge: number): void;
-  resetBadge(): void;
-};
+// Will be imported dynamically
+let JPush: JPushPluginType | null = null;
 
 export interface PushNotificationState {
   token: string | null;
-  notification: JPushNotification | null;
+  notification: ReceiveNotificationData | null;
   error: string | null;
 }
 
 /**
  * Cross-platform push notifications hook using JPush.
- * Uses native JPush SDK on Android/iOS, falls back to web Notification API.
  */
 export function usePushNotifications(
-  onNotificationReceived?: (notification: JPushNotification) => void,
-  onNotificationAction?: (notification: JPushNotification) => void
+  onNotificationReceived?: (notification: ReceiveNotificationData) => void,
+  onNotificationAction?: (notification: ReceiveNotificationData) => void
 ) {
   const [state, setState] = useState<PushNotificationState>({
     token: null,
@@ -63,84 +78,118 @@ export function usePushNotifications(
         return null;
       }
 
-      // No token for web notifications
       return 'web-notifications-enabled';
     }
 
     try {
-      // Check if JPush is available
-      if (typeof JPush === 'undefined') {
-        setState(prev => ({ ...prev, error: 'JPush plugin not available' }));
+      // Dynamically import JPush plugin
+      if (!JPush) {
+        const module = await import('capacitor-plugin-jpush');
+        JPush = module.JPush;
+      }
+
+      // Enable debug mode in development
+      await JPush.setDebugMode(import.meta.env.DEV);
+
+      // Start JPush service
+      await JPush.startJPush();
+      console.log('[JPush] Service started');
+
+      // Request permissions
+      const permStatus = await JPush.requestPermissions();
+      console.log('[JPush] Permission status:', permStatus.permission);
+
+      if (permStatus.permission !== 'granted') {
+        setState(prev => ({ ...prev, error: 'Push notification permission denied' }));
         return null;
       }
 
-      // Initialize JPush
-      JPush.init();
-      JPush.setDebugMode(process.env.NODE_ENV !== 'production');
+      // Get registration ID (may need to wait)
+      const getRegId = async (): Promise<string | null> => {
+        const result = await JPush!.getRegistrationID();
+        if (result.registrationId) {
+          return result.registrationId;
+        }
+        return null;
+      };
 
-      // Request permission (important for iOS)
-      JPush.requestPermission();
+      let regId = await getRegId();
 
-      // Get registration ID
+      if (regId) {
+        console.log('[JPush] Registration ID:', regId);
+        setState(prev => ({ ...prev, token: regId, error: null }));
+        return regId;
+      }
+
+      // If no registration ID yet, poll for it
       return new Promise((resolve) => {
-        // Try to get registration ID immediately
-        JPush.getRegistrationID((result) => {
-          if (result.registrationId) {
-            setState(prev => ({ ...prev, token: result.registrationId, error: null }));
-            resolve(result.registrationId);
-          } else {
-            // Wait for connection and retry
-            JPush.addConnectEventListener((connectResult) => {
-              if (connectResult.isConnected) {
-                JPush.getRegistrationID((retryResult) => {
-                  if (retryResult.registrationId) {
-                    setState(prev => ({ ...prev, token: retryResult.registrationId, error: null }));
-                    resolve(retryResult.registrationId);
-                  } else {
-                    setState(prev => ({ ...prev, error: 'Failed to get registration ID' }));
-                    resolve(null);
-                  }
-                });
-              }
-            });
-          }
-        });
+        let attempts = 0;
+        const maxAttempts = 15;
 
-        // Timeout after 10 seconds
-        setTimeout(() => {
-          if (!state.token) {
-            setState(prev => ({ ...prev, error: 'Registration timeout' }));
-            resolve(null);
+        const checkInterval = setInterval(async () => {
+          attempts++;
+          try {
+            regId = await getRegId();
+            if (regId) {
+              clearInterval(checkInterval);
+              console.log('[JPush] Registration ID (delayed):', regId);
+              setState(prev => ({ ...prev, token: regId, error: null }));
+              resolve(regId);
+            } else if (attempts >= maxAttempts) {
+              clearInterval(checkInterval);
+              setState(prev => ({ ...prev, error: 'Registration timeout' }));
+              resolve(null);
+            }
+          } catch (e) {
+            console.error('[JPush] Error getting registration ID:', e);
           }
-        }, 10000);
+        }, 1000);
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to register';
+      console.error('[JPush] Registration error:', message);
       setState(prev => ({ ...prev, error: message }));
       return null;
     }
-  }, [state.token]);
+  }, []);
 
   // Set up notification listeners on native platforms
   useEffect(() => {
-    if (!Platform.isNative() || typeof JPush === 'undefined') return;
+    if (!Platform.isNative()) return;
 
-    // Notification received while app is in foreground
-    JPush.addNotificationListener((notification) => {
-      setState(prev => ({ ...prev, notification }));
-      onNotificationReceived?.(notification);
-    });
+    let receivedListener: PluginListenerHandle | null = null;
+    let openedListener: PluginListenerHandle | null = null;
 
-    // User tapped on notification (app opened from notification)
-    JPush.addOpenNotificationListener((notification) => {
-      onNotificationAction?.(notification);
-    });
+    const setupListeners = async () => {
+      if (!JPush) {
+        try {
+          const module = await import('capacitor-plugin-jpush');
+          JPush = module.JPush;
+        } catch {
+          return;
+        }
+      }
 
-    // Custom message listener (for silent push)
-    JPush.addCustomMessageListener((message) => {
-      console.log('[JPush] Custom message received:', message);
-    });
+      // Notification received while app is in foreground
+      receivedListener = await JPush.addListener('notificationReceived', (data) => {
+        console.log('[JPush] Notification received:', data);
+        setState(prev => ({ ...prev, notification: data }));
+        onNotificationReceived?.(data);
+      });
 
+      // User tapped on notification
+      openedListener = await JPush.addListener('notificationOpened', (data) => {
+        console.log('[JPush] Notification opened:', data);
+        onNotificationAction?.(data);
+      });
+    };
+
+    setupListeners();
+
+    return () => {
+      receivedListener?.remove();
+      openedListener?.remove();
+    };
   }, [onNotificationReceived, onNotificationAction]);
 
   /**
@@ -148,35 +197,32 @@ export function usePushNotifications(
    */
   const showLocalNotification = useCallback(async (title: string, body: string) => {
     if (!Platform.isNative()) {
-      // Web notification
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(title, { body });
       }
       return;
     }
-
-    // On native with JPush, local notifications are handled differently
-    // JPush primarily handles remote push, local notifications need separate plugin
     console.log('Local notification:', title, body);
   }, []);
 
   /**
-   * Reset badge count
+   * Set badge number
    */
-  const resetBadge = useCallback(() => {
-    if (Platform.isNative() && typeof JPush !== 'undefined') {
-      JPush.resetBadge();
+  const setBadge = useCallback(async (count: number) => {
+    if (!Platform.isNative() || !JPush) return;
+    try {
+      await JPush.setBadgeNumber({ badge: count });
+    } catch (e) {
+      console.error('[JPush] Failed to set badge:', e);
     }
   }, []);
 
   /**
-   * Set badge count
+   * Clear badge
    */
-  const setBadge = useCallback((count: number) => {
-    if (Platform.isNative() && typeof JPush !== 'undefined') {
-      JPush.setBadge(count);
-    }
-  }, []);
+  const clearBadge = useCallback(async () => {
+    await setBadge(0);
+  }, [setBadge]);
 
   return {
     token: state.token,
@@ -184,7 +230,7 @@ export function usePushNotifications(
     error: state.error,
     register,
     showLocalNotification,
-    resetBadge,
-    setBadge
+    setBadge,
+    clearBadge
   };
 }
