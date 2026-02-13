@@ -89,6 +89,12 @@ export interface DatabaseAdapter {
 
   // Get all spaces (for reminders)
   getAllSpaces(): Promise<SpaceData[]>;
+
+  // Device Tokens (for push notifications)
+  createDeviceToken(token: DeviceTokenData): Promise<DeviceTokenData>;
+  getDeviceTokensByUserId(userId: string): Promise<DeviceTokenData[]>;
+  deleteDeviceToken(userId: string, token: string): Promise<void>;
+  deleteDeviceTokensByUserId(userId: string): Promise<void>;
 }
 
 // Data types
@@ -202,6 +208,16 @@ export interface SessionData {
   token: string;
   created_at: string;
   expires_at: string;
+  is_deleted?: number;
+}
+
+export interface DeviceTokenData {
+  id: string;
+  user_id: string;
+  token: string;
+  platform: 'android' | 'ios' | 'web';
+  created_at: string;
+  updated_at: string;
   is_deleted?: number;
 }
 

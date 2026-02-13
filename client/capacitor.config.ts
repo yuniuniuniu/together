@@ -13,6 +13,11 @@ const config: CapacitorConfig = {
       launchShowDuration: 2000,
       backgroundColor: '#F6E7D8',
       showSpinner: false
+    },
+    JPush: {
+      // JPush AppKey from https://www.jiguang.cn/
+      appKey: '6f8e22f75ffb083bf9e141aa',
+      channel: 'developer-default'
     }
   }
 };

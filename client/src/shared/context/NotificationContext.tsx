@@ -94,7 +94,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   }, []);
 
   // Register native push notifications once per session.
-  // Guarded behind env flag because unconfigured Firebase on Android can crash on native register().
+  // Guarded behind env flag because unconfigured JPush on Android can crash on native register().
   useEffect(() => {
     if (!ENABLE_NATIVE_PUSH || !isAuthenticated || !Platform.isNative() || pushRegisteredRef.current) return;
 
@@ -105,12 +105,16 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     });
   }, [isAuthenticated, registerPush]);
 
+  // Register device token with backend when acquired
   useEffect(() => {
-    if (pushToken) {
-      console.log('[Push] device token acquired');
-      // TODO: send token to backend when API endpoint is available.
+    if (pushToken && isAuthenticated) {
+      console.log('[Push] Registering device token with backend');
+      notificationsApi
+        .registerDeviceToken(pushToken, 'android')
+        .then(() => console.log('[Push] Device token registered successfully'))
+        .catch((err) => console.error('[Push] Failed to register device token:', err));
     }
-  }, [pushToken]);
+  }, [pushToken, isAuthenticated]);
 
   useEffect(() => {
     if (!pushError) return;

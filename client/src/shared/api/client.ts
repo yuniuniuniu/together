@@ -395,6 +395,18 @@ export const notificationsApi = {
 
   markAllAsRead: () =>
     apiClient<{ count: number }>('/notifications/read-all', { method: 'PUT' }),
+
+  registerDeviceToken: (token: string, platform: 'android' | 'ios' | 'web' = 'android') =>
+    apiClient<void>('/notifications/device-token', {
+      method: 'POST',
+      body: JSON.stringify({ token, platform }),
+    }),
+
+  unregisterDeviceToken: (token?: string) =>
+    apiClient<void>('/notifications/device-token', {
+      method: 'DELETE',
+      body: JSON.stringify({ token }),
+    }),
 };
 
 // Reactions API

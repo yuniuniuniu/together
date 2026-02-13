@@ -4,6 +4,7 @@ import { createSession, invalidateSession, invalidateAllUserSessions } from '../
 import { AppError } from '../middleware/errorHandler.js';
 import { createNotification } from './notificationService.js';
 import { sendVerificationEmail } from './emailService.js';
+import { unregisterDeviceToken } from './pushService.js';
 
 interface User {
   id: string;
@@ -142,11 +143,21 @@ export async function updateUserProfile(
 }
 
 // Logout - invalidate current session
-export async function logout(sessionId: string): Promise<void> {
+export async function logout(sessionId: string, deviceToken?: string): Promise<void> {
+  // Unregister device token if provided
+  if (deviceToken) {
+    const db = getDatabase();
+    const session = await db.getSessionByToken(sessionId);
+    if (session) {
+      await unregisterDeviceToken(session.user_id, deviceToken);
+    }
+  }
   await invalidateSession(sessionId);
 }
 
 // Logout from all devices
 export async function logoutAllDevices(userId: string): Promise<void> {
+  // Unregister all device tokens for this user
+  await unregisterDeviceToken(userId);
   await invalidateAllUserSessions(userId);
 }

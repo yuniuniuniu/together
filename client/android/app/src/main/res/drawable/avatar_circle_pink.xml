@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+
+    <!-- 浅粉色/肤色背景 -->
+    <solid android:color="#F5C6AA" />
+
+    <!-- 无边框 -->
+
+</shape>

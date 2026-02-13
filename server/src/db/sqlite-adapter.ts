@@ -11,6 +11,7 @@ import {
   CommentData,
   UnbindRequestData,
   SessionData,
+  DeviceTokenData,
 } from './adapter.js';
 import { dbPrepare, saveDatabase } from './index.js';
 
@@ -600,6 +601,41 @@ export class SQLiteAdapter implements DatabaseAdapter {
     const placeholders = ids.map(() => '?').join(', ');
     const rows = dbPrepare(`SELECT * FROM users WHERE id IN (${placeholders}) AND is_deleted = 0`).all(...ids);
     return asTypeArray<UserData>(rows);
+  }
+
+  // Device Tokens
+  async createDeviceToken(data: DeviceTokenData): Promise<DeviceTokenData> {
+    // Use INSERT OR REPLACE to handle token updates (same user, same token)
+    dbPrepare(`
+      INSERT INTO device_tokens (id, user_id, token, platform, created_at, updated_at, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, 0)
+      ON CONFLICT(user_id, token) DO UPDATE SET updated_at = ?, is_deleted = 0
+    `).run(
+      data.id,
+      data.user_id,
+      data.token,
+      data.platform,
+      data.created_at,
+      data.updated_at,
+      data.updated_at
+    );
+    saveDatabase();
+    return data;
+  }
+
+  async getDeviceTokensByUserId(userId: string): Promise<DeviceTokenData[]> {
+    const rows = dbPrepare('SELECT * FROM device_tokens WHERE user_id = ? AND is_deleted = 0').all(userId);
+    return asTypeArray<DeviceTokenData>(rows);
+  }
+
+  async deleteDeviceToken(userId: string, token: string): Promise<void> {
+    dbPrepare('UPDATE device_tokens SET is_deleted = 1 WHERE user_id = ? AND token = ? AND is_deleted = 0').run(userId, token);
+    saveDatabase();
+  }
+
+  async deleteDeviceTokensByUserId(userId: string): Promise<void> {
+    dbPrepare('UPDATE device_tokens SET is_deleted = 1 WHERE user_id = ? AND is_deleted = 0').run(userId);
+    saveDatabase();
   }
 }
 

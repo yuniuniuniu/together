@@ -28,3 +28,8 @@ dist-ssr
 .env.local
 .env.production
 server/data/sanctuary.db
+
+# Firebase credentials (contains private key)
+server/firebase-service-account.json
+firebase-service-account.json
+*-firebase-adminsdk-*.json

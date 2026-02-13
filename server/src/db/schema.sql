@@ -124,6 +124,18 @@ CREATE TABLE IF NOT EXISTS unbind_requests (
   is_deleted INTEGER DEFAULT 0
 );
 
+-- Device tokens (for push notifications)
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'android',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER DEFAULT 0,
+  UNIQUE(user_id, token)
+);
+
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_memories_space_id ON memories(space_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_space_id ON milestones(space_id);
@@ -134,3 +146,4 @@ CREATE INDEX IF NOT EXISTS idx_reactions_memory_id ON reactions(memory_id);
 CREATE INDEX IF NOT EXISTS idx_comments_memory_id ON comments(memory_id);
 CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id);
 CREATE INDEX IF NOT EXISTS idx_unbind_requests_space_id ON unbind_requests(space_id);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user_id ON device_tokens(user_id);
