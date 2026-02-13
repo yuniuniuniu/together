@@ -94,3 +94,41 @@ export async function markAllNotificationsAsRead(userId: string): Promise<number
   const db = getDatabase();
   return await db.markAllNotificationsRead(userId);
 }
+
+export async function sendHeartbeat(userId: string): Promise<void> {
+  const db = getDatabase();
+
+  // Get user's space membership
+  const membership = await db.getSpaceMemberByUserId(userId);
+  if (!membership) {
+    throw new AppError(400, 'NOT_IN_SPACE', 'User is not in a space');
+  }
+
+  // Get all members in the space
+  const members = await db.getSpaceMembersBySpaceId(membership.space_id);
+  if (members.length < 2) {
+    throw new AppError(400, 'NO_PARTNER', 'No partner in space yet');
+  }
+
+  // Get sender's info
+  const sender = await db.getUserById(userId);
+  if (!sender) {
+    throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+  }
+
+  // Send notification to partner(s)
+  // TODO: Remove self-notification after testing
+  const testMode = true; // Set to false for production
+  for (const member of members) {
+    if (member.user_id !== userId || testMode) {
+      await createNotification(
+        testMode ? userId : member.user_id,
+        'heartbeat',
+        `💕 ${sender.nickname}想你了`,
+        '',
+        '/dashboard'
+      );
+      if (testMode) break; // Only send one notification in test mode
+    }
+  }
+}

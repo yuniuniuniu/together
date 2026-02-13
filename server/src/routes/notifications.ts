@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
-import { listNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../services/notificationService.js';
+import { listNotifications, markNotificationAsRead, markAllNotificationsAsRead, sendHeartbeat } from '../services/notificationService.js';
 import { registerDeviceToken, unregisterDeviceToken } from '../services/pushService.js';
 
 const router = Router();
@@ -83,6 +83,20 @@ router.delete('/device-token', async (req: AuthRequest, res, next) => {
     res.json({
       success: true,
       message: 'Device token unregistered',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/notifications/heartbeat - Send heartbeat to partner
+router.post('/heartbeat', async (req: AuthRequest, res, next) => {
+  try {
+    await sendHeartbeat(req.user!.id);
+
+    res.json({
+      success: true,
+      message: 'Heartbeat sent',
     });
   } catch (error) {
     next(error);

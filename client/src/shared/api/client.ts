@@ -407,6 +407,9 @@ export const notificationsApi = {
       method: 'DELETE',
       body: JSON.stringify({ token }),
     }),
+
+  sendHeartbeat: () =>
+    apiClient<void>('/notifications/heartbeat', { method: 'POST' }),
 };
 
 // Reactions API
